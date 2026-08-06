@@ -13,20 +13,24 @@ These are consumed as ordinary dependencies, not copied into this tree.
 
 | Project | License | Version | Notes |
 | --- | --- | --- | --- |
-| [sing-box](https://github.com/SagerNet/sing-box) | GPL-3.0-or-later, with an additional §7 clause restricting use of the name and implied association | v1.13.16 | Imported as a Go module by `caelo-core`. No fork; Caelo registers its own protocol types through the public registry API. |
-| [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) | MIT | see `caelo-core/go.mod` | Source of the AmneziaWG obfuscation layer. |
-| [wireguard-go](https://git.zx2c4.com/wireguard-go/) | MIT | via `sagernet/wireguard-go` | Upstream of both forks below. |
+| [sing-box](https://github.com/SagerNet/sing-box) | GPL-3.0-or-later, with an additional §7 clause restricting use of the name and implied association | v1.13.16 | Imported as a Go module by `caelo-core`. Caelo registers its own protocol types through the public registry API. |
+| [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) | MIT | v3.0.20260805 | The AmneziaWG implementation, used as published. |
+| [wireguard-go](https://git.zx2c4.com/wireguard-go/) | MIT | via `amneziawg-go` | Upstream of `amneziawg-go`; its copyright notices travel with that dependency. |
 
 ## Forks
 
-| Fork | Upstream | Base | What we changed |
-| --- | --- | --- | --- |
-| _(pending)_ | [`sagernet/wireguard-go`](https://github.com/sagernet/wireguard-go) | _(pin the commit here when the fork is created)_ | AmneziaWG obfuscation ported from `amneziawg-go`, kept as separate commits behind a build tag so rebases onto upstream stay mechanical. |
+None. Caelo carries no patch series against any upstream, by design — see the architecture
+note in the README for why the alternative was rejected.
 
 ## Copied material
 
 None yet. Anything copied file-by-file gets a row here with the source path, the upstream
 commit, and the license it arrived under.
+
+If the netstack `tun.Device` in `caelo-core` ends up adapted from sing-box's
+`transport/wireguard/device_stack.go` rather than written from scratch, it belongs in this
+section with the commit it came from. Both projects are GPL-3.0-or-later, so the reuse is
+permitted; the attribution is still owed.
 
 ## Projects we learned from but did not copy
 

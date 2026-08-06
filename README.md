@@ -27,15 +27,28 @@ selection, connection state, statistics, scheduling. The Flutter front end is de
 thin — a list, a button, a settings screen — and talks to the core over gRPC, subscribing
 to state changes rather than polling.
 
-The core does **not** fork sing-box. sing-box exposes a public protocol registry, so Caelo
-imports it as an ordinary Go module and registers its own `amneziawg` endpoint type from
-its own tree. Upgrading sing-box is a version bump, not a rebase.
+**Caelo forks nothing.** sing-box exposes a public protocol registry, so the core imports
+it as an ordinary Go module and registers its own `amneziawg` endpoint from its own tree.
+AmneziaWG comes from `amneziawg-go`, also as an ordinary module. Both upstreams are
+upgraded by bumping a version, and there is no patch series to rebase.
 
-sing-box is pinned to **v1.13.16**.
+The alternative was forking `sagernet/wireguard-go` and porting the obfuscation into it.
+Measured against their common upstream, that fork and `amneziawg-go` have diverged by
+comparable amounts — roughly 1700 and 1800 substantive lines — so reconciling them is real
+work in either direction, and it would be work we redo on every AmneziaWG release.
+`amneziawg-go` also keeps upstream's `NewDevice` and `NewStdNetBind` signatures, where
+SagerNet's fork couples them to sing-box's own service and pause machinery. AmneziaWG is
+the reason this project exists, so it is the dependency that stays fresh.
 
-The one fork we do carry is of `sagernet/wireguard-go`, because AmneziaWG's obfuscation
-lives in the WireGuard device layer and cannot be added from outside it. That fork tracks
-upstream with the obfuscation patch kept as separate commits so rebasing stays mechanical.
+What that costs us is the plumbing SagerNet's fork provided: a `conn.Bind` and a netstack
+`tun.Device`. Both live in `caelo-core` as our own code, under our own tests.
+
+Pinned versions:
+
+| Dependency | Version |
+| --- | --- |
+| sing-box | v1.13.16 |
+| amneziawg-go | v3.0.20260805 |
 
 ## Platforms
 
