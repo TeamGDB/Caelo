@@ -1,0 +1,38 @@
+# Внутренние заметки, не для публичного репо
+product.md
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# macOS
+.DS_Store
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.g.dart
+# pubspec.lock is committed on purpose — Caelo is an application, not a package
+
+# Native libraries built from caelo-core
+*.dylib
+*.so
+*.dll
+*.framework/
+*.xcframework/
+
+# Xcode
+xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# Signing and secrets — never commit these
+*.p12
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*

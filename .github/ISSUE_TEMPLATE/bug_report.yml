@@ -1,0 +1,89 @@
+name: Bug report
+description: Something in the app misbehaves
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        **Redact before you post.** Never include a real subscription link, private key,
+        server address or account identifier. Replace them with `<redacted>`.
+
+
+        If this bug could expose users — a leak outside the tunnel, distinguishable
+        traffic, anything involving keys — close this and read
+        [SECURITY.md](https://github.com/TeamGDB/Caelo/blob/main/SECURITY.md) instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Caelo version
+      description: From the settings screen, or the release tag you installed.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS
+        - iOS
+        - Windows
+        - Linux
+        - Android
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+    validations:
+      required: true
+
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Protocol in use
+      options:
+        - AmneziaWG
+        - VLESS / REALITY
+        - Other
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: network
+    attributes:
+      label: Network
+      description: >
+        Wi-Fi, mobile data, country, operator or ISP if you are comfortable saying. Whether
+        it works on a different network. This matters more than it looks — most connection
+        bugs are network-specific.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Redacted. Paste as text, not screenshots.
+      render: shell
