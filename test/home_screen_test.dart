@@ -35,13 +35,13 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('offers to add a subscription when nothing is configured', (
+  testWidgets('says so when nothing is configured', (
     tester,
   ) async {
     await pumpHome(tester, locale: const Locale('en'));
 
     expect(find.text('Not connected'), findsOneWidget);
-    expect(find.text('No subscription yet'), findsOneWidget);
+    expect(find.text('No configuration yet'), findsOneWidget);
   });
 
   testWidgets('names the node and protocol once connected', (tester) async {
@@ -78,7 +78,7 @@ void main() {
     await pumpHome(tester, locale: const Locale('ru'));
 
     expect(find.text('Отключено'), findsOneWidget);
-    expect(find.text('Подписки пока нет'), findsOneWidget);
+    expect(find.text('Конфиг не добавлен'), findsOneWidget);
   });
 
   testWidgets('the button asks the core to connect', (tester) async {

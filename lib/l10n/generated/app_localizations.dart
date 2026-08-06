@@ -170,6 +170,60 @@ abstract class AppLocalizations {
   /// **'Add subscription'**
   String get addSubscription;
 
+  /// Shown under the status when no tunnel configuration has been added.
+  ///
+  /// In en, this message translates to:
+  /// **'No configuration yet'**
+  String get noConfig;
+
+  /// Settings row for the AmneziaWG .conf the app connects with.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuration'**
+  String get configuration;
+
+  /// Value shown for the configuration row when one has been saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Installed'**
+  String get configurationInstalled;
+
+  /// Value shown for the configuration row when nothing has been saved.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get configurationNone;
+
+  /// Placeholder in the configuration editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste an AmneziaWG .conf here'**
+  String get configurationPlaceholder;
+
+  /// Shown under the configuration editor. The private key is written to disk in the clear.
+  ///
+  /// In en, this message translates to:
+  /// **'Stored unencrypted in the app\'s container. Use a key you are willing to rotate.'**
+  String get configurationWarning;
+
+  /// Saves the pasted configuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get save;
+
+  /// Deletes the stored configuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get remove;
+
+  /// Shown while connected. The tunnel runs on a userspace stack, so it carries no traffic from other applications.
+  ///
+  /// In en, this message translates to:
+  /// **'This process only — other apps are not routed yet'**
+  String get localTunnelOnly;
+
   /// Action that discards the current node and picks another one.
   ///
   /// In en, this message translates to:

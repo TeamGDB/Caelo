@@ -49,6 +49,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get addSubscription => 'Add subscription';
 
   @override
+  String get noConfig => 'No configuration yet';
+
+  @override
+  String get configuration => 'Configuration';
+
+  @override
+  String get configurationInstalled => 'Installed';
+
+  @override
+  String get configurationNone => 'None';
+
+  @override
+  String get configurationPlaceholder => 'Paste an AmneziaWG .conf here';
+
+  @override
+  String get configurationWarning =>
+      'Stored unencrypted in the app\'s container. Use a key you are willing to rotate.';
+
+  @override
+  String get save => 'Save';
+
+  @override
+  String get remove => 'Remove';
+
+  @override
+  String get localTunnelOnly =>
+      'This process only — other apps are not routed yet';
+
+  @override
   String get reconnectDifferently => 'Reconnect differently';
 
   @override

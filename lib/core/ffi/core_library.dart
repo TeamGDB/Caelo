@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 
-typedef _VersionNative = Pointer<Utf8> Function();
+typedef _StringNative = Pointer<Utf8> Function();
+typedef _ConnectNative = Pointer<Utf8> Function(Pointer<Utf8>);
+typedef _CheckNative = Pointer<Utf8> Function(Pointer<Utf8>, Int32);
+typedef _Check = Pointer<Utf8> Function(Pointer<Utf8>, int);
 typedef _FreeNative = Void Function(Pointer<Utf8>);
 typedef _Free = void Function(Pointer<Utf8>);
 
@@ -30,38 +34,42 @@ class CoreUnavailable implements Exception {
       'Could not load the Caelo core. Tried: ${attempted.join(', ')}. ($cause)';
 }
 
+/// Raised when the core was reached but refused to do the thing.
+class CoreFailure implements Exception {
+  CoreFailure(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 /// Binds the Go core's C interface.
 ///
-/// This is scaffolding. The real contract between core and interface is gRPC
-/// over a proto, which can push state changes; a C function that returns once
-/// cannot represent a connection that comes and goes. What it is good for today
-/// is proving the two halves link and load.
-class CoreLibrary {
-  CoreLibrary._(this._library);
-
-  final DynamicLibrary _library;
-
-  static CoreLibrary? _instance;
-
+/// Every call into the core blocks — bringing a tunnel up waits on a netstack,
+/// and checking it waits on the network. So each one runs on its own isolate.
+/// The library itself is loaded per process rather than per isolate, and the
+/// tunnel lives in the core's own memory, so a tunnel opened from one call is
+/// the same tunnel a later call tears down.
+///
+/// This is scaffolding. The real contract is gRPC over a proto, which lets the
+/// core push state instead of being asked for it — a tunnel that drops on its
+/// own cannot announce itself through a function that returns once.
+abstract final class CoreLibrary {
   static const _libraryName = 'libcaelo.dylib';
 
   /// Set `CAELO_CORE_DYLIB` to load a specific build — how you point a running
   /// app at a core you just rebuilt without reinstalling it.
   static const _overrideVariable = 'CAELO_CORE_DYLIB';
 
-  static CoreLibrary open() {
-    final existing = _instance;
-    if (existing != null) return existing;
-
+  static DynamicLibrary _open() {
     final attempted = <String>[];
     Object? lastError;
 
     for (final candidate in _candidatePaths()) {
       attempted.add(candidate);
       try {
-        final library = CoreLibrary._(DynamicLibrary.open(candidate));
-        _instance = library;
-        return library;
+        return DynamicLibrary.open(candidate);
       } on ArgumentError catch (error) {
         lastError = error;
       }
@@ -82,11 +90,32 @@ class CoreLibrary {
     yield '../caelo-core/build/$_libraryName';
   }
 
-  CoreVersion version() {
-    final version = _library.lookupFunction<_VersionNative, _VersionNative>(
-      'caelo_version',
+  /// Reads a string the core allocated, then hands the memory back. Every
+  /// string crossing this boundary is ours and leaks if we forget.
+  static Map<String, dynamic> _consume(
+    DynamicLibrary library,
+    Pointer<Utf8> pointer,
+  ) {
+    if (pointer == nullptr) return const {};
+    try {
+      return jsonDecode(pointer.toDartString()) as Map<String, dynamic>;
+    } finally {
+      library.lookupFunction<_FreeNative, _Free>('caelo_free')(pointer);
+    }
+  }
+
+  static Map<String, dynamic> _require(Map<String, dynamic> result) {
+    if (result['ok'] == true) return result;
+    throw CoreFailure(result['error'] as String? ?? 'the core did not say why');
+  }
+
+  /// Cheap and synchronous — reads a constant out of the loaded image.
+  static CoreVersion version() {
+    final library = _open();
+    final decoded = _consume(
+      library,
+      library.lookupFunction<_StringNative, _StringNative>('caelo_version')(),
     );
-    final decoded = _consume(version());
 
     return CoreVersion(
       core: decoded['core'] as String? ?? 'unknown',
@@ -94,14 +123,65 @@ class CoreLibrary {
     );
   }
 
-  /// Reads a string the core allocated, then hands the memory back. Every
-  /// string that crosses this boundary is owned by us and leaks if we forget.
-  Map<String, dynamic> _consume(Pointer<Utf8> pointer) {
-    if (pointer == nullptr) return const {};
-    try {
-      return jsonDecode(pointer.toDartString()) as Map<String, dynamic>;
-    } finally {
-      _library.lookupFunction<_FreeNative, _Free>('caelo_free')(pointer);
-    }
+  /// Brings up the tunnel described by an AmneziaWG `.conf`.
+  ///
+  /// Returning normally means the device is configured and running, not that
+  /// the peer answered. WireGuard has no connect step; only traffic proves the
+  /// far end is there, which is what [check] is for.
+  static Future<Map<String, dynamic>> connect(String configText) {
+    return Isolate.run(() {
+      final library = _open();
+      final config = configText.toNativeUtf8();
+      try {
+        return _require(
+          _consume(
+            library,
+            library.lookupFunction<_ConnectNative, _ConnectNative>(
+              'caelo_connect',
+            )(config),
+          ),
+        );
+      } finally {
+        malloc.free(config);
+      }
+    });
+  }
+
+  /// Fetches [url] through the live tunnel. The response body is the evidence
+  /// that traffic actually left through the endpoint.
+  static Future<Map<String, dynamic>> check({
+    String url = 'https://ifconfig.me/ip',
+    Duration timeout = const Duration(seconds: 20),
+  }) {
+    final timeoutMs = timeout.inMilliseconds;
+    return Isolate.run(() {
+      final library = _open();
+      final target = url.toNativeUtf8();
+      try {
+        return _require(
+          _consume(
+            library,
+            library.lookupFunction<_CheckNative, _Check>('caelo_check')(
+              target,
+              timeoutMs,
+            ),
+          ),
+        );
+      } finally {
+        malloc.free(target);
+      }
+    });
+  }
+
+  static Future<void> disconnect() {
+    return Isolate.run(() {
+      final library = _open();
+      _consume(
+        library,
+        library.lookupFunction<_StringNative, _StringNative>(
+          'caelo_disconnect',
+        )(),
+      );
+    });
   }
 }

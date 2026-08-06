@@ -1,9 +1,11 @@
 import 'package:flutter/cupertino.dart';
 
+import '../core/config_store.dart';
 import '../core/ffi/core_library.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
+import 'config_screen.dart';
 
 /// Resolved once. The core's version cannot change while the app is running,
 /// and a settings screen that re-crosses the FFI boundary on every rebuild is
@@ -15,7 +17,7 @@ String _coreSummary(AppLocalizations l10n) {
   if (!_coreResolved) {
     _coreResolved = true;
     try {
-      _core = CoreLibrary.open().version();
+      _core = CoreLibrary.version();
     } on Object {
       // A missing core is worth showing plainly rather than crashing the one
       // screen where you would go to find out what is wrong.
@@ -30,8 +32,26 @@ String _coreSummary(AppLocalizations l10n) {
 
 /// Settings exist for the cases the automatic choice cannot cover. They are not
 /// a control panel, and the main screen should never send you here.
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool hasConfig = false;
+
+  @override
+  void initState() {
+    super.initState();
+    onConfigChanged();
+  }
+
+  Future<void> onConfigChanged() async {
+    final config = await ConfigStore.read();
+    if (mounted) setState(() => hasConfig = config != null);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,9 +74,23 @@ class SettingsScreen extends StatelessWidget {
               header: l10n.subscriptions,
               children: [
                 _Row(
+                  label: l10n.configuration,
+                  value: hasConfig
+                      ? l10n.configurationInstalled
+                      : l10n.configurationNone,
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      CupertinoPageRoute<void>(
+                        builder: (_) => const ConfigScreen(),
+                      ),
+                    );
+                    onConfigChanged();
+                  },
+                ),
+                _Row(
                   label: l10n.addSubscription,
                   labelColour: CaeloColors.accent,
-                  // Lands with the core: nothing to add a subscription to yet.
+                  // Lands with the subscription parser in the core.
                   onTap: null,
                 ),
               ],

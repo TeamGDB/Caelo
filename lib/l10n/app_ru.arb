@@ -34,6 +34,15 @@
 
   "noSubscription": "Подписки пока нет",
   "addSubscription": "Добавить подписку",
+  "noConfig": "Конфиг не добавлен",
+  "configuration": "Конфиг",
+  "configurationInstalled": "Добавлен",
+  "configurationNone": "Нет",
+  "configurationPlaceholder": "Вставь сюда AmneziaWG .conf",
+  "configurationWarning": "Хранится в контейнере приложения без шифрования. Используй ключ, который не жалко перевыпустить.",
+  "save": "Сохранить",
+  "remove": "Удалить",
+  "localTunnelOnly": "Только этот процесс — трафик других приложений пока не идёт",
   "reconnectDifferently": "Переподключиться иначе",
 
   "settings": "Настройки",

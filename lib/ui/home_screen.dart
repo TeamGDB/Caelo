@@ -39,7 +39,12 @@ class HomeScreen extends StatelessWidget {
                 _StatusLine(status: status),
                 const SizedBox(height: CaeloSpace.xs + 2),
                 _DetailLine(status: status),
-                const SizedBox(height: CaeloSpace.xl),
+                const SizedBox(height: CaeloSpace.sm),
+                // The tunnel is real but it lives on a userspace stack inside
+                // this process. Letting the screen imply the machine is covered
+                // would be the single most harmful thing it could get wrong.
+                _Caveat(visible: status.phase == TunnelPhase.connected),
+                const SizedBox(height: CaeloSpace.lg),
                 _ReconnectAction(
                   visible: status.phase == TunnelPhase.connected,
                   onPressed: controller.reconnectDifferently,
@@ -111,7 +116,7 @@ class _DetailLine extends StatelessWidget {
     // Nothing configured yet is worth saying out loud; a tunnel that is simply
     // down is not, so the line stays empty rather than repeating the status.
     final text = switch (parts.isEmpty) {
-      true when status.phase == TunnelPhase.disconnected => l10n.noSubscription,
+      true when status.phase == TunnelPhase.disconnected => l10n.noConfig,
       true => '',
       false => parts.join('  ·  '),
     };
@@ -121,6 +126,32 @@ class _DetailLine extends StatelessWidget {
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
         child: Text(text, key: ValueKey(text), style: CaeloTheme.caption),
+      ),
+    );
+  }
+}
+
+/// States plainly what "connected" currently covers. It disappears when the
+/// NetworkExtension lands and the answer becomes "everything".
+class _Caveat extends StatelessWidget {
+  const _Caveat({required this.visible});
+
+  final bool visible;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 16,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 220),
+        child: Text(
+          AppLocalizations.of(context).localTunnelOnly,
+          style: CaeloTheme.caption.copyWith(
+            color: CaeloColors.dim,
+            fontSize: 11,
+          ),
+        ),
       ),
     );
   }

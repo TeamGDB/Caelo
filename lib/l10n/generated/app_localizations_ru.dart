@@ -49,6 +49,35 @@ class AppLocalizationsRu extends AppLocalizations {
   String get addSubscription => 'Добавить подписку';
 
   @override
+  String get noConfig => 'Конфиг не добавлен';
+
+  @override
+  String get configuration => 'Конфиг';
+
+  @override
+  String get configurationInstalled => 'Добавлен';
+
+  @override
+  String get configurationNone => 'Нет';
+
+  @override
+  String get configurationPlaceholder => 'Вставь сюда AmneziaWG .conf';
+
+  @override
+  String get configurationWarning =>
+      'Хранится в контейнере приложения без шифрования. Используй ключ, который не жалко перевыпустить.';
+
+  @override
+  String get save => 'Сохранить';
+
+  @override
+  String get remove => 'Удалить';
+
+  @override
+  String get localTunnelOnly =>
+      'Только этот процесс — трафик других приложений пока не идёт';
+
+  @override
   String get reconnectDifferently => 'Переподключиться иначе';
 
   @override

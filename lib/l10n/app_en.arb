@@ -69,6 +69,42 @@
   "@addSubscription": {
     "description": "Button that opens the subscription link entry."
   },
+  "noConfig": "No configuration yet",
+  "@noConfig": {
+    "description": "Shown under the status when no tunnel configuration has been added."
+  },
+  "configuration": "Configuration",
+  "@configuration": {
+    "description": "Settings row for the AmneziaWG .conf the app connects with."
+  },
+  "configurationInstalled": "Installed",
+  "@configurationInstalled": {
+    "description": "Value shown for the configuration row when one has been saved."
+  },
+  "configurationNone": "None",
+  "@configurationNone": {
+    "description": "Value shown for the configuration row when nothing has been saved."
+  },
+  "configurationPlaceholder": "Paste an AmneziaWG .conf here",
+  "@configurationPlaceholder": {
+    "description": "Placeholder in the configuration editor."
+  },
+  "configurationWarning": "Stored unencrypted in the app's container. Use a key you are willing to rotate.",
+  "@configurationWarning": {
+    "description": "Shown under the configuration editor. The private key is written to disk in the clear."
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Saves the pasted configuration."
+  },
+  "remove": "Remove",
+  "@remove": {
+    "description": "Deletes the stored configuration."
+  },
+  "localTunnelOnly": "This process only — other apps are not routed yet",
+  "@localTunnelOnly": {
+    "description": "Shown while connected. The tunnel runs on a userspace stack, so it carries no traffic from other applications."
+  },
   "reconnectDifferently": "Reconnect differently",
   "@reconnectDifferently": {
     "description": "Action that discards the current node and picks another one."

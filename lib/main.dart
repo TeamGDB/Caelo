@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
-import 'core/stub_tunnel_client.dart';
+import 'core/core_tunnel_client.dart';
 import 'core/tunnel_controller.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'theme/app_theme.dart';
@@ -19,10 +19,10 @@ class CaeloApp extends StatefulWidget {
 }
 
 class _CaeloAppState extends State<CaeloApp> {
-  // The only place the stub is named. Swapping in the gRPC client against
-  // caelo-core is a one-line change here and nothing else moves.
+  // The only place a TunnelClient implementation is named. Swapping the FFI
+  // binding for the gRPC one is a change to this line and nothing else.
   late final TunnelController _controller = TunnelController(
-    StubTunnelClient(),
+    CoreTunnelClient(),
   );
 
   @override
