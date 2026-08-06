@@ -212,6 +212,18 @@ abstract class AppLocalizations {
   /// **'Version'**
   String get version;
 
+  /// Settings row showing the version of the Go core the app is linked against.
+  ///
+  /// In en, this message translates to:
+  /// **'Core'**
+  String get core;
+
+  /// Shown in place of a core version when the library could not be loaded.
+  ///
+  /// In en, this message translates to:
+  /// **'not loaded'**
+  String get coreUnavailable;
+
   /// Settings row showing the licence the app ships under.
   ///
   /// In en, this message translates to:

@@ -1,8 +1,32 @@
 import 'package:flutter/cupertino.dart';
 
+import '../core/ffi/core_library.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
+
+/// Resolved once. The core's version cannot change while the app is running,
+/// and a settings screen that re-crosses the FFI boundary on every rebuild is
+/// paying for nothing.
+CoreVersion? _core;
+bool _coreResolved = false;
+
+String _coreSummary(AppLocalizations l10n) {
+  if (!_coreResolved) {
+    _coreResolved = true;
+    try {
+      _core = CoreLibrary.open().version();
+    } on Object {
+      // A missing core is worth showing plainly rather than crashing the one
+      // screen where you would go to find out what is wrong.
+      _core = null;
+    }
+  }
+
+  final core = _core;
+  if (core == null) return l10n.coreUnavailable;
+  return '${core.core} · AmneziaWG ${core.amneziaWg}';
+}
 
 /// Settings exist for the cases the automatic choice cannot cover. They are not
 /// a control panel, and the main screen should never send you here.
@@ -47,6 +71,7 @@ class SettingsScreen extends StatelessWidget {
               header: l10n.about,
               children: [
                 const _Row(label: 'Caelo', value: '0.1.0'),
+                _Row(label: l10n.core, value: _coreSummary(l10n)),
                 _Row(label: l10n.licence, value: 'GPL-3.0-or-later'),
                 _Row(label: l10n.sourceCode, value: 'github.com/TeamGDB/Caelo'),
               ],

@@ -42,6 +42,9 @@
   "languageSystem": "Системный",
   "about": "О программе",
   "version": "Версия",
+  "core": "Ядро",
+  "coreUnavailable": "не загружено",
+
   "licence": "Лицензия",
   "sourceCode": "Исходный код",
 

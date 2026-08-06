@@ -70,6 +70,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get version => 'Version';
 
   @override
+  String get core => 'Core';
+
+  @override
+  String get coreUnavailable => 'not loaded';
+
+  @override
   String get licence => 'Licence';
 
   @override

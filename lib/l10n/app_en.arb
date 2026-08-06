@@ -98,6 +98,15 @@
   "@version": {
     "description": "Settings row showing the application version."
   },
+  "core": "Core",
+  "@core": {
+    "description": "Settings row showing the version of the Go core the app is linked against."
+  },
+  "coreUnavailable": "not loaded",
+  "@coreUnavailable": {
+    "description": "Shown in place of a core version when the library could not be loaded."
+  },
+
   "licence": "Licence",
   "@licence": {
     "description": "Settings row showing the licence the app ships under."

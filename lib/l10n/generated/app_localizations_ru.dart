@@ -70,6 +70,12 @@ class AppLocalizationsRu extends AppLocalizations {
   String get version => 'Версия';
 
   @override
+  String get core => 'Ядро';
+
+  @override
+  String get coreUnavailable => 'не загружено';
+
+  @override
   String get licence => 'Лицензия';
 
   @override
