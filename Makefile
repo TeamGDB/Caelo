@@ -4,7 +4,12 @@ LDFLAGS := -X github.com/TeamGDB/caelo-core/internal/version.Version=$(VERSION)
 BUILD := build
 
 .PHONY: all
-all: probe tun dylib
+all: probe tun helper dylib
+
+# The privileged half. Installed with deploy/macos/install-helper.sh.
+.PHONY: helper
+helper:
+	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-helper ./cmd/caelo-helper
 
 .PHONY: probe
 probe:

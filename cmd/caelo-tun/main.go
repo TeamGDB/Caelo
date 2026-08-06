@@ -13,26 +13,19 @@
 // after the given time whatever else happens, so a mistake costs you that long
 // and not your network.
 //
-// This is the development path. What ships is a NetworkExtension, because a
-// user-facing application should not ask anyone to type sudo.
+// This is the hands-on path. The app drives the same code through
+// caelo-helper, and what ships is a NetworkExtension.
 package main
 
 import (
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/amnezia-vpn/amneziawg-go/v3/conn"
-	"github.com/amnezia-vpn/amneziawg-go/v3/device"
-	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
-
-	"github.com/TeamGDB/caelo-core/internal/awg"
-	"github.com/TeamGDB/caelo-core/internal/system"
+	"github.com/TeamGDB/caelo-core/internal/systunnel"
 	"github.com/TeamGDB/caelo-core/internal/version"
 )
 
@@ -63,91 +56,30 @@ func run(configPath string, duration time.Duration, verbose bool) error {
 	if err != nil {
 		return err
 	}
-	cfg, err := awg.ParseConfig(string(raw))
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", configPath, err)
-	}
 
-	endpointHost, err := endpointAddress(cfg.Peer.Endpoint)
-	if err != nil {
-		return err
-	}
+	controller := systunnel.New(verbose)
 
-	// Snapshot before anything is touched, so there is always something to
-	// restore from even if the very first change fails.
-	state, err := system.Snapshot()
-	if err != nil {
-		return err
-	}
-	fmt.Printf("was routing via %s on %s (%s)\n",
-		state.DefaultGateway, state.DefaultInterface, state.NetworkService)
-
-	tunDevice, err := tun.CreateTUN("utun", cfg.MTU)
-	if err != nil {
-		return fmt.Errorf("creating a utun interface: %w", err)
-	}
-	name, err := tunDevice.Name()
-	if err != nil {
-		tunDevice.Close()
-		return fmt.Errorf("naming the utun interface: %w", err)
-	}
-
-	level := device.LogLevelError
-	if verbose {
-		level = device.LogLevelVerbose
-	}
-	dev := device.NewDevice(tunDevice, conn.NewDefaultBind(), device.NewLogger(level, "caelo "))
-	defer dev.Close()
-
-	if err := dev.IpcSet(cfg.IPC()); err != nil {
-		return fmt.Errorf("configuring the device: %w", err)
-	}
-	if err := dev.Up(); err != nil {
-		return fmt.Errorf("bringing the device up: %w", err)
-	}
-
-	dns := []string{"1.1.1.1"}
-	if len(cfg.DNS) > 0 {
-		dns = dns[:0]
-		for _, addr := range cfg.DNS {
-			dns = append(dns, addr.String())
-		}
-	}
-
-	networkCfg := system.Config{
-		Interface:    name,
-		Address:      cfg.Addresses[0].String(),
-		MTU:          cfg.MTU,
-		EndpointHost: endpointHost,
-		DNS:          dns,
-	}
-
-	// Registered before Apply, not after: a failure halfway through Apply still
-	// leaves changes that have to come back out.
+	// Registered before Start, so a failure partway through still unwinds.
 	defer func() {
 		fmt.Println("\nrestoring the machine's routing")
-		if err := system.Restore(state, networkCfg); err != nil {
+		if err := controller.Stop(); err != nil {
 			// Worth shouting about. Someone whose network is broken needs to
 			// know what to put back by hand.
 			fmt.Fprintf(os.Stderr, "caelo-tun: %v\n", err)
-		} else {
-			fmt.Println("restored")
+			return
 		}
+		fmt.Println("restored")
 	}()
 
-	if err := system.Apply(state, networkCfg); err != nil {
+	status, err := controller.Start(string(raw))
+	if err != nil {
 		return err
 	}
 
-	protocol := "AmneziaWG"
-	if len(cfg.Obfuscation) == 0 {
-		protocol = "WireGuard"
-	}
-	fmt.Printf("\ncore        %s (amneziawg-go %s)\n", version.Version, version.AmneziaWG())
-	fmt.Printf("interface   %s\n", name)
-	fmt.Printf("endpoint    %s\n", cfg.Peer.Endpoint)
-	fmt.Printf("protocol    %s\n", protocol)
-	fmt.Printf("dns         %s\n", strings.Join(dns, ", "))
+	fmt.Printf("core        %s (amneziawg-go %s)\n", version.Version, version.AmneziaWG())
+	fmt.Printf("interface   %s\n", status.Interface)
+	fmt.Printf("endpoint    %s\n", status.Endpoint)
+	fmt.Printf("protocol    %s\n", status.Protocol)
 	fmt.Println("\nthe whole machine is going through the tunnel — press Ctrl-C to stop")
 
 	return waitForStop(duration)
@@ -170,34 +102,4 @@ func waitForStop(duration time.Duration) error {
 	case <-time.After(duration):
 	}
 	return nil
-}
-
-// endpointAddress resolves the host part of an endpoint to an address that can
-// be pinned to the physical route.
-func endpointAddress(endpoint string) (string, error) {
-	if endpoint == "" {
-		return "", fmt.Errorf("the configuration has no Endpoint")
-	}
-
-	host, _, err := net.SplitHostPort(endpoint)
-	if err != nil {
-		return "", fmt.Errorf("endpoint %q is not host:port: %w", endpoint, err)
-	}
-	if ip := net.ParseIP(host); ip != nil {
-		return host, nil
-	}
-
-	// Resolved once, now, while the ordinary resolver still works. Once the
-	// tunnel is up, resolution goes through it, and looking the endpoint up
-	// then would need the tunnel that needs the endpoint.
-	addrs, err := net.LookupHost(host)
-	if err != nil {
-		return "", fmt.Errorf("resolving endpoint %q: %w", host, err)
-	}
-	for _, addr := range addrs {
-		if ip := net.ParseIP(addr); ip != nil && ip.To4() != nil {
-			return addr, nil
-		}
-	}
-	return "", fmt.Errorf("endpoint %q has no IPv4 address", host)
 }
