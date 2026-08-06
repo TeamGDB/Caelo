@@ -22,6 +22,9 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
   final TunnelClient _client;
   late final StreamSubscription<TunnelStatus> _subscription;
 
+  /// Whether "connected" means the whole machine or only this process.
+  bool get coversWholeMachine => _client.coversWholeMachine;
+
   /// The single action the main screen offers. What it means depends on where
   /// the tunnel currently is, which is why the button has one label and not two.
   ///

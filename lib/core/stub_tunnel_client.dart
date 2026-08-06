@@ -29,6 +29,9 @@ class StubTunnelClient implements TunnelClient {
   @override
   Stream<TunnelStatus> get changes => _controller.stream;
 
+  @override
+  bool get coversWholeMachine => false;
+
   void _emit(TunnelStatus status) {
     _current = status;
     if (!_controller.isClosed) _controller.add(status);

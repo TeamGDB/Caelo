@@ -15,6 +15,9 @@ class FakeTunnelClient implements TunnelClient {
   @override
   Stream<TunnelStatus> get changes => _controller.stream;
 
+  @override
+  bool coversWholeMachine = false;
+
   /// Push a state as though the core had reported it.
   void emit(TunnelStatus status) {
     current = status;

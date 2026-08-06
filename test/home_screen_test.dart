@@ -81,6 +81,47 @@ void main() {
     expect(find.text('Конфиг не добавлен'), findsOneWidget);
   });
 
+  // The most harmful thing this screen could do is imply the machine is
+  // covered when only this process is.
+  group('scope of the tunnel', () {
+    const connected = TunnelStatus(
+      phase: TunnelPhase.connected,
+      node: '203.0.113.10:51820',
+      protocol: TunnelProtocol.amneziaWg,
+    );
+    final caveat = find.textContaining('other apps are not routed');
+
+    testWidgets('is spelled out when only this process is routed', (
+      tester,
+    ) async {
+      client.coversWholeMachine = false;
+      await pumpHome(tester, locale: const Locale('en'));
+
+      client.emit(connected);
+      await tester.pumpAndSettle();
+
+      expect(caveat, findsOneWidget);
+    });
+
+    testWidgets('goes unsaid when the whole machine is routed', (tester) async {
+      client.coversWholeMachine = true;
+      await pumpHome(tester, locale: const Locale('en'));
+
+      client.emit(connected);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<AnimatedOpacity>(
+          find.ancestor(
+            of: caveat,
+            matching: find.byType(AnimatedOpacity),
+          ),
+        ).opacity,
+        0,
+      );
+    });
+  });
+
   testWidgets('the button asks the core to connect', (tester) async {
     await pumpHome(tester, locale: const Locale('en'));
 

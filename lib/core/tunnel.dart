@@ -77,6 +77,13 @@ abstract interface class TunnelClient {
   /// switched after the Wi-Fi network changed, a tunnel dropped on its own.
   Stream<TunnelStatus> get changes;
 
+  /// Whether "connected" means the whole machine or only this process.
+  ///
+  /// The interface has to say which, and it can only know by asking. A tunnel
+  /// that carries one process while the screen implies it carries everything is
+  /// the most harmful thing this product could get wrong.
+  bool get coversWholeMachine;
+
   /// Bring the tunnel up. Which node and protocol get used is not our decision.
   Future<void> connect();
 

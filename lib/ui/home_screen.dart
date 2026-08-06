@@ -43,7 +43,10 @@ class HomeScreen extends StatelessWidget {
                 // The tunnel is real but it lives on a userspace stack inside
                 // this process. Letting the screen imply the machine is covered
                 // would be the single most harmful thing it could get wrong.
-                _Caveat(visible: status.phase == TunnelPhase.connected),
+                _Caveat(
+                  visible: status.phase == TunnelPhase.connected &&
+                      !controller.coversWholeMachine,
+                ),
                 const SizedBox(height: CaeloSpace.lg),
                 _ReconnectAction(
                   visible: status.phase == TunnelPhase.connected,
