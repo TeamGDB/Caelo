@@ -155,10 +155,10 @@ func TestUnknownInterfaceKeysAreIgnored(t *testing.T) {
 
 func TestRejections(t *testing.T) {
 	cases := map[string]string{
-		"no private key": "[Interface]\nAddress = 10.0.0.1/32\n[Peer]\nPublicKey = " + fakeKey(2) + "\n",
-		"no public key":  "[Interface]\nPrivateKey = " + fakeKey(1) + "\nAddress = 10.0.0.1/32\n",
-		"no address":     "[Interface]\nPrivateKey = " + fakeKey(1) + "\n[Peer]\nPublicKey = " + fakeKey(2) + "\n",
-		"short key":      "[Interface]\nPrivateKey = AAAA\nAddress = 10.0.0.1/32\n[Peer]\nPublicKey = " + fakeKey(2) + "\n",
+		"no private key":        "[Interface]\nAddress = 10.0.0.1/32\n[Peer]\nPublicKey = " + fakeKey(2) + "\n",
+		"no public key":         "[Interface]\nPrivateKey = " + fakeKey(1) + "\nAddress = 10.0.0.1/32\n",
+		"no address":            "[Interface]\nPrivateKey = " + fakeKey(1) + "\n[Peer]\nPublicKey = " + fakeKey(2) + "\n",
+		"short key":             "[Interface]\nPrivateKey = AAAA\nAddress = 10.0.0.1/32\n[Peer]\nPublicKey = " + fakeKey(2) + "\n",
 		"key outside a section": "PrivateKey = " + fakeKey(1) + "\n",
 		"line without =":        "[Interface]\nPrivateKey\n",
 	}
