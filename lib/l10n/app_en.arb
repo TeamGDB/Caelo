@@ -1,0 +1,114 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "Caelo",
+  "@appTitle": {
+    "description": "The application name. Not translated."
+  },
+
+  "statusDisconnected": "Not connected",
+  "@statusDisconnected": {
+    "description": "Main screen status, tunnel is down and idle."
+  },
+  "statusConnecting": "Connecting",
+  "@statusConnecting": {
+    "description": "Main screen status, a connection attempt is in progress."
+  },
+  "statusConnected": "Connected",
+  "@statusConnected": {
+    "description": "Main screen status, traffic is going through the tunnel."
+  },
+  "statusDisconnecting": "Disconnecting",
+  "@statusDisconnecting": {
+    "description": "Main screen status, the tunnel is being torn down."
+  },
+  "statusFailed": "Could not connect",
+  "@statusFailed": {
+    "description": "Main screen status, the attempt failed and we gave up."
+  },
+
+  "connect": "Connect",
+  "@connect": {
+    "description": "Accessibility label for the main button when disconnected."
+  },
+  "disconnect": "Disconnect",
+  "@disconnect": {
+    "description": "Accessibility label for the main button when connected."
+  },
+
+  "viaNode": "via {node}",
+  "@viaNode": {
+    "description": "Small text under the status naming the node in use.",
+    "placeholders": {
+      "node": {
+        "type": "String",
+        "example": "Frankfurt 3"
+      }
+    }
+  },
+  "protocolAndPing": "{protocol} · {ping} ms",
+  "@protocolAndPing": {
+    "description": "Small text naming the protocol and its round-trip time.",
+    "placeholders": {
+      "protocol": {
+        "type": "String",
+        "example": "AmneziaWG"
+      },
+      "ping": {
+        "type": "int",
+        "example": "42"
+      }
+    }
+  },
+
+  "noSubscription": "No subscription yet",
+  "@noSubscription": {
+    "description": "Shown instead of a node name when nothing is configured."
+  },
+  "addSubscription": "Add subscription",
+  "@addSubscription": {
+    "description": "Button that opens the subscription link entry."
+  },
+  "reconnectDifferently": "Reconnect differently",
+  "@reconnectDifferently": {
+    "description": "Action that discards the current node and picks another one."
+  },
+
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings screen title and the button that opens it."
+  },
+  "subscriptions": "Subscriptions",
+  "@subscriptions": {
+    "description": "Settings section for subscription links."
+  },
+  "appearanceLanguage": "Language",
+  "@appearanceLanguage": {
+    "description": "Settings row for the interface language."
+  },
+  "languageSystem": "System",
+  "@languageSystem": {
+    "description": "Language option that follows the operating system."
+  },
+  "about": "About",
+  "@about": {
+    "description": "Settings section with version and licence information."
+  },
+  "version": "Version",
+  "@version": {
+    "description": "Settings row showing the application version."
+  },
+  "licence": "Licence",
+  "@licence": {
+    "description": "Settings row showing the licence the app ships under."
+  },
+  "sourceCode": "Source code",
+  "@sourceCode": {
+    "description": "Settings row linking to the public repository."
+  },
+
+  "done": "Done",
+  "@done": {
+    "description": "Closes a sheet or a modal screen."
+  }
+}

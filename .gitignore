@@ -36,3 +36,11 @@ DerivedData/
 *.provisionprofile
 .env
 .env.*
+
+# Tunnel configs and keys. Real ones carry live credentials; keep test configs
+# outside the working tree entirely (~/.caelo-dev/) rather than relying on this.
+*.conf
+*.key
+*.pem
+secrets/
+local/

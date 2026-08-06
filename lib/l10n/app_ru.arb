@@ -1,0 +1,49 @@
+{
+  "@@locale": "ru",
+
+  "appTitle": "Caelo",
+
+  "statusDisconnected": "Отключено",
+  "statusConnecting": "Подключение",
+  "statusConnected": "Подключено",
+  "statusDisconnecting": "Отключение",
+  "statusFailed": "Не удалось подключиться",
+
+  "connect": "Подключить",
+  "disconnect": "Отключить",
+
+  "viaNode": "через {node}",
+  "@viaNode": {
+    "placeholders": {
+      "node": {
+        "type": "String"
+      }
+    }
+  },
+  "protocolAndPing": "{protocol} · {ping} мс",
+  "@protocolAndPing": {
+    "placeholders": {
+      "protocol": {
+        "type": "String"
+      },
+      "ping": {
+        "type": "int"
+      }
+    }
+  },
+
+  "noSubscription": "Подписки пока нет",
+  "addSubscription": "Добавить подписку",
+  "reconnectDifferently": "Переподключиться иначе",
+
+  "settings": "Настройки",
+  "subscriptions": "Подписки",
+  "appearanceLanguage": "Язык",
+  "languageSystem": "Системный",
+  "about": "О программе",
+  "version": "Версия",
+  "licence": "Лицензия",
+  "sourceCode": "Исходный код",
+
+  "done": "Готово"
+}
