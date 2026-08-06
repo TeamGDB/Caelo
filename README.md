@@ -36,7 +36,11 @@ use would only record an intention that nothing verifies.
 | Path | What it is |
 | --- | --- |
 | `internal/awg` | AmneziaWG configuration: parsing `.conf`, rendering the device's UAPI form |
+| `internal/tunnel` | A tunnel that stays up, for the app to drive |
+| `internal/system` | Taking over the machine's routing and DNS, and putting them back |
 | `cmd/caelo-probe` | Brings up one tunnel and makes one request through it |
+| `cmd/caelo-tun` | Routes the whole machine through a tunnel. Needs root |
+| `libcaelo` | The core as a C shared library, for the desktop apps |
 
 ## caelo-probe
 
@@ -68,6 +72,39 @@ a second one here to disagree with it.
 
 **Never point this at a config you care about keeping private from your shell history, and
 never commit one.** Keep real configs outside the working tree.
+
+## caelo-tun
+
+The same tunnel, but on a real `utun` interface with the default route pointed at it, so
+every application on the machine goes through it. This needs root.
+
+```bash
+make tun
+sudo ./build/caelo-tun -config /path/to/tunnel.conf -duration 60s
+```
+
+Use `-duration` while developing. The tunnel tears itself down after that long whatever
+else happens, so a mistake costs you a minute rather than your network. Without it, the
+tunnel runs until Ctrl-C.
+
+What it changes, and puts back on exit — including on Ctrl-C and SIGTERM:
+
+- creates a `utun` interface with the tunnel's address and MTU;
+- pins a host route to the endpoint via the original gateway, so the tunnel's own packets
+  do not get routed into the tunnel;
+- adds `0.0.0.0/1` and `128.0.0.0/1` pointing at the interface. Two halves rather than
+  overwriting the default route: they are more specific, so they win while they exist and
+  leave nothing to rebuild when they go;
+- sets DNS on the active network service;
+- **switches IPv6 off.** This configuration has no v6 address inside the tunnel, so v6
+  traffic would leave outside it. A tunnel that quietly carries half your traffic in the
+  clear is worse than no tunnel, because you would not think to check.
+
+If restoring fails it says so loudly and names what did not come back, because someone
+whose network is broken needs to know what to undo by hand.
+
+This is the development path, and it is what product.md calls step 2. What ships is a
+NetworkExtension — a user-facing application has no business asking anyone to type `sudo`.
 
 ## Building and testing
 

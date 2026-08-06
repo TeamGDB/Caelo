@@ -4,8 +4,10 @@
 // The surface is deliberately tiny and string-shaped: every call takes and
 // returns C strings, and every returned string is owned by the caller, who must
 // hand it back to caelo_free. This is scaffolding for the gRPC contract, not a
-// replacement for it — a real connection has a lifecycle and pushes events,
-// which does not fit through a function that returns once.
+// replacement for it — the core cannot push events through a function that
+// returns once, so the app has to ask rather than be told.
+//
+// Every call blocks. Callers must not make them on a thread that renders.
 package main
 
 /*
@@ -18,11 +20,16 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/TeamGDB/caelo-core/internal/probe"
+	"github.com/TeamGDB/caelo-core/internal/tunnel"
 	"github.com/TeamGDB/caelo-core/internal/version"
 )
 
 func main() {}
+
+// session is process-wide because the tunnel is. One application, one tunnel;
+// handing the app an opaque handle would imply it could have two, which it
+// cannot.
+var session = tunnel.New()
 
 // caelo_version returns a JSON object describing this build.
 //
@@ -34,28 +41,47 @@ func caelo_version() *C.char {
 	})
 }
 
-// caelo_probe brings up the tunnel described by configText, fetches url through
-// it, and returns the outcome as JSON.
+// caelo_connect brings up the tunnel described by an AmneziaWG .conf file and
+// leaves it up.
 //
-// Errors are returned in the JSON rather than through a status code: the caller
-// is a UI that has to show the user something either way, and a failed probe is
-// an ordinary result, not an exceptional one.
+// Returning successfully means the device is configured and running. It does
+// not mean the peer answered: WireGuard has no connect step, and only traffic
+// proves the far end is there. Follow with caelo_check.
 //
-//export caelo_probe
-func caelo_probe(configText, url *C.char, timeoutMs C.int) *C.char {
-	result, err := probe.Run(C.GoString(configText), probe.Options{
-		URL:     C.GoString(url),
-		Timeout: time.Duration(timeoutMs) * time.Millisecond,
-	})
+//export caelo_connect
+func caelo_connect(configText *C.char) *C.char {
+	info, err := session.Connect(C.GoString(configText))
 	if err != nil {
-		return marshal(map[string]any{"ok": false, "error": err.Error()})
+		return failure(err)
 	}
+	return success(info)
+}
 
-	payload := map[string]any{"ok": true}
-	encoded, _ := json.Marshal(result)
-	_ = json.Unmarshal(encoded, &payload)
-	payload["ok"] = true
-	return marshal(payload)
+// caelo_check fetches url through the live tunnel and reports what came back.
+//
+//export caelo_check
+func caelo_check(url *C.char, timeoutMs C.int) *C.char {
+	result, err := session.Check(C.GoString(url), time.Duration(timeoutMs)*time.Millisecond)
+	if err != nil {
+		return failure(err)
+	}
+	return success(result)
+}
+
+// caelo_disconnect tears the tunnel down.
+//
+//export caelo_disconnect
+func caelo_disconnect() *C.char {
+	session.Disconnect()
+	return marshal(map[string]any{"ok": true})
+}
+
+// caelo_status reports whether a tunnel is up without disturbing it.
+//
+//export caelo_status
+func caelo_status() *C.char {
+	up, endpoint := session.Up()
+	return marshal(map[string]any{"ok": true, "up": up, "endpoint": endpoint})
 }
 
 // caelo_free releases a string returned by any function in this library.
@@ -67,7 +93,28 @@ func caelo_free(s *C.char) {
 	}
 }
 
-// marshal renders v as a C string the caller owns.
+// success renders v as a JSON object with ok set.
+//
+// Failures are reported inside the payload rather than through a status code:
+// the caller is a user interface that has to show something either way, and a
+// tunnel that did not come up is an ordinary outcome for this product.
+func success(v any) *C.char {
+	payload := map[string]any{}
+	encoded, err := json.Marshal(v)
+	if err != nil {
+		return failure(err)
+	}
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		return failure(err)
+	}
+	payload["ok"] = true
+	return marshal(payload)
+}
+
+func failure(err error) *C.char {
+	return marshal(map[string]any{"ok": false, "error": err.Error()})
+}
+
 func marshal(v any) *C.char {
 	encoded, err := json.Marshal(v)
 	if err != nil {

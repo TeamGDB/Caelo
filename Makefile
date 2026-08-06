@@ -4,11 +4,16 @@ LDFLAGS := -X github.com/TeamGDB/caelo-core/internal/version.Version=$(VERSION)
 BUILD := build
 
 .PHONY: all
-all: probe dylib
+all: probe tun dylib
 
 .PHONY: probe
 probe:
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-probe ./cmd/caelo-probe
+
+# Routes the whole machine. Needs root to run, not to build.
+.PHONY: tun
+tun:
+	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-tun ./cmd/caelo-tun
 
 # The desktop apps load this. -buildmode=c-shared also writes libcaelo.h, which
 # is the authority on the FFI surface — the Dart bindings are written against
