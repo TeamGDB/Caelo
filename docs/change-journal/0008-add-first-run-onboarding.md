@@ -29,6 +29,8 @@ allows the product flow to be reviewed while account services are developed.
   a demo session; it does not pretend to scan anything.
 - `.conf` import uses the operating system file picker, checks for WireGuard
   Interface and Peer sections, then writes through the existing `ConfigStore`.
+- The direct BSD-3-Clause `file_selector` dependency is recorded in
+  `ATTRIBUTION.md` as required by `CONTRIBUTING.md`.
 - Completion is stored in the existing readable `settings.json` and loaded
   before the first frame. Settings provides a disconnect-account action to
   return to onboarding.
