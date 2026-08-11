@@ -87,6 +87,15 @@ abstract final class SettingsStore {
     await _save(settings);
   }
 
+  static Future<String?> selectedServerId() async =>
+      (await _load())['selectedServerId'] as String?;
+
+  static Future<void> setSelectedServerId(String id) async {
+    final settings = Map<String, dynamic>.from(await _load());
+    settings['selectedServerId'] = id;
+    await _save(settings);
+  }
+
   /// Whether the diagnostic log is being kept.
   ///
   /// Off by default, and stored rather than assumed: someone who turned it on

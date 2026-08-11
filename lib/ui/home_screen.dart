@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/tunnel.dart';
 import '../core/tunnel_controller.dart';
+import '../core/server_catalog.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
@@ -22,6 +23,7 @@ class HomeScreen extends StatelessWidget {
     final controller = TunnelScope.of(context);
     final status = controller.value;
     final l10n = AppLocalizations.of(context);
+    final servers = ServerSelectionScope.of(context);
     final buttonLabel = switch (status.phase) {
       TunnelPhase.disconnected => l10n.connect,
       TunnelPhase.connecting => l10n.statusConnecting,
@@ -39,7 +41,9 @@ class HomeScreen extends StatelessWidget {
               Center(
                 child: Padding(
                   padding: EdgeInsets.only(
-                    bottom: status.hasNode ? 104 : 0,
+                    // The server surface permanently owns this space. Tunnel
+                    // phase changes must never move the primary control.
+                    bottom: 126,
                     left: CaeloSpace.gutter,
                     right: CaeloSpace.gutter,
                   ),
@@ -78,13 +82,15 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              if (status.hasNode)
-                Positioned(
-                  left: CaeloSpace.md,
-                  right: CaeloSpace.md,
-                  bottom: CaeloSpace.control,
-                  child: _ConnectionPanel(status: status),
+              Positioned(
+                left: CaeloSpace.md,
+                right: CaeloSpace.md,
+                bottom: CaeloSpace.control,
+                child: _ServerPanel(
+                  controller: servers,
+                  locked: status.phase != TunnelPhase.disconnected,
                 ),
+              ),
               // Mobile SafeArea starts below the status bar. macOS reports no
               // such inset for its transparent title bar, so reserve its chrome
               // explicitly and keep the button out of the traffic-light row.
@@ -126,81 +132,162 @@ class _ConfigurationHint extends StatelessWidget {
   }
 }
 
-/// Real connection data reported by the core. The panel does not render until
-/// a node is present and never manufactures a flag, grade or latency.
-class _ConnectionPanel extends StatelessWidget {
-  const _ConnectionPanel({required this.status});
+/// Subscription server selection. While the backend is absent the controller
+/// provides explicitly isolated presentation mocks; this widget never mutates
+/// or fabricates [TunnelStatus].
+class _ServerPanel extends StatelessWidget {
+  const _ServerPanel({required this.controller, required this.locked});
 
-  final TunnelStatus status;
+  final ServerSelectionController controller;
+  final bool locked;
+
+  Future<void> _choose(BuildContext context) async {
+    if (locked || controller.servers.isEmpty) return;
+    final l10n = AppLocalizations.of(context);
+    await showCupertinoModalPopup<void>(
+      context: context,
+      builder: (sheetContext) => CupertinoActionSheet(
+        title: Text(l10n.chooseServer),
+        message: Text(l10n.serverListMockNotice),
+        actions: [
+          for (final server in controller.servers)
+            CupertinoActionSheetAction(
+              isDefaultAction: server == controller.selected,
+              onPressed: () async {
+                Navigator.pop(sheetContext);
+                await controller.select(server);
+              },
+              child: Row(
+                children: [
+                  Text(server.flag, style: const TextStyle(fontSize: 24)),
+                  const SizedBox(width: CaeloSpace.control),
+                  Expanded(
+                    child: Text(
+                      '${server.name} · ${server.location}',
+                      textAlign: TextAlign.left,
+                    ),
+                  ),
+                  Text('${server.latencyMs} ms'),
+                ],
+              ),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(sheetContext),
+          child: Text(l10n.done),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
     final l10n = AppLocalizations.of(context);
-    final details = <String>[
-      if (status.protocol != null) status.protocol!.label,
-      if (status.pingMs != null) l10n.latency(status.pingMs!),
-    ];
+    final server = controller.selected;
 
     return CaeloContentWidth(
-      child: CaeloPanel(
-        radius: CaeloRadius.cardAll,
-        padding: const EdgeInsets.symmetric(
-          horizontal: CaeloSpace.gutter,
-          vertical: CaeloSpace.control,
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: CaeloSize.minimumTarget,
-              height: CaeloSize.minimumTarget,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: palette.accentSurface,
-                border: Border.all(color: palette.accentBorder),
-              ),
-              child: Icon(
-                CupertinoIcons.globe,
-                color: palette.accent,
-                size: 24,
-              ),
+      child: GestureDetector(
+        onTap: locked ? null : () => _choose(context),
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          height: 110,
+          child: CaeloPanel(
+            radius: CaeloRadius.cardAll,
+            padding: const EdgeInsets.symmetric(
+              horizontal: CaeloSpace.gutter,
+              vertical: CaeloSpace.control,
             ),
-            const SizedBox(width: CaeloSpace.control),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    l10n.currentConnection,
-                    style: CaeloTheme.caption(palette),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 54,
+                  child: Text(
+                    server?.flag ?? '—',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 30),
                   ),
-                  const SizedBox(height: CaeloSpace.xs),
-                  Text(
-                    status.node!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: CaeloTheme.body(
-                      palette,
-                    ).copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-            if (details.isNotEmpty) ...[
-              const SizedBox(width: CaeloSpace.control),
-              Text(
-                details.join(' · '),
-                textAlign: TextAlign.end,
-                style: CaeloTheme.caption(palette).copyWith(
-                  color: status.pingMs != null && status.pingMs! < 60
-                      ? palette.accent
-                      : palette.muted,
-                  fontWeight: FontWeight.w600,
                 ),
-              ),
-            ],
-          ],
+                const SizedBox(width: CaeloSpace.control),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        l10n.selectedServer,
+                        style: CaeloTheme.caption(palette),
+                      ),
+                      const SizedBox(height: CaeloSpace.xs),
+                      Text(
+                        server?.name ?? '—',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: CaeloTheme.title(palette),
+                      ),
+                      Text(
+                        server?.location ?? l10n.serverListMockNotice,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: CaeloTheme.caption(palette),
+                      ),
+                    ],
+                  ),
+                ),
+                if (server != null)
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _ServerBadge(label: server.badge),
+                      const SizedBox(height: CaeloSpace.xs),
+                      Text(
+                        l10n.latency(server.latencyMs),
+                        style: CaeloTheme.caption(palette).copyWith(
+                          color: server.latencyMs < 60
+                              ? palette.accent
+                              : palette.muted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                const SizedBox(width: CaeloSpace.sm),
+                Icon(
+                  locked ? CupertinoIcons.lock : CupertinoIcons.chevron_up,
+                  size: 18,
+                  color: palette.dim,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ServerBadge extends StatelessWidget {
+  const _ServerBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: palette.accentSurface,
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: palette.accentBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: Text(
+          label,
+          style: CaeloTheme.caption(
+            palette,
+          ).copyWith(color: palette.accent, fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -244,21 +331,21 @@ class _ReconnectAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
-    return AnimatedOpacity(
-      opacity: visible ? 1 : 0,
-      duration: const Duration(milliseconds: 220),
-      child: IgnorePointer(
-        ignoring: !visible,
-        child: CupertinoButton(
-          padding: const EdgeInsets.symmetric(
-            horizontal: CaeloSpace.md,
-            vertical: CaeloSpace.sm,
-          ),
-          minimumSize: Size.zero,
-          onPressed: onPressed,
-          child: Text(
-            AppLocalizations.of(context).reconnectDifferently,
-            style: CaeloTheme.caption(palette).copyWith(color: palette.dim),
+    return SizedBox(
+      height: 32,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: const Duration(milliseconds: 220),
+        child: IgnorePointer(
+          ignoring: !visible,
+          child: CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: CaeloSpace.md),
+            minimumSize: Size.zero,
+            onPressed: onPressed,
+            child: Text(
+              AppLocalizations.of(context).reconnectDifferently,
+              style: CaeloTheme.caption(palette).copyWith(color: palette.dim),
+            ),
           ),
         ),
       ),

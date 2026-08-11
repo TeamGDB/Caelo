@@ -1,5 +1,6 @@
 import 'package:caelo/core/tunnel.dart';
 import 'package:caelo/core/tunnel_controller.dart';
+import 'package:caelo/core/server_catalog.dart';
 import 'package:caelo/l10n/generated/app_localizations.dart';
 import 'package:caelo/theme/app_theme.dart';
 import 'package:caelo/theme/palette.dart';
@@ -14,28 +15,38 @@ import 'fake_tunnel_client.dart';
 void main() {
   late FakeTunnelClient client;
   late TunnelController controller;
+  late ServerSelectionController serverController;
   late bool configured;
 
   setUp(() {
     configured = false;
     client = FakeTunnelClient();
     controller = TunnelController(client, isConfigured: () async => configured);
+    serverController = ServerSelectionController(const MockServerCatalog());
+    serverController.servers = MockServerCatalog.servers;
+    serverController.selected = serverController.servers.first;
   });
 
-  tearDown(() => controller.dispose());
+  tearDown(() {
+    controller.dispose();
+    serverController.dispose();
+  });
 
   Future<void> pumpHome(WidgetTester tester, {Locale? locale}) async {
     await tester.pumpWidget(
       CaeloColors(
         palette: CaeloPalette.dark,
-        child: TunnelScope(
-          notifier: controller,
-          child: CupertinoApp(
-            locale: locale,
-            theme: CaeloTheme.data(CaeloPalette.dark),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const HomeScreen(),
+        child: ServerSelectionScope(
+          controller: serverController,
+          child: TunnelScope(
+            notifier: controller,
+            child: CupertinoApp(
+              locale: locale,
+              theme: CaeloTheme.data(CaeloPalette.dark),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const HomeScreen(),
+            ),
           ),
         ),
       ),
@@ -66,7 +77,9 @@ void main() {
     expect(find.text('No configuration yet'), findsNothing);
   });
 
-  testWidgets('names the node and protocol once connected', (tester) async {
+  testWidgets('keeps the selected server when the core connects', (
+    tester,
+  ) async {
     await pumpHome(tester, locale: const Locale('en'));
 
     client.emit(
@@ -80,10 +93,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Connected'), findsOneWidget);
-    expect(find.text('Current connection'), findsOneWidget);
-    expect(find.textContaining('Frankfurt 3'), findsOneWidget);
-    expect(find.textContaining('AmneziaWG'), findsOneWidget);
-    expect(find.textContaining('42'), findsOneWidget);
+    expect(find.text('Selected server'), findsOneWidget);
+    expect(find.text('Helsinki'), findsOneWidget);
+    expect(find.text('Frankfurt 3'), findsNothing);
   });
 
   testWidgets('says so when an attempt fails', (tester) async {
@@ -172,7 +184,7 @@ void main() {
     }
   });
 
-  testWidgets('does not invent a connection panel without a core node', (
+  testWidgets('shows the selected mock server before the core chooses a node', (
     tester,
   ) async {
     await pumpHome(tester, locale: const Locale('en'));
@@ -181,7 +193,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Connecting'), findsOneWidget);
-    expect(find.text('Current connection'), findsNothing);
+    expect(find.text('Selected server'), findsOneWidget);
+    expect(find.text('Helsinki'), findsOneWidget);
   });
 
   testWidgets('shows the real disconnecting phase inside the button', (
@@ -195,19 +208,19 @@ void main() {
     expect(find.text('Disconnecting'), findsOneWidget);
   });
 
-  testWidgets('shows a core node without inventing missing measurements', (
+  testWidgets('does not move the power button when tunnel phase changes', (
     tester,
   ) async {
     await pumpHome(tester, locale: const Locale('en'));
+    final power = find.text('Connect');
+    final before = tester.getCenter(power);
 
     client.emit(
       const TunnelStatus(phase: TunnelPhase.connected, node: 'Helsinki 1'),
     );
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Current connection'), findsOneWidget);
-    expect(find.text('Helsinki 1'), findsOneWidget);
-    expect(find.textContaining('ms'), findsNothing);
+    expect(tester.getCenter(find.text('Connected')), before);
   });
 
   testWidgets('fits the compact reference viewport in Russian', (tester) async {

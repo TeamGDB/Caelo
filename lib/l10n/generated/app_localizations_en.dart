@@ -58,6 +58,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get forgetAccount => 'Disconnect account';
 
   @override
+  String get selectedServer => 'Selected server';
+
+  @override
+  String get chooseServer => 'Choose server';
+
+  @override
+  String get serverListMockNotice =>
+      'Preview servers until your account backend is connected';
+
+  @override
   String get statusDisconnected => 'Not connected';
 
   @override

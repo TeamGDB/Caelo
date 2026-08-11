@@ -11,6 +11,7 @@ import 'core/service_tunnel_client.dart';
 import 'core/diagnostics.dart';
 import 'core/apple_tunnel_client.dart';
 import 'core/settings_store.dart';
+import 'core/server_catalog.dart';
 import 'core/tunnel.dart';
 import 'core/tunnel_controller.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -83,6 +84,9 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   late CaeloThemeMode _themeMode = widget.themeMode;
   late CaeloLocaleMode _localeMode = widget.localeMode;
   late bool _accessGranted = widget.accessGranted;
+  late final ServerSelectionController _servers = ServerSelectionController(
+    const MockServerCatalog(),
+  );
 
   /// The system tunnel wherever there is one, and the in-process tunnel where
   /// there is not.
@@ -111,6 +115,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     // The system scheme can change while the app is open, and the palette is
     // resolved from it.
     WidgetsBinding.instance.addObserver(this);
+    _servers.load();
   }
 
   Future<void> setThemeMode(CaeloThemeMode mode) async {
@@ -135,6 +140,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
+    _servers.dispose();
     super.dispose();
   }
 
@@ -151,30 +157,33 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
       child: LocaleModeScope(
         mode: _localeMode,
         onChanged: setLocaleMode,
-        child: AccessScope(
-          accessGranted: _accessGranted,
-          onChanged: setAccessGranted,
-          child: CaeloColors(
-            palette: palette,
-            child: TunnelScope(
-              notifier: _controller,
-              child: CupertinoApp(
-                locale: _localeMode.locale,
-                onGenerateTitle: (context) =>
-                    AppLocalizations.of(context).appTitle,
-                theme: CaeloTheme.data(palette),
-                localizationsDelegates: const [
-                  AppLocalizations.delegate,
-                  GlobalCupertinoLocalizations.delegate,
-                  GlobalWidgetsLocalizations.delegate,
-                ],
-                supportedLocales: AppLocalizations.supportedLocales,
-                home: _accessGranted
-                    ? const HomeScreen()
-                    : WelcomeScreen(
-                        gateway: widget.accountGateway,
-                        onGranted: () => setAccessGranted(true),
-                      ),
+        child: ServerSelectionScope(
+          controller: _servers,
+          child: AccessScope(
+            accessGranted: _accessGranted,
+            onChanged: setAccessGranted,
+            child: CaeloColors(
+              palette: palette,
+              child: TunnelScope(
+                notifier: _controller,
+                child: CupertinoApp(
+                  locale: _localeMode.locale,
+                  onGenerateTitle: (context) =>
+                      AppLocalizations.of(context).appTitle,
+                  theme: CaeloTheme.data(palette),
+                  localizationsDelegates: const [
+                    AppLocalizations.delegate,
+                    GlobalCupertinoLocalizations.delegate,
+                    GlobalWidgetsLocalizations.delegate,
+                  ],
+                  supportedLocales: AppLocalizations.supportedLocales,
+                  home: _accessGranted
+                      ? const HomeScreen()
+                      : WelcomeScreen(
+                          gateway: widget.accountGateway,
+                          onGranted: () => setAccessGranted(true),
+                        ),
+                ),
               ),
             ),
           ),

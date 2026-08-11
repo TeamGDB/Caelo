@@ -188,6 +188,24 @@ abstract class AppLocalizations {
   /// **'Disconnect account'**
   String get forgetAccount;
 
+  /// No description provided for @selectedServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected server'**
+  String get selectedServer;
+
+  /// No description provided for @chooseServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose server'**
+  String get chooseServer;
+
+  /// No description provided for @serverListMockNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview servers until your account backend is connected'**
+  String get serverListMockNotice;
+
   /// Main screen status, tunnel is down and idle.
   ///
   /// In en, this message translates to:
