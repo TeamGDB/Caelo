@@ -27,9 +27,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/TeamGDB/caelo-core/internal/ipc"
-	"github.com/TeamGDB/caelo-core/internal/systunnel"
-	"github.com/TeamGDB/caelo-core/internal/version"
+	"github.com/TeamGDB/Caelo/core/internal/ipc"
+	"github.com/TeamGDB/Caelo/core/internal/systunnel"
+	"github.com/TeamGDB/Caelo/core/internal/version"
 )
 
 func main() {

@@ -19,7 +19,7 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/v3/device"
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 
-	"github.com/TeamGDB/caelo-core/internal/awg"
+	"github.com/TeamGDB/Caelo/core/internal/awg"
 )
 
 // Status describes a live tunnel.

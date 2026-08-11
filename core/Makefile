@@ -1,5 +1,5 @@
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-LDFLAGS := -X github.com/TeamGDB/caelo-core/internal/version.Version=$(VERSION)
+LDFLAGS := -X github.com/TeamGDB/Caelo/core/internal/version.Version=$(VERSION)
 
 BUILD := build
 

@@ -23,7 +23,7 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/v3/device"
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun/netstack"
 
-	"github.com/TeamGDB/caelo-core/internal/awg"
+	"github.com/TeamGDB/Caelo/core/internal/awg"
 )
 
 // ErrNotConnected is returned by operations that need a live tunnel.

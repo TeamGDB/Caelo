@@ -32,6 +32,10 @@ xcuserdata/
 *.xcworkspace/xcuserdata/
 DerivedData/
 
+# Go build output from core/
+core/build/
+core/vendor/
+
 # Signing and secrets — never commit these
 *.p12
 *.mobileprovision

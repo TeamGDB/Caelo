@@ -2,8 +2,10 @@ name: Core
 
 on:
   pull_request:
+    paths: ["core/**", ".github/workflows/core.yml"]
   push:
     branches: [main]
+    paths: ["core/**", ".github/workflows/core.yml"]
 
 permissions:
   contents: read
@@ -11,12 +13,16 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: core/go.mod
           cache: true
 
       - name: Formatting
@@ -37,12 +43,16 @@ jobs:
   android:
     runs-on: ubuntu-latest
     needs: test
+    defaults:
+      run:
+        working-directory: core
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: core/go.mod
           cache: true
 
       - name: Build libcaelo.so for every ABI
@@ -53,18 +63,22 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: libcaelo-android
-          path: build/android/*/libcaelo.so
+          path: core/build/android/*/libcaelo.so
           if-no-files-found: error
 
   macos:
     runs-on: macos-latest
     needs: test
+    defaults:
+      run:
+        working-directory: core
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: core/go.mod
           cache: true
 
       - name: Build the shared library and the commands
@@ -76,6 +90,6 @@ jobs:
         with:
           name: libcaelo-macos
           path: |
-            build/libcaelo.dylib
-            build/libcaelo.h
+            core/build/libcaelo.dylib
+            core/build/libcaelo.h
           if-no-files-found: error

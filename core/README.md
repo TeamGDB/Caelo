@@ -1,7 +1,11 @@
-# caelo-core
+# core
 
-The engine behind [Caelo](https://github.com/TeamGDB/Caelo): subscriptions, node
-selection, connection state, statistics, scheduling.
+The engine behind Caelo: the tunnel, subscriptions, node selection, connection state,
+statistics, scheduling.
+
+It is a Go module inside the application's repository rather than beside it. The FFI
+surface between the two changes often enough that having to land it in two repositories,
+in order, was the more expensive arrangement.
 
 > **Status: early development.** The AmneziaWG transport works end to end. Nothing above
 > it exists yet.
@@ -17,7 +21,7 @@ ordinary Go module and Caelo registers its own protocol types through its public
 AmneziaWG comes from [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go), also as
 published. Upgrading either is a version bump. See
 [ATTRIBUTION.md](ATTRIBUTION.md) for licences and
-[the app's README](https://github.com/TeamGDB/Caelo#architecture) for why the alternative —
+[the app's README](../README.md#architecture) for why the alternative —
 forking `sagernet/wireguard-go` and porting the obfuscation in — was rejected.
 
 Pinned versions:

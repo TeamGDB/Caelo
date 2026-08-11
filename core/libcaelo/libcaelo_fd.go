@@ -8,7 +8,7 @@ package main
 import "C"
 
 import (
-	"github.com/TeamGDB/caelo-core/internal/fdtun"
+	"github.com/TeamGDB/Caelo/core/internal/fdtun"
 )
 
 // hosted is the tunnel running on a device the platform created for us. One

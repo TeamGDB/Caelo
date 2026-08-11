@@ -18,8 +18,8 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/v3/device"
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 
-	"github.com/TeamGDB/caelo-core/internal/awg"
-	"github.com/TeamGDB/caelo-core/internal/system"
+	"github.com/TeamGDB/Caelo/core/internal/awg"
+	"github.com/TeamGDB/Caelo/core/internal/system"
 )
 
 // Status describes what the controller is currently doing.

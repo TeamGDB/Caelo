@@ -20,9 +20,9 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/TeamGDB/caelo-core/internal/awg"
-	"github.com/TeamGDB/caelo-core/internal/tunnel"
-	"github.com/TeamGDB/caelo-core/internal/version"
+	"github.com/TeamGDB/Caelo/core/internal/awg"
+	"github.com/TeamGDB/Caelo/core/internal/tunnel"
+	"github.com/TeamGDB/Caelo/core/internal/version"
 )
 
 func main() {}

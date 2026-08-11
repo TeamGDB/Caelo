@@ -15,13 +15,12 @@ set -euo pipefail
 
 MODE="${1:-debug}"
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CORE_ROOT="${CAELO_CORE_ROOT:-$APP_ROOT/../caelo-core}"
+CORE_ROOT="${CAELO_CORE_ROOT:-$APP_ROOT/core}"
 JNI_LIBS="$APP_ROOT/android/app/src/main/jniLibs"
 
 if [[ ! -d "$CORE_ROOT" ]]; then
-  echo "error: caelo-core not found at $CORE_ROOT" >&2
-  echo "Clone https://github.com/TeamGDB/caelo-core beside this repository," >&2
-  echo "or set CAELO_CORE_ROOT to where it lives." >&2
+  echo "error: the core is missing at $CORE_ROOT" >&2
+  echo "The core lives in core/ in this repository — the checkout is incomplete." >&2
   exit 1
 fi
 

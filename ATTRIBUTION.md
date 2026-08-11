@@ -13,7 +13,7 @@ These are consumed as ordinary dependencies, not copied into this tree.
 
 | Project | License | Version | Notes |
 | --- | --- | --- | --- |
-| [sing-box](https://github.com/SagerNet/sing-box) | GPL-3.0-or-later, with an additional §7 clause restricting use of the name and implied association | v1.13.16 | Imported as a Go module by `caelo-core`. Caelo registers its own protocol types through the public registry API. |
+| [sing-box](https://github.com/SagerNet/sing-box) | GPL-3.0-or-later, with an additional §7 clause restricting use of the name and implied association | v1.13.16 | Imported as a Go module by the core. Caelo registers its own protocol types through the public registry API. |
 | [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) | MIT | v3.0.20260805 | The AmneziaWG implementation, used as published. |
 | [wireguard-go](https://git.zx2c4.com/wireguard-go/) | MIT | via `amneziawg-go` | Upstream of `amneziawg-go`; its copyright notices travel with that dependency. |
 
@@ -27,7 +27,7 @@ note in the README for why the alternative was rejected.
 None yet. Anything copied file-by-file gets a row here with the source path, the upstream
 commit, and the license it arrived under.
 
-If the netstack `tun.Device` in `caelo-core` ends up adapted from sing-box's
+If the netstack `tun.Device` in `core/` ends up adapted from sing-box's
 `transport/wireguard/device_stack.go` rather than written from scratch, it belongs in this
 section with the commit it came from. Both projects are GPL-3.0-or-later, so the reuse is
 permitted; the attribution is still owed.

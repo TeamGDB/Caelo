@@ -11,9 +11,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/TeamGDB/caelo-core/internal/awg"
-	"github.com/TeamGDB/caelo-core/internal/probe"
-	"github.com/TeamGDB/caelo-core/internal/version"
+	"github.com/TeamGDB/Caelo/core/internal/awg"
+	"github.com/TeamGDB/Caelo/core/internal/probe"
+	"github.com/TeamGDB/Caelo/core/internal/version"
 )
 
 func main() {

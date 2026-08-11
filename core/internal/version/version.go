@@ -4,7 +4,7 @@ package version
 import "runtime/debug"
 
 // Version is the core's own version, set at build time with
-// -ldflags "-X github.com/TeamGDB/caelo-core/internal/version.Version=..."
+// -ldflags "-X github.com/TeamGDB/Caelo/core/internal/version.Version=..."
 var Version = "dev"
 
 // AmneziaWG is the amneziawg-go release this core was built against. It is read

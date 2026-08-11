@@ -35,9 +35,8 @@ time, we would rather disclose it than leave users believing they are protected.
 
 ## Scope
 
-In scope: the Caelo app in this repository, the core in
-[`TeamGDB/caelo-core`](https://github.com/TeamGDB/caelo-core), our WireGuard fork, our
-build and release pipeline, and our subscription delivery service.
+In scope: everything in this repository — the app and the core in [`core/`](core) — along
+with our build and release pipeline and our subscription delivery service.
 
 Of particular interest:
 

@@ -1,4 +1,4 @@
-module github.com/TeamGDB/caelo-core
+module github.com/TeamGDB/Caelo/core
 
 go 1.26.2
 

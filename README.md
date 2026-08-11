@@ -13,12 +13,17 @@ full obfuscation parameter set (`Jc`/`Jmin`/`Jmax`, `S1`–`S4`, `H1`–`H4`, an
 signature packets `I1`–`I5`), plus VLESS/REALITY and whatever else comes along for the
 ride from sing-box. Which protocol you end up on is not a question the app asks you.
 
-## Repositories
+## Layout
 
-| Repository | What it holds |
+| Path | What it holds |
 | --- | --- |
-| [`TeamGDB/Caelo`](https://github.com/TeamGDB/Caelo) | This one — the app. Flutter UI, platform runners, builds, releases. |
-| [`TeamGDB/caelo-core`](https://github.com/TeamGDB/caelo-core) | The Go core: subscriptions, node selection, state, statistics. |
+| `lib/`, `macos/`, `android/` | The app. Flutter interface, platform runners, builds, releases. |
+| [`core/`](core) | The Go core: the tunnel, subscriptions, node selection, state, statistics. |
+
+The core lived in its own repository until it did not earn the split. Two
+repositories meant a deploy key, a cross-repo checkout, and a build that could
+produce an app with no core in it; one means neither can drift from the other
+and a single commit can change both sides of the FFI boundary at once.
 
 ## Architecture
 
@@ -41,7 +46,7 @@ SagerNet's fork couples them to sing-box's own service and pause machinery. Amne
 the reason this project exists, so it is the dependency that stays fresh.
 
 What that costs us is the plumbing SagerNet's fork provided: a `conn.Bind` and a netstack
-`tun.Device`. Both live in `caelo-core` as our own code, under our own tests.
+`tun.Device`. Both live in `core/` as our own code, under our own tests.
 
 Pinned versions:
 
@@ -73,8 +78,7 @@ ANDROID_NDK_HOME=$ANDROID_HOME/ndk/<version> ./scripts/build-android.sh debug
 Without an NDK, `flutter build apk --debug` still builds the interface; the app runs and
 reports that the core is not there.
 
-The macOS script expects [`caelo-core`](https://github.com/TeamGDB/caelo-core) checked out
-beside this repository, or `CAELO_CORE_ROOT` pointing at it.
+Both scripts build the core from `core/` first, so a clean checkout is all either needs.
 
 ## License
 

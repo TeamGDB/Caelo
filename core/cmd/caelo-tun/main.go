@@ -25,8 +25,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/TeamGDB/caelo-core/internal/systunnel"
-	"github.com/TeamGDB/caelo-core/internal/version"
+	"github.com/TeamGDB/Caelo/core/internal/systunnel"
+	"github.com/TeamGDB/Caelo/core/internal/version"
 )
 
 func main() {
