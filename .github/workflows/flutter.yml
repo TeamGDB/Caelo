@@ -51,9 +51,19 @@ jobs:
 
       - run: flutter pub get
 
-      # Debug signing only. This is a build check, not a release artifact, and
-      # it must never be handed to anyone as one.
+      # The core lives in caelo-core and is built by its own pipeline, so the
+      # APK from here carries no libcaelo.so: the interface runs and reports
+      # that the core is not there. Building a complete APK needs the two
+      # repositories to reach each other, which needs a token.
       - run: flutter build apk --debug
+
+      # Debug signing. A build check, not a release, and it must never be
+      # handed to anyone as one — hence the name.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: caelo-debug-apk-no-core
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
 
   build-macos:
     runs-on: macos-latest
@@ -68,6 +78,16 @@ jobs:
 
       - run: flutter pub get
 
-      # Without the core bundled: caelo-core lives in its own repository and
-      # its own pipeline. This checks that the application itself still builds.
+      # Without the core bundled, for the same reason as the APK above.
       - run: flutter build macos --debug
+
+      - name: Compress the bundle
+        run: |
+          cd build/macos/Build/Products/Debug
+          zip -qry Caelo-debug.zip Caelo.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: caelo-debug-macos-no-core
+          path: build/macos/Build/Products/Debug/Caelo-debug.zip
+          if-no-files-found: error
