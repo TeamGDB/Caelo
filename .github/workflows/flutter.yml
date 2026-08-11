@@ -125,11 +125,15 @@ jobs:
           # none of the app's frameworks, and one inherited link flag is enough
           # for dyld to kill it milliseconds into launch -- which the system
           # then reports as a tunnel that connects forever.
-          otool -L "$ext/Contents/MacOS/team.gdb.caelo.SystemExtension" \
-            | grep -o '@rpath/[^ ]*' | sort -u | while read -r dep; do
-              test -e "$ext/Contents/Frameworks/${dep#@rpath/}" \
-                || (echo "::error::the extension links ${dep#@rpath/}, which it does not carry" && exit 1)
-            done
+          #
+          # Weak ones are exempt because dyld exempts them: whether Xcode
+          # back-deploys the Swift concurrency runtime depends on the toolchain,
+          # so demanding it here fails on runners and passes on desktops.
+          for dep in $(otool -L "$ext/Contents/MacOS/team.gdb.caelo.SystemExtension" \
+                       | awk '/@rpath\// && !/weak\)/ { print $1 }' | sort -u); do
+            test -e "$ext/Contents/Frameworks/${dep#@rpath/}" \
+              || { echo "::error::the extension links ${dep#@rpath/}, which it does not carry"; exit 1; }
+          done
 
           zip -qry Caelo-debug.zip Caelo.app
 
