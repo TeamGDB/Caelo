@@ -18,7 +18,7 @@
   "importOwnConfiguration": "Import your own configuration file",
   "configurationFileInvalid": "Choose a valid WireGuard .conf file",
   "forgetAccount": "Disconnect account",
-  "selectedServer": "Selected server",
+  "selectedServer": "Current server",
   "chooseServer": "Choose server",
   "serverListMockNotice": "Preview servers until your account backend is connected",
   "statusDisconnected": "Not connected",

@@ -58,7 +58,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get forgetAccount => 'Отключить аккаунт';
 
   @override
-  String get selectedServer => 'Выбранный сервер';
+  String get selectedServer => 'Текущий сервер';
 
   @override
   String get chooseServer => 'Выберите сервер';

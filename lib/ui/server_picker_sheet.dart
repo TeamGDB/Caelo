@@ -24,8 +24,8 @@ class ServerDrawer extends StatelessWidget {
     final palette = CaeloColors.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final peek = (152 / constraints.maxHeight).clamp(0.18, 0.34);
-        const expanded = 0.76;
+        final peek = (112 / constraints.maxHeight).clamp(0.14, 0.26);
+        const expanded = 0.75;
         return DraggableScrollableSheet(
           key: ValueKey(locked),
           initialChildSize: peek,
@@ -72,32 +72,36 @@ class ServerDrawer extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(
                           CaeloSpace.gutter,
-                          CaeloSpace.xl,
+                          CaeloSpace.gutter,
                           CaeloSpace.gutter,
                           CaeloSpace.xs,
                         ),
                         child: Text(
                           AppLocalizations.of(context).chooseServer,
-                          style: CaeloTheme.headline(palette),
+                          style: CaeloTheme.headline(
+                            palette,
+                          ).copyWith(fontSize: 26),
                         ),
                       ),
                     ),
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: CaeloSpace.gutter,
+                          horizontal: CaeloSpace.lg,
                         ),
                         child: Text(
                           AppLocalizations.of(context).serverListMockNotice,
-                          style: CaeloTheme.caption(palette),
+                          style: CaeloTheme.body(
+                            palette,
+                          ).copyWith(color: palette.muted, height: 1.45),
                         ),
                       ),
                     ),
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(
-                        CaeloSpace.gutter,
                         CaeloSpace.lg,
-                        CaeloSpace.gutter,
+                        52,
+                        CaeloSpace.lg,
                         CaeloSpace.xl,
                       ),
                       sliver: SliverList.separated(
@@ -143,7 +147,7 @@ class _PeekHeader extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final server = selected;
     return SizedBox(
-      height: 152,
+      height: 112,
       child: Column(
         children: [
           const SizedBox(height: CaeloSpace.control),
@@ -159,7 +163,7 @@ class _PeekHeader extends StatelessWidget {
           Expanded(
             child: Column(
               children: [
-                const SizedBox(height: CaeloSpace.sm),
+                const SizedBox(height: CaeloSpace.xs),
                 Text(
                   l10n.selectedServer,
                   style: CaeloTheme.body(
@@ -169,22 +173,22 @@ class _PeekHeader extends StatelessWidget {
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(
-                      CaeloSpace.gutter,
-                      CaeloSpace.xs,
-                      CaeloSpace.gutter,
-                      CaeloSpace.control,
+                      CaeloSpace.lg,
+                      0,
+                      CaeloSpace.lg,
+                      CaeloSpace.sm,
                     ),
                     child: Row(
                       children: [
                         SizedBox(
-                          width: 54,
+                          width: 58,
                           child: Text(
                             server?.flag ?? '—',
                             textAlign: TextAlign.center,
                             style: const TextStyle(fontSize: 32),
                           ),
                         ),
-                        const SizedBox(width: CaeloSpace.control),
+                        const SizedBox(width: CaeloSpace.md),
                         Expanded(
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -259,7 +263,7 @@ class _ServerRow extends StatelessWidget {
         key: ValueKey('server-row-${server.id}'),
         padding: const EdgeInsets.symmetric(
           horizontal: CaeloSpace.control,
-          vertical: CaeloSpace.sm,
+          vertical: 18,
         ),
         decoration: BoxDecoration(
           color: selected ? palette.accentSurface : const Color(0x00000000),
@@ -271,14 +275,14 @@ class _ServerRow extends StatelessWidget {
         child: Row(
           children: [
             SizedBox(
-              width: 48,
+              width: 58,
               child: Text(
                 server.flag,
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 28),
               ),
             ),
-            const SizedBox(width: CaeloSpace.control),
+            const SizedBox(width: CaeloSpace.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,9 +293,14 @@ class _ServerRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: CaeloTheme.body(
                       palette,
-                    ).copyWith(fontWeight: FontWeight.w600),
+                    ).copyWith(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
-                  Text(server.location, style: CaeloTheme.caption(palette)),
+                  Text(
+                    server.location,
+                    style: CaeloTheme.body(
+                      palette,
+                    ).copyWith(color: palette.muted),
+                  ),
                 ],
               ),
             ),

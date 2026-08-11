@@ -191,7 +191,7 @@ abstract class AppLocalizations {
   /// No description provided for @selectedServer.
   ///
   /// In en, this message translates to:
-  /// **'Selected server'**
+  /// **'Current server'**
   String get selectedServer;
 
   /// No description provided for @chooseServer.

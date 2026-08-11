@@ -58,7 +58,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get forgetAccount => 'Disconnect account';
 
   @override
-  String get selectedServer => 'Selected server';
+  String get selectedServer => 'Current server';
 
   @override
   String get chooseServer => 'Choose server';

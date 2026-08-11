@@ -61,7 +61,7 @@ void main() {
 
     expect(find.text('Connect'), findsOneWidget);
     expect(find.text('No configuration yet'), findsNothing);
-    expect(find.text('Selected server'), findsOneWidget);
+    expect(find.text('Current server'), findsOneWidget);
   });
 
   // Being idle is not the same as having nothing to dial. Saying the second
@@ -96,7 +96,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Connected'), findsOneWidget);
-    expect(find.text('Selected server'), findsOneWidget);
+    expect(find.text('Current server'), findsOneWidget);
     expect(find.text('Helsinki'), findsOneWidget);
     expect(find.text('Frankfurt 3'), findsNothing);
   });
@@ -116,7 +116,7 @@ void main() {
     await pumpHome(tester, locale: const Locale('ru'));
 
     expect(find.text('Подключить'), findsOneWidget);
-    expect(find.text('Выбранный сервер'), findsOneWidget);
+    expect(find.text('Текущий сервер'), findsOneWidget);
   });
 
   // The most harmful thing this screen could do is imply the machine is
@@ -248,7 +248,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Connecting'), findsOneWidget);
-    expect(find.text('Selected server'), findsOneWidget);
+    expect(find.text('Current server'), findsOneWidget);
     expect(find.text('Helsinki'), findsOneWidget);
   });
 

@@ -15,7 +15,7 @@
   "importOwnConfiguration": "Добавить свой файл конфигурации",
   "configurationFileInvalid": "Выберите корректный файл WireGuard .conf",
   "forgetAccount": "Отключить аккаунт",
-  "selectedServer": "Выбранный сервер",
+  "selectedServer": "Текущий сервер",
   "chooseServer": "Выберите сервер",
   "serverListMockNotice": "Тестовые серверы до подключения backend аккаунта",
   "statusDisconnected": "Отключено",
