@@ -26,11 +26,33 @@ void main() async {
   // refuse to start.
   await Diagnostics.load().catchError((_) {});
 
-  runApp(const CaeloApp());
+  // Resolve appearance before the first frame. A saved dark scheme or Russian
+  // locale should not briefly render as the system default on every launch.
+  var themeMode = CaeloThemeMode.system;
+  var localeMode = CaeloLocaleMode.system;
+  try {
+    themeMode = await SettingsStore.themeMode();
+  } on Object {
+    // Defaults are usable even if the settings directory is unavailable.
+  }
+  try {
+    localeMode = await SettingsStore.localeMode();
+  } on Object {
+    // Locale failure is independent of theme failure and falls back to the OS.
+  }
+
+  runApp(CaeloApp(themeMode: themeMode, localeMode: localeMode));
 }
 
 class CaeloApp extends StatefulWidget {
-  const CaeloApp({super.key});
+  const CaeloApp({
+    this.themeMode = CaeloThemeMode.system,
+    this.localeMode = CaeloLocaleMode.system,
+    super.key,
+  });
+
+  final CaeloThemeMode themeMode;
+  final CaeloLocaleMode localeMode;
 
   @override
   State<CaeloApp> createState() => _CaeloAppState();
@@ -40,7 +62,8 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   // The only place a TunnelClient implementation is named.
   late final TunnelController _controller = TunnelController(_pickClient());
 
-  CaeloThemeMode _themeMode = CaeloThemeMode.system;
+  late CaeloThemeMode _themeMode = widget.themeMode;
+  late CaeloLocaleMode _localeMode = widget.localeMode;
 
   /// The system tunnel wherever there is one, and the in-process tunnel where
   /// there is not.
@@ -69,17 +92,16 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     // The system scheme can change while the app is open, and the palette is
     // resolved from it.
     WidgetsBinding.instance.addObserver(this);
-    _loadThemeMode();
-  }
-
-  Future<void> _loadThemeMode() async {
-    final mode = await SettingsStore.themeMode();
-    if (mounted) setState(() => _themeMode = mode);
   }
 
   Future<void> setThemeMode(CaeloThemeMode mode) async {
     setState(() => _themeMode = mode);
     await SettingsStore.setThemeMode(mode);
+  }
+
+  Future<void> setLocaleMode(CaeloLocaleMode mode) async {
+    setState(() => _localeMode = mode);
+    await SettingsStore.setLocaleMode(mode);
   }
 
   @override
@@ -102,25 +124,51 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     return ThemeModeScope(
       mode: _themeMode,
       onChanged: setThemeMode,
-      child: CaeloColors(
-        palette: palette,
-        child: TunnelScope(
-          notifier: _controller,
-          child: CupertinoApp(
-            onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
-            theme: CaeloTheme.data(palette),
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const HomeScreen(),
+      child: LocaleModeScope(
+        mode: _localeMode,
+        onChanged: setLocaleMode,
+        child: CaeloColors(
+          palette: palette,
+          child: TunnelScope(
+            notifier: _controller,
+            child: CupertinoApp(
+              locale: _localeMode.locale,
+              onGenerateTitle: (context) =>
+                  AppLocalizations.of(context).appTitle,
+              theme: CaeloTheme.data(palette),
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+              ],
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const HomeScreen(),
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// The saved locale preference. Null locale in [CaeloLocaleMode.system] lets
+/// Flutter resolve the operating system locale in the ordinary way.
+class LocaleModeScope extends InheritedWidget {
+  const LocaleModeScope({
+    required this.mode,
+    required this.onChanged,
+    required super.child,
+    super.key,
+  });
+
+  final CaeloLocaleMode mode;
+  final Future<void> Function(CaeloLocaleMode) onChanged;
+
+  static LocaleModeScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<LocaleModeScope>();
+
+  @override
+  bool updateShouldNotify(LocaleModeScope oldWidget) => mode != oldWidget.mode;
 }
 
 /// Lets the settings screen read and change the scheme without being handed a

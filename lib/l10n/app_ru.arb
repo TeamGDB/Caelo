@@ -52,6 +52,8 @@
   "subscriptions": "Подписки",
   "appearanceLanguage": "Язык",
   "languageSystem": "Системный",
+  "languageRussian": "Русский",
+  "languageEnglish": "English",
   "about": "О программе",
   "version": "Версия",
   "core": "Ядро",

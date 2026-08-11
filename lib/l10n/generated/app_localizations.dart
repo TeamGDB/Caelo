@@ -266,6 +266,18 @@ abstract class AppLocalizations {
   /// **'System'**
   String get languageSystem;
 
+  /// Always use the Russian interface locale.
+  ///
+  /// In en, this message translates to:
+  /// **'Russian'**
+  String get languageRussian;
+
+  /// Always use the English interface locale.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get languageEnglish;
+
   /// Settings section with version and licence information.
   ///
   /// In en, this message translates to:

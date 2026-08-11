@@ -3,8 +3,9 @@ import 'package:flutter/cupertino.dart';
 import '../core/config_store.dart';
 import '../core/diagnostics.dart';
 import '../core/ffi/core_library.dart';
+import '../core/settings_store.dart';
 import '../l10n/generated/app_localizations.dart';
-import '../main.dart' show ThemeModeScope;
+import '../main.dart' show LocaleModeScope, ThemeModeScope;
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
 import 'config_screen.dart';
@@ -64,6 +65,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _ => l10n.themeSystem,
       };
 
+  String _localeLabel(AppLocalizations l10n, CaeloLocaleMode? mode) =>
+      switch (mode) {
+        CaeloLocaleMode.russian => l10n.languageRussian,
+        CaeloLocaleMode.english => l10n.languageEnglish,
+        _ => l10n.languageSystem,
+      };
+
   Future<void> _pickTheme(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
     final scope = ThemeModeScope.maybeOf(context);
@@ -91,11 +99,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (chosen != null) await scope.onChanged(chosen);
   }
 
+  Future<void> _pickLocale(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    final scope = LocaleModeScope.maybeOf(context);
+    if (scope == null) return;
+
+    final chosen = await showCupertinoModalPopup<CaeloLocaleMode>(
+      context: context,
+      builder: (sheetContext) => CupertinoActionSheet(
+        title: Text(l10n.appearanceLanguage),
+        actions: [
+          for (final mode in CaeloLocaleMode.values)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.of(sheetContext).pop(mode),
+              isDefaultAction: mode == scope.mode,
+              child: Text(_localeLabel(l10n, mode)),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(sheetContext).pop(),
+          child: Text(l10n.done),
+        ),
+      ),
+    );
+
+    if (chosen != null) await scope.onChanged(chosen);
+  }
+
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
     final l10n = AppLocalizations.of(context);
     final themeScope = ThemeModeScope.maybeOf(context);
+    final localeScope = LocaleModeScope.maybeOf(context);
 
     return CupertinoPageScaffold(
       backgroundColor: palette.background,
@@ -147,7 +183,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     _Row(
                       label: l10n.appearanceLanguage,
-                      value: l10n.languageSystem,
+                      value: _localeLabel(l10n, localeScope?.mode),
+                      onTap: localeScope == null
+                          ? null
+                          : () => _pickLocale(context),
                     ),
                   ],
                 ),

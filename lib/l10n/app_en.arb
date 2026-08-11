@@ -134,6 +134,14 @@
   "@languageSystem": {
     "description": "Language option that follows the operating system."
   },
+  "languageRussian": "Russian",
+  "@languageRussian": {
+    "description": "Always use the Russian interface locale."
+  },
+  "languageEnglish": "English",
+  "@languageEnglish": {
+    "description": "Always use the English interface locale."
+  },
   "about": "About",
   "@about": {
     "description": "Settings section with version and licence information."
