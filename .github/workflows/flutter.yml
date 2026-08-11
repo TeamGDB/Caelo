@@ -39,6 +39,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The core is a separate private repository, so reaching it needs a token
+      # the default GITHUB_TOKEN cannot be. Without the secret the build still
+      # runs and the artifact is named for what it is, because a pipeline that
+      # fails on a fork or an unconfigured checkout teaches people to ignore it.
+      - name: Check out the core
+        id: core
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: TeamGDB/caelo-core
+          path: caelo-core
+          token: ${{ secrets.CORE_REPO_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        if: steps.core.outcome == 'success'
+        with:
+          go-version-file: caelo-core/go.mod
+          cache-dependency-path: caelo-core/go.sum
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -51,17 +70,34 @@ jobs:
 
       - run: flutter pub get
 
-      # The core lives in caelo-core and is built by its own pipeline, so the
-      # APK from here carries no libcaelo.so: the interface runs and reports
-      # that the core is not there. Building a complete APK needs the two
-      # repositories to reach each other, which needs a token.
-      - run: flutter build apk --debug
+      # The same script developers run, so CI cannot pass on a path nobody
+      # uses. It builds the core for every ABI into jniLibs, then the APK.
+      - name: Build with the core
+        if: steps.core.outcome == 'success'
+        run: ./scripts/build-android.sh debug
+        env:
+          CAELO_CORE_ROOT: ${{ github.workspace }}/caelo-core
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+
+      - name: Build without the core
+        if: steps.core.outcome != 'success'
+        run: flutter build apk --debug
+
+      - name: Name the artifact for what is in it
+        id: naming
+        run: |
+          if [ -f android/app/src/main/jniLibs/arm64-v8a/libcaelo.so ]; then
+            echo "name=caelo-debug-apk" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::CORE_REPO_TOKEN is not set — this APK has no core in it"
+            echo "name=caelo-debug-apk-no-core" >> "$GITHUB_OUTPUT"
+          fi
 
       # Debug signing. A build check, not a release, and it must never be
-      # handed to anyone as one — hence the name.
+      # handed to anyone as one.
       - uses: actions/upload-artifact@v4
         with:
-          name: caelo-debug-apk-no-core
+          name: ${{ steps.naming.outputs.name }}
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
 
@@ -71,6 +107,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check out the core
+        id: core
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          repository: TeamGDB/caelo-core
+          path: caelo-core
+          token: ${{ secrets.CORE_REPO_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        if: steps.core.outcome == 'success'
+        with:
+          go-version-file: caelo-core/go.mod
+          cache-dependency-path: caelo-core/go.sum
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -78,16 +129,34 @@ jobs:
 
       - run: flutter pub get
 
-      # Without the core bundled, for the same reason as the APK above.
-      - run: flutter build macos --debug
+      # Builds the core, builds the app, and puts the dylib inside the bundle
+      # with its install name rewritten and an ad-hoc signature.
+      - name: Build with the core
+        if: steps.core.outcome == 'success'
+        run: ./scripts/build-macos.sh debug
+        env:
+          CAELO_CORE_ROOT: ${{ github.workspace }}/caelo-core
 
-      - name: Compress the bundle
+      - name: Build without the core
+        if: steps.core.outcome != 'success'
+        run: flutter build macos --debug
+
+      - name: Name the artifact for what is in it
+        id: naming
         run: |
           cd build/macos/Build/Products/Debug
+          if [ -f Caelo.app/Contents/Frameworks/libcaelo.dylib ]; then
+            echo "name=caelo-debug-macos" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::CORE_REPO_TOKEN is not set — this build has no core in it"
+            echo "name=caelo-debug-macos-no-core" >> "$GITHUB_OUTPUT"
+          fi
           zip -qry Caelo-debug.zip Caelo.app
 
+      # Ad-hoc signed only. Release builds are signed with a Developer ID and
+      # notarised during packaging, not here.
       - uses: actions/upload-artifact@v4
         with:
-          name: caelo-debug-macos-no-core
+          name: ${{ steps.naming.outputs.name }}
           path: build/macos/Build/Products/Debug/Caelo-debug.zip
           if-no-files-found: error
