@@ -5,6 +5,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/android_tunnel_client.dart';
 import 'core/core_tunnel_client.dart';
+import 'core/service_client.dart';
+import 'core/service_tunnel_client.dart';
 import 'core/diagnostics.dart';
 import 'core/apple_tunnel_client.dart';
 import 'core/settings_store.dart';
@@ -40,13 +42,24 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
 
   CaeloThemeMode _themeMode = CaeloThemeMode.system;
 
-  /// On every platform with a system tunnel — Android, iOS, macOS — that is
-  /// the only path, because it is the only one that can route the machine
-  /// rather than this process. The in-process tunnel is what Linux and Windows
-  /// have until they grow one.
+  /// The system tunnel wherever there is one, and the in-process tunnel where
+  /// there is not.
+  ///
+  /// Android, iOS and macOS have a platform arrangement and it is the only path
+  /// that can route the machine. On Linux the privileged service does the same
+  /// job, and its absence is an ordinary state rather than a fault: someone
+  /// running from an AppImage, or on a machine where they cannot install
+  /// anything, still gets a working tunnel for this process — and the interface
+  /// says which of the two they have.
+  ///
+  /// Chosen once at launch rather than per connection. A button whose meaning
+  /// changes underneath someone — this process now, the whole machine in a
+  /// minute — is worse than one that is consistently the lesser thing and says
+  /// so.
   static TunnelClient _pickClient() {
     if (Platform.isAndroid) return AndroidTunnelClient();
     if (AppleTunnelClient.isSupported) return AppleTunnelClient();
+    if (ServiceClient.isInstalled) return ServiceTunnelClient();
     return CoreTunnelClient();
   }
 
