@@ -211,8 +211,18 @@ jobs:
 
       - run: ./scripts/build-linux.sh debug
 
-      - name: Verify the core is in the bundle
-        run: test -f build/linux/x64/debug/bundle/lib/libcaelo.so
+      - name: Verify the core is in the bundle and the service was built
+        run: |
+          test -f build/linux/x64/debug/bundle/lib/libcaelo.so
+          # Without it the packages route only the application, and nothing
+          # downstream says so until somebody installs one and presses connect.
+          test -x core/build/caelo-service
+
+      # A driver fetched over the network is the one build input that can be
+      # replaced without anyone noticing. Checking the pin here means a
+      # substituted archive fails the pipeline rather than an installer.
+      - name: Verify the pinned Wintun archive
+        run: ./packaging/windows/fetch-wintun.sh amd64 "$(mktemp -d)"
 
       - name: Compress
         run: cd build/linux/x64/debug && tar czf caelo-linux.tar.gz bundle
@@ -245,9 +255,11 @@ jobs:
         shell: bash
         run: ./scripts/build-windows.sh debug
 
-      - name: Verify the core is beside the executable
+      - name: Verify the core and the service were built
         shell: bash
-        run: test -f build/windows/x64/runner/Debug/caelo.dll
+        run: |
+          test -f build/windows/x64/runner/Debug/caelo.dll
+          test -f core/build/caelo-service.exe
 
       - uses: actions/upload-artifact@v7
         with:
