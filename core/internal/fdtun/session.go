@@ -11,7 +11,6 @@ package fdtun
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
@@ -61,8 +60,14 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 		return nil, fmt.Errorf("reading configuration: %w", err)
 	}
 
-	// os.NewFile takes ownership, so the device's Close closes the descriptor.
-	tunDevice, err := tun.CreateTUNFromFile(os.NewFile(uintptr(fd), "tun"), cfg.MTU)
+	// Unmonitored on purpose. The ordinary constructor sets up netlink
+	// monitoring and looks the interface up by index, and neither is available
+	// for a descriptor VpnService produced — the app does not own that
+	// interface and cannot see it in the ways those calls expect.
+	//
+	// MTU is not passed because it is not ours to set: VpnService.Builder
+	// applied it when it created the device.
+	tunDevice, _, err := tun.CreateUnmonitoredTUNFromFD(fd)
 	if err != nil {
 		return nil, fmt.Errorf("adopting the tun descriptor: %w", err)
 	}

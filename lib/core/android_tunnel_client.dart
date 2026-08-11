@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:flutter/services.dart';
 
 import 'config_store.dart';
@@ -59,7 +61,10 @@ class AndroidTunnelClient implements TunnelClient {
       if (running == true) {
         _emit(const TunnelStatus(phase: TunnelPhase.connected));
       }
-    } on Object {
+    } on Object catch (error, stack) {
+      // Reported rather than swallowed: "could not connect" with nothing
+      // behind it is the least actionable message this app can produce.
+      debugPrint('Caelo: android connect failed: $error\n$stack');
       // Nothing to adopt. The app has not been asked to do anything yet.
     }
   }

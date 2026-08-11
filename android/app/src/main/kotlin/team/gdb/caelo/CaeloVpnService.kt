@@ -84,10 +84,12 @@ class CaeloVpnService : VpnService() {
     ): Int {
         teardown()
 
+        // Blocking mode is left alone. The core switches the descriptor to
+        // non-blocking itself when it adopts it, and setting it from both sides
+        // only creates a disagreement to debug later.
         val builder = Builder()
             .setSession("Caelo")
             .setMtu(mtu)
-            .setBlocking(false)
 
         for (address in addresses) {
             val (host, prefix) = splitPrefix(address, default = 32)
