@@ -82,6 +82,11 @@ probe:
 tun:
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-tun ./cmd/caelo-tun
 
+# The privileged half of the desktop. Linux for now; Windows joins it.
+.PHONY: service
+service:
+	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-service ./cmd/caelo-service
+
 .PHONY: test
 test:
 	go test ./...

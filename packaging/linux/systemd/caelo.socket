@@ -1,0 +1,20 @@
+[Unit]
+Description=Caelo privileged tunnel service socket
+Documentation=https://github.com/TeamGDB/Caelo
+
+[Socket]
+ListenStream=/run/caelo/caelo.sock
+
+# The socket, not a password prompt, is what decides who may drive the tunnel.
+# Members of the caelo group can connect; the service then asks the kernel who
+# is on the other end and records it. Widening this is the one change here that
+# hands the machine to somebody.
+SocketMode=0660
+SocketGroup=caelo
+
+# Cleaned up when the socket unit stops, so a machine that no longer offers the
+# service does not keep a path that looks as though it does.
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

@@ -1,0 +1,33 @@
+[Unit]
+Description=Caelo privileged tunnel service
+Documentation=https://github.com/TeamGDB/Caelo
+Requires=caelo.socket
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/caelo/caelo-service
+
+# Started by the socket, not at boot, and gone again once nothing is up and
+# nobody is connected. A root daemon resident from boot for a VPN that is off
+# most of the time is a cost paid continuously for a benefit taken
+# occasionally. The service exits by itself; systemd is told not to treat that
+# as a fault.
+Restart=no
+
+# It needs root to create an interface and rewrite the routing table, so the
+# sandbox cannot be tight. What it can be is honest about the reach it does not
+# need.
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_DAC_OVERRIDE CAP_CHOWN CAP_FOWNER
+
+[Install]
+WantedBy=multi-user.target
