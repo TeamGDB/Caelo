@@ -24,13 +24,3 @@ None, by design.
 None. Anything copied file-by-file gets a row here with the source path, the upstream
 commit, and the licence it arrived under — with its copyright header preserved and an
 `SPDX-License-Identifier` added.
-
-## Projects we learned from but did not copy
-
-[Hiddify](https://github.com/hiddify/hiddify-app) solved several of these problems first
-and reading their code informed our design.
-
-**No Hiddify code, `.proto` definition, build script or configuration is used here.** Their
-GPLv3 carries additional §7 conditions — a non-commercial restriction and a requirement
-that derivative repositories be GitHub forks of theirs — which cannot be reconciled with
-shipping Caelo as plain free software. Study anything you like; copy nothing.

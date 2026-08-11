@@ -8,9 +8,8 @@ an inconvenience — it is exposure. We treat vulnerability reports accordingly.
 **Do not open a public issue.**
 
 Use GitHub's [private vulnerability reporting](https://github.com/TeamGDB/Caelo/security/advisories/new)
-on this repository. If that is not available to you, email `TODO: security contact`.
-
-If you need to encrypt your report, our PGP key is `TODO: key fingerprint and location`.
+on this repository. It is enabled, it reaches the maintainers, and it stays private until
+a fix ships.
 
 Please include:
 

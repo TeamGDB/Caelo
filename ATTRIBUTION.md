@@ -32,19 +32,6 @@ If the netstack `tun.Device` in `core/` ends up adapted from sing-box's
 section with the commit it came from. Both projects are GPL-3.0-or-later, so the reuse is
 permitted; the attribution is still owed.
 
-## Projects we learned from but did not copy
-
-[Hiddify](https://github.com/hiddify/hiddify-app) solved several of the same problems
-first, and reading their code informed our own design — particularly the shape of a
-core↔UI contract and the ergonomics of subscription handling.
-
-**No Hiddify code, configuration, `.proto` definition or build script is used in Caelo.**
-Hiddify is distributed under GPLv3 with additional §7 conditions that include a
-non-commercial restriction and a requirement that derivative repositories be GitHub forks
-of theirs. Those terms are incompatible with shipping Caelo as free software under a plain
-GPLv3, so we reimplemented from our own understanding rather than reusing their material.
-
-If you contribute, the same applies: study anything you like, copy nothing.
 
 ## Third-party licenses
 

@@ -13,17 +13,16 @@ we are already building, or something we have decided not to build — see the "
 
 Caelo is GPL-3.0-or-later. Contributions are accepted under that license.
 
-**Do not copy code into Caelo from other projects without raising it first.** Even
-GPL-licensed code carries obligations, and some projects in this space add §7 conditions
-that are incompatible with ours. In particular:
+**Do not copy code into Caelo from another project without raising it first.** Even
+GPL-licensed code carries obligations, and several projects in this space add conditions
+under GPLv3 §7 — non-commercial clauses, requirements that derivatives be forks of a
+particular repository — that cannot be reconciled with shipping Caelo as plain free
+software. Reading anything is fine. Copying needs a conversation first, and that applies
+to code, `.proto` files, build scripts and configuration alike.
 
-- **Hiddify** — read it, learn from it, copy nothing. Their additional terms include a
-  non-commercial restriction and a requirement that derivatives be forks of their
-  repository, which we cannot accept. This covers code, `.proto` files, build scripts and
-  configuration alike.
-- **Anything MIT/BSD/Apache-2.0** — usually fine to bring in, but it needs a row in
-  [ATTRIBUTION.md](ATTRIBUTION.md), its original copyright header preserved, and an
-  `SPDX-License-Identifier` line.
+Anything under MIT, BSD or Apache-2.0 is usually fine to bring in, but it needs a row in
+[ATTRIBUTION.md](ATTRIBUTION.md), its original copyright header preserved, and an
+`SPDX-License-Identifier` line.
 
 If you are porting an idea rather than a file, say so in the pull request. If you are
 porting a file, say that too, and name the upstream commit.
@@ -68,4 +67,4 @@ Never paste a real subscription link, key or server address into an issue. Redac
 ## Code of conduct
 
 Be decent to people. Harassment, and using this project to harm the people it exists to
-protect, will get you removed. Report problems to `TODO: conduct contact`.
+protect, will get you removed. Raise problems privately with the maintainers.

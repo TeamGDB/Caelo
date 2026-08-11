@@ -1,70 +1,92 @@
+<div align="center">
+
+<img src="docs/caelo.png" width="140" alt="Caelo">
+
 # Caelo
 
-A VPN client for subscription links. Paste a link — it works.
+**Paste a link. It works.**
 
-No accounts, no ads, no telemetry. Free software under the GPLv3.
+A VPN client for subscription links, for people who should not have to learn what a
+protocol is.
 
-> **Status: early development.** Nothing here is usable yet. There are no releases.
+[![Flutter](https://github.com/TeamGDB/Caelo/actions/workflows/flutter.yml/badge.svg)](https://github.com/TeamGDB/Caelo/actions/workflows/flutter.yml)
+[![Core](https://github.com/TeamGDB/Caelo/actions/workflows/core.yml/badge.svg)](https://github.com/TeamGDB/Caelo/actions/workflows/core.yml)
+[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20iOS%20%7C%20Android%20%7C%20Linux%20%7C%20Windows-lightgrey)](#platforms)
+[![AmneziaWG](https://img.shields.io/badge/AmneziaWG-Jc%20%C2%B7%20S1--S4%20%C2%B7%20H1--H4%20%C2%B7%20I1--I5-2FA982)](#protocols)
+
+**English** · [Русский](README.ru.md)
+
+</div>
+
+---
+
+> **Early development.** The tunnel works. Nothing else is finished, and there are no
+> releases yet.
 
 ## What it is
 
-Caelo speaks [AmneziaWG](https://docs.amnezia.org/documentation/amnezia-wg/) with the
-full obfuscation parameter set (`Jc`/`Jmin`/`Jmax`, `S1`–`S4`, `H1`–`H4`, and AWG 2.0
-signature packets `I1`–`I5`), plus VLESS/REALITY and whatever else comes along for the
-ride from sing-box. Which protocol you end up on is not a question the app asks you.
+No accounts. No ads. No telemetry. Free software under the GPLv3.
 
-## Layout
+Caelo speaks [AmneziaWG](https://docs.amnezia.org/documentation/amnezia-wg/) with the full
+obfuscation parameter set — junk packets, magic header ranges, and AWG 2.0 signature
+packets that make a handshake look like DNS, QUIC or SIP. Which of them you end up using
+is not a question the app asks you.
 
-| Path | What it holds |
+The main screen is a button, a word, and one line of small text saying what you got.
+Settings exist for the cases the automatic choice cannot cover, and you should never need
+to open them.
+
+## Protocols
+
+| | |
 | --- | --- |
-| `lib/`, `macos/`, `android/` | The app. Flutter interface, platform runners, builds, releases. |
-| [`core/`](core) | The Go core: the tunnel, subscriptions, node selection, state, statistics. |
+| **AmneziaWG** | `Jc` `Jmin` `Jmax` · `S1`–`S4` · `H1`–`H4` · `I1`–`I5` |
+| **VLESS / REALITY** | via sing-box |
+| Everything else sing-box speaks | comes along for the ride; not a goal |
 
-The core lived in its own repository until it did not earn the split. Two
-repositories meant a deploy key, a cross-repo checkout, and a build that could
-produce an app with no core in it; one means neither can drift from the other
-and a single commit can change both sides of the FFI boundary at once.
+## Platforms
+
+| Platform | Tunnel | Covers |
+| --- | --- | --- |
+| **macOS** | privileged helper; NetworkExtension to come | the whole machine |
+| **Android** | `VpnService` | the whole device |
+| **iOS** | in-process; packet tunnel extension to come | this process only |
+| **Linux** | — | interface only |
+| **Windows** | — | interface only |
 
 ## Architecture
 
-All the logic lives in the Go core: subscription parsing and refresh, node probing and
-selection, connection state, statistics, scheduling. The Flutter front end is deliberately
-thin — a list, a button, a settings screen — and talks to the core over gRPC, subscribing
-to state changes rather than polling.
+Everything that decides anything lives in the Go core: subscription parsing and refresh,
+node probing and selection, connection state, statistics, scheduling. The Flutter front end
+is deliberately thin — a list, a button, a settings screen. Logic that exists in both
+places is logic that will eventually disagree with itself about what is connected.
 
-**Caelo forks nothing.** sing-box exposes a public protocol registry, so the core imports
-it as an ordinary Go module and registers its own `amneziawg` endpoint from its own tree.
-AmneziaWG comes from `amneziawg-go`, also as an ordinary module. Both upstreams are
-upgraded by bumping a version, and there is no patch series to rebase.
+**Caelo forks nothing.** [sing-box](https://github.com/SagerNet/sing-box) is imported as an
+ordinary Go module and the core registers its own `amneziawg` endpoint through its public
+registry. AmneziaWG comes from
+[amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go), also as published. Both are
+upgraded by bumping a version; there is no patch series to rebase.
 
 The alternative was forking `sagernet/wireguard-go` and porting the obfuscation into it.
 Measured against their common upstream, that fork and `amneziawg-go` have diverged by
 comparable amounts — roughly 1700 and 1800 substantive lines — so reconciling them is real
-work in either direction, and it would be work we redo on every AmneziaWG release.
-`amneziawg-go` also keeps upstream's `NewDevice` and `NewStdNetBind` signatures, where
-SagerNet's fork couples them to sing-box's own service and pause machinery. AmneziaWG is
+work in either direction, and work we would redo on every AmneziaWG release. AmneziaWG is
 the reason this project exists, so it is the dependency that stays fresh.
 
-What that costs us is the plumbing SagerNet's fork provided: a `conn.Bind` and a netstack
-`tun.Device`. Both live in `core/` as our own code, under our own tests.
-
-Pinned versions:
-
-| Dependency | Version |
+| Path | What it holds |
 | --- | --- |
-| sing-box | v1.13.16 |
-| amneziawg-go | v3.0.20260805 |
+| [`lib/`](lib) | The interface. Flutter, Cupertino, one look everywhere. |
+| [`core/`](core) | The Go core: the tunnel, selection, state. |
+| [`packaging/`](packaging) | Turning a build into something installable. |
+| [`scripts/`](scripts) | One build script per platform. |
 
-## Platforms
-
-macOS first, iOS second (sharing the same NetworkExtension), then Windows, Linux and
-Android. Distribution is via GitHub Releases; macOS builds are signed with a Developer ID
-and notarized.
+Pinned: sing-box `v1.13.16`, amneziawg-go `v3.0.20260805`.
 
 ## Building
 
-One script per platform. Each builds the core first, puts it where that platform's loader
-will find it, and then builds the app.
+Each script builds the core first, puts it where that platform's loader will find it, and
+then builds the app.
 
 ```bash
 ./scripts/build-macos.sh debug     # universal dylib in Contents/Frameworks
@@ -74,44 +96,47 @@ will find it, and then builds the app.
 ./scripts/build-windows.sh debug   # .dll beside the executable
 ```
 
-Android needs an NDK; the script finds one under the SDK Flutter already knows about, or
-takes `ANDROID_NDK_HOME`. iOS debug builds use a JIT and will not launch without the
-tooling attached, so release is the default there.
+Android needs an NDK; the script finds one under the SDK Flutter already knows about. iOS
+debug builds use a JIT and will not launch without the tooling attached, so release is the
+default there.
 
-Any of them can be run without a core — `flutter build <platform>` on its own still builds
-the interface. The app then reports that the core is not there rather than pretending
-otherwise.
+Any of them can be run without a core — `flutter build <platform>` still builds the
+interface. The app then says the core is missing rather than pretending otherwise.
+
+### Trying the tunnel without the app
+
+```bash
+cd core && go run ./cmd/caelo-probe -config /path/to/tunnel.conf
+```
+
+Brings up one tunnel on a userspace stack and fetches a URL through it. No privileges, no
+interface on the host, nothing outside the process routed. If the address it prints is the
+endpoint's rather than yours, it worked.
 
 ## Packaging
-
-`packaging/` turns a build into the shapes people install. The Package workflow runs all of
-it on every dispatch, so the packaging is exercised continuously rather than discovered to
-be broken on the day of a release.
 
 | Platform | Formats |
 | --- | --- |
 | Android | one APK per ABI, a universal APK for sideloading, and an `.aab` |
-| Linux | `.tar.gz`, `.deb`, `.rpm`, AppImage |
+| Linux | `.deb`, `.rpm`, AppImage, `.tar.gz` |
 | macOS | `.dmg`, `.pkg` |
-| Windows | portable `.zip`, Inno Setup installer |
+| Windows | installer, portable `.zip` |
 
-Four Linux formats because "Linux" is not one thing: Debian and Fedora each want their own,
-the AppImage runs where neither is wanted, and the tarball is for people who would rather
-unpack it themselves.
+Four Linux formats because "Linux" is not one thing. Nothing produced is signed or
+notarised yet, and an unsigned build must never be handed to anyone as a release.
 
-Nothing produced there is signed or notarised. That belongs with the signing identity and
-comes with the first real release; an unsigned build must never be handed out as one.
+## Contributing
 
-Both scripts build the core from `core/` first, so a clean checkout is all either needs.
+[CONTRIBUTING.md](CONTRIBUTING.md). Sign your commits off (`git commit -s`), and never
+paste a real subscription link, key or server address into an issue.
+
+Found a vulnerability? [SECURITY.md](SECURITY.md) — not a public issue.
 
 ## License
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
 
 Caelo builds on [sing-box](https://github.com/SagerNet/sing-box) and
-[AmneziaWG](https://github.com/amnezia-vpn/amneziawg-go); see [ATTRIBUTION.md](ATTRIBUTION.md)
-for what came from where. Neither project endorses Caelo or is affiliated with it.
-
-## Security
-
-Found a vulnerability? Please read [SECURITY.md](SECURITY.md) — do not open a public issue.
+[AmneziaWG](https://github.com/amnezia-vpn/amneziawg-go); see
+[ATTRIBUTION.md](ATTRIBUTION.md) for what came from where. Neither project endorses Caelo
+or is affiliated with it.
