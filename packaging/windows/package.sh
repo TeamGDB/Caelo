@@ -34,14 +34,15 @@ powershell -NoProfile -Command \
 ISCC="$(command -v iscc || echo "/c/Program Files (x86)/Inno Setup 6/ISCC.exe")"
 if [[ -x "$ISCC" ]]; then
   echo "==> installer"
-  # Doubled slashes on purpose. Git Bash treats a lone leading / as a path and
-  # rewrites it into a Windows one, so /DSourceDir=... arrives as a directory
-  # and Inno Setup reports being given several script names. MSYS collapses //
-  # back to a single / and leaves the rest alone.
+  # Git Bash treats an argument with a lone leading slash as a path and
+  # rewrites it into a Windows one, so /DSourceDir=... would arrive as a
+  # directory and Inno Setup would report being handed several script names.
+  # Turning the conversion off is the fix; doubling the slash is the other one,
+  # and doing both leaves // in the argument for the compiler to reject.
   MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "$ISCC" \
-    "//DAppVersion=$VERSION" \
-    "//DSourceDir=$SOURCE_WIN" \
-    "//DOutputDir=$OUT_WIN" \
+    "/DAppVersion=$VERSION" \
+    "/DSourceDir=$SOURCE_WIN" \
+    "/DOutputDir=$OUT_WIN" \
     "$(cygpath -w "$ROOT/packaging/windows/caelo.iss")"
 else
   echo "!! Inno Setup not found; skipping the installer" >&2
