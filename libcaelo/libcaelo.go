@@ -20,6 +20,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/TeamGDB/caelo-core/internal/awg"
 	"github.com/TeamGDB/caelo-core/internal/tunnel"
 	"github.com/TeamGDB/caelo-core/internal/version"
 )
@@ -82,6 +83,47 @@ func caelo_disconnect() *C.char {
 func caelo_status() *C.char {
 	up, endpoint := session.Up()
 	return marshal(map[string]any{"ok": true, "up": up, "endpoint": endpoint})
+}
+
+// caelo_describe reports the parameters a host needs to create a tun device for
+// a configuration, without connecting anything.
+//
+// Android's VpnService.Builder wants the address, MTU, DNS servers and routes
+// before it will hand back a descriptor. They come from here rather than from a
+// parser on the platform side: a second implementation of this format would
+// eventually disagree with the one that actually dials.
+//
+//export caelo_describe
+func caelo_describe(configText *C.char) *C.char {
+	cfg, err := awg.ParseConfig(C.GoString(configText))
+	if err != nil {
+		return failure(err)
+	}
+
+	addresses := make([]string, 0, len(cfg.Addresses))
+	for _, address := range cfg.Addresses {
+		addresses = append(addresses, address.String())
+	}
+
+	dns := make([]string, 0, len(cfg.DNS))
+	for _, server := range cfg.DNS {
+		dns = append(dns, server.String())
+	}
+	if len(dns) == 0 {
+		// Resolution has to happen inside the tunnel, so a device with no DNS
+		// configured still needs one that is reachable through it.
+		dns = []string{"1.1.1.1"}
+	}
+
+	return marshal(map[string]any{
+		"ok":          true,
+		"addresses":   addresses,
+		"mtu":         cfg.MTU,
+		"dns":         dns,
+		"allowed_ips": cfg.Peer.AllowedIPs,
+		"endpoint":    cfg.Peer.Endpoint,
+		"obfuscated":  len(cfg.Obfuscation) > 0,
+	})
 }
 
 // caelo_free releases a string returned by any function in this library.
