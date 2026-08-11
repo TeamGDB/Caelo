@@ -7,6 +7,11 @@
 // after the same base.
 
 DEVELOPMENT_TEAM = BM4788UD8M
+
+// What the app asks Apple for. Automatic signing only requests entitlements
+// the target declares, so a capability enabled on the App ID stays invisible
+// until this file asks for it.
+CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements
 BASE_BUNDLE_IDENTIFIER = team.gdb.caelo
 
 // The core, linked straight into the binary.

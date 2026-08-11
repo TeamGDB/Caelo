@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The app manages the tunnel; the extension will run it. Both need this,
+	     and Apple grants it by request rather than by checkbox. -->
+	<key>com.apple.developer.networking.networkextension</key>
+	<array>
+		<string>packet-tunnel-provider</string>
+	</array>
+	<!-- The app group the extension will need is not here yet: App Groups is
+	     not enabled on the App ID, and asking for one that does not exist makes
+	     signing fail outright. It goes in with the extension. -->
+</dict>
+</plist>
