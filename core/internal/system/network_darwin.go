@@ -1,11 +1,5 @@
 //go:build darwin
 
-// Package system takes over the machine's routing so that every application's
-// traffic goes through the tunnel, and puts it back afterwards.
-//
-// Everything here is reversible and every change is recorded before it is made.
-// A tool that reroutes a machine and then fails to restore it has done more
-// damage than the censorship it was meant to get around.
 package system
 
 import (
@@ -113,26 +107,6 @@ func serviceForInterface(device string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no network service uses %s", device)
-}
-
-// Config describes the tunnel the routes should point at.
-type Config struct {
-	// Interface is the utun device, e.g. "utun4".
-	Interface string
-
-	// Address is the tunnel's own address.
-	Address string
-
-	// MTU for the tunnel interface.
-	MTU int
-
-	// EndpointHost is the server's address. Its traffic must keep using the
-	// physical route, or the tunnel would carry its own packets.
-	EndpointHost string
-
-	// DNS is what to resolve with while the tunnel is up. These must be
-	// reachable through it.
-	DNS []string
 }
 
 // Apply points the machine's traffic at the tunnel.

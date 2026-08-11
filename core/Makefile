@@ -77,7 +77,7 @@ ios:
 probe:
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-probe ./cmd/caelo-probe
 
-# Routes the whole machine. Needs root to run, not to build. macOS only.
+# Routes the whole machine. Needs root to run, not to build. macOS and Linux.
 .PHONY: tun
 tun:
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-tun ./cmd/caelo-tun
