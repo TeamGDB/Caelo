@@ -64,11 +64,14 @@ macOS, with the core bundled into the app:
 ./scripts/build-macos.sh debug
 ```
 
-Android, interface only — the tunnel there is a `VpnService` and does not exist yet:
+Android, with the core built for every ABI and packed into the APK:
 
 ```bash
-flutter build apk --debug
+ANDROID_NDK_HOME=$ANDROID_HOME/ndk/<version> ./scripts/build-android.sh debug
 ```
+
+Without an NDK, `flutter build apk --debug` still builds the interface; the app runs and
+reports that the core is not there.
 
 The macOS script expects [`caelo-core`](https://github.com/TeamGDB/caelo-core) checked out
 beside this repository, or `CAELO_CORE_ROOT` pointing at it.

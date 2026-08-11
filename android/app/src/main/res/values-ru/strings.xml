@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tunnel_channel_name">Туннель</string>
+    <string name="tunnel_notification_title">Caelo</string>
+    <string name="tunnel_notification_text">Туннель поднят</string>
+</resources>

@@ -18,20 +18,14 @@ build/
 *.g.dart
 # pubspec.lock is committed on purpose — Caelo is an application, not a package
 
-# Standalone Android/Compose prototype
-apps/android/.gradle/
-apps/android/.kotlin/
-apps/android/local.properties
-apps/android/**/build/
-apps/android/builds/
-apps/android/captures/
-
-# Native libraries built from caelo-core
+# Native libraries built from caelo-core. Build output, not source: a
+# checked-in binary is one nobody can tell you the provenance of.
 *.dylib
 *.so
 *.dll
 *.framework/
 *.xcframework/
+android/app/src/main/jniLibs/
 
 # Xcode
 xcuserdata/

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown by the system, outside Flutter's localisation. English only for
+         now; the system pulls translations from values-<locale>. -->
+    <string name="tunnel_channel_name">Tunnel</string>
+    <string name="tunnel_notification_title">Caelo</string>
+    <string name="tunnel_notification_text">The tunnel is up</string>
+</resources>

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'core/android_tunnel_client.dart';
 import 'core/core_tunnel_client.dart';
 import 'core/helper_client.dart';
 import 'core/settings_store.dart';
@@ -41,10 +42,10 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   /// minute — is worse than one that is consistently the lesser thing and says
   /// so.
   ///
-  /// On Android neither applies yet: the tunnel there is a VpnService, which
-  /// does not exist. The in-process client is chosen so the failure is an
-  /// honest "the core is not there" rather than a crash.
+  /// On Android the system owns the tunnel device, so there is nothing to
+  /// choose: the platform path is the only one that can work.
   static TunnelClient _pickClient() {
+    if (Platform.isAndroid) return AndroidTunnelClient();
     if (Platform.isMacOS && HelperClient.isRunning) return SystemTunnelClient();
     return CoreTunnelClient();
   }

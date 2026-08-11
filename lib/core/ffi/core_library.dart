@@ -7,6 +7,8 @@ import 'package:ffi/ffi.dart';
 
 typedef _StringNative = Pointer<Utf8> Function();
 typedef _ConnectNative = Pointer<Utf8> Function(Pointer<Utf8>);
+typedef _ConnectFdNative = Pointer<Utf8> Function(Int32, Pointer<Utf8>);
+typedef _ConnectFd = Pointer<Utf8> Function(int, Pointer<Utf8>);
 typedef _CheckNative = Pointer<Utf8> Function(Pointer<Utf8>, Int32);
 typedef _Check = Pointer<Utf8> Function(Pointer<Utf8>, int);
 typedef _FreeNative = Void Function(Pointer<Utf8>);
@@ -184,6 +186,86 @@ abstract final class CoreLibrary {
         library,
         library.lookupFunction<_StringNative, _StringNative>(
           'caelo_disconnect',
+        )(),
+      );
+    });
+  }
+
+  /// Reads the addresses, routes, MTU and DNS out of a configuration without
+  /// connecting anything.
+  ///
+  /// Android's VpnService.Builder needs all of it before it will hand back a
+  /// descriptor. It comes from the core because a second parser for this
+  /// format would eventually disagree with the one that actually dials.
+  static Future<Map<String, dynamic>> describe(String configText) {
+    return Isolate.run(() {
+      final library = _open();
+      final config = configText.toNativeUtf8();
+      try {
+        return _require(
+          _consume(
+            library,
+            library.lookupFunction<_ConnectNative, _ConnectNative>(
+              'caelo_describe',
+            )(config),
+          ),
+        );
+      } finally {
+        malloc.free(config);
+      }
+    });
+  }
+
+  /// Runs the tunnel over a tun descriptor the platform created.
+  ///
+  /// Ownership of [tunFd] passes to the core, which closes it on disconnect.
+  /// The caller must not close it, and must not hand the same descriptor in
+  /// twice: two devices reading one queue each see half the packets, which
+  /// presents as a tunnel that is up and loses most of its traffic.
+  static Future<Map<String, dynamic>> connectFd(int tunFd, String configText) {
+    return Isolate.run(() {
+      final library = _open();
+      final config = configText.toNativeUtf8();
+      try {
+        return _require(
+          _consume(
+            library,
+            library.lookupFunction<_ConnectFdNative, _ConnectFd>(
+              'caelo_connect_fd',
+            )(tunFd, config),
+          ),
+        );
+      } finally {
+        malloc.free(config);
+      }
+    });
+  }
+
+  /// The sockets carrying tunnel traffic, for the platform to exclude from its
+  /// own routing. Either may be -1 on a device without that address family.
+  static Future<List<int>> socketFds() async {
+    final result = await Isolate.run(() {
+      final library = _open();
+      return _require(
+        _consume(
+          library,
+          library.lookupFunction<_StringNative, _StringNative>(
+            'caelo_socket_fds',
+          )(),
+        ),
+      );
+    });
+
+    return [result['v4'] as int? ?? -1, result['v6'] as int? ?? -1];
+  }
+
+  static Future<void> disconnectFd() {
+    return Isolate.run(() {
+      final library = _open();
+      _consume(
+        library,
+        library.lookupFunction<_StringNative, _StringNative>(
+          'caelo_disconnect_fd',
         )(),
       );
     });
