@@ -1,7 +1,11 @@
 package team.gdb.caelo
 
 import android.app.Activity
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
+import android.os.IBinder
 import android.net.VpnService
 import android.os.Build
 import android.util.Log
@@ -80,24 +84,7 @@ class MainActivity : FlutterActivity() {
                 startActivityForResult(intent, REQUEST_PREPARE)
             }
 
-            "establish" -> {
-                try {
-                    startService(Intent(this, CaeloVpnService::class.java))
-
-                    val service = awaitService()
-                        ?: return result.error("unavailable", "the tunnel service did not start", null)
-
-                    val fd = service.establish(
-                        addresses = call.argument<List<String>>("addresses").orEmpty(),
-                        routes = call.argument<List<String>>("routes").orEmpty(),
-                        dns = call.argument<List<String>>("dns").orEmpty(),
-                        mtu = call.argument<Int>("mtu") ?: 1420,
-                    )
-                    result.success(fd)
-                } catch (error: Exception) {
-                    result.error("establish", error.message, null)
-                }
-            }
+            "establish" -> establish(call, result)
 
             // Advisory, and never fatal. Either descriptor may be absent on a
             // device without that address family, and protect can refuse for
@@ -133,18 +120,55 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Waits briefly for the service to come up.
+     * Starts the service and asks it for a descriptor once it is actually
+     * there.
      *
-     * startService is asynchronous, so the instance is not there the moment it
-     * returns. Polling is unlovely, and it is a great deal less machinery than
-     * a binding for a service this activity already owns the lifetime of.
+     * The answer arrives through a binding rather than by waiting for one. A
+     * service is created on the main thread, which is the thread this method
+     * runs on, so blocking here to wait for it is waiting for something that
+     * can only happen once this returns -- the service could never appear, and
+     * every attempt reported that the service had failed to start.
      */
-    private fun awaitService(): CaeloVpnService? {
-        repeat(40) {
-            CaeloVpnService.current()?.let { return it }
-            Thread.sleep(25)
+    private fun establish(call: MethodCall, result: MethodChannel.Result) {
+        val intent = Intent(this, CaeloVpnService::class.java)
+        startService(intent)
+
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                // Unbound immediately: startService keeps the service alive, and
+                // a binding held by an activity would take the tunnel down with
+                // the screen.
+                try {
+                    val service = (binder as? CaeloVpnService.LocalBinder)?.service
+                        ?: throw IllegalStateException("the tunnel service did not bind")
+
+                    result.success(
+                        service.establish(
+                            addresses = call.argument<List<String>>("addresses").orEmpty(),
+                            routes = call.argument<List<String>>("routes").orEmpty(),
+                            dns = call.argument<List<String>>("dns").orEmpty(),
+                            mtu = call.argument<Int>("mtu") ?: 1420,
+                        )
+                    )
+                } catch (error: Exception) {
+                    Log.e(TAG, "establish failed", error)
+                    result.error("establish", error.message ?: error.toString(), null)
+                } finally {
+                    runCatching { unbindService(this) }
+                }
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) = Unit
+
+            override fun onNullBinding(name: ComponentName?) {
+                result.error("establish", "the tunnel service returned no binder", null)
+                runCatching { unbindService(this) }
+            }
         }
-        return CaeloVpnService.current()
+
+        if (!bindService(intent, connection, Context.BIND_AUTO_CREATE)) {
+            result.error("establish", "could not bind to the tunnel service", null)
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

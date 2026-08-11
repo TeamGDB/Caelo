@@ -8,6 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.VpnService
 import android.os.Build
+import android.os.Binder
+import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.util.Log
 
@@ -48,6 +50,20 @@ class CaeloVpnService : VpnService() {
     }
 
     private var descriptor: ParcelFileDescriptor? = null
+
+    /** Handed to whoever binds, so the activity can drive this directly. */
+    inner class LocalBinder : Binder() {
+        val service: CaeloVpnService get() = this@CaeloVpnService
+    }
+
+    private val binder = LocalBinder()
+
+    // VpnService.onBind answers the system's own VpnService intent, and that
+    // answer must not be replaced. Anything else is our own binding.
+    override fun onBind(intent: Intent?): IBinder? {
+        if (intent?.action == SERVICE_INTERFACE) return super.onBind(intent)
+        return binder
+    }
 
     override fun onCreate() {
         super.onCreate()
