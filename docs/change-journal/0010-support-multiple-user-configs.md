@@ -41,5 +41,9 @@ at a time, but storage and selection do not need to share that limitation.
 - Storage tests cover multiple entries, active selection, deletion fallback,
   migration of the old file and absence of secrets in catalog metadata.
 
-Multiple own configs are now independently stored and available to Home. Full
-Android build and runtime verification follow the stacked bottom-sheet task.
+Multiple own configs are now independently stored and available to Home. The
+official Android build produced core libraries for three ABIs plus split and
+universal APKs. On Android 16, the existing legacy config appeared as `Imported
+configuration`, a second `Office` config was added through Settings, and both
+appeared in the Home server list. Implementation commit: `fa285c3`; rollback
+with `git revert fa285c3`.

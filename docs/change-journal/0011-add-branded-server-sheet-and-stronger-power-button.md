@@ -44,5 +44,9 @@ action strongly enough.
   remain stable across tunnel phases.
 
 The server selector now reads as part of Caelo and the central action is larger
-and more contrastive without reintroducing layout movement. Android build and
-device verification are appended after the final runtime pass.
+and more contrastive without reintroducing layout movement. The official
+Android build produced core libraries for three ABIs plus split and universal
+APKs. Android 16 visual inspection confirmed the cyan 252 px button, empty area
+beneath it and bottom-attached branded sheet with five rows; runtime logs had
+no Flutter, RenderFlex or fatal errors. Implementation commit: `e2bce8e`;
+rollback with `git revert e2bce8e`.
