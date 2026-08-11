@@ -71,9 +71,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             throw NEVPNError(.connectionFailed)
         }
 
-        guard let started = call({ caelo_connect_fd(Int32(fd), strdup(config)) }),
-              started["ok"] as? Bool == true else {
-            fault("the core could not adopt the descriptor")
+        let started = call { caelo_connect_fd(Int32(fd), strdup(config)) }
+        guard started?["ok"] as? Bool == true else {
+            fault("the core could not adopt the descriptor: \(started?["error"] ?? "no reason given")")
             throw NEVPNError(.connectionFailed)
         }
 
