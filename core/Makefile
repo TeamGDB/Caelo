@@ -33,6 +33,21 @@ macos:
 .PHONY: dylib
 dylib: macos
 
+# A static archive for the macOS system extension. A system extension has its
+# own ideas about where libraries live, and linking the core in rather than
+# alongside removes the question entirely — the same trade already made on iOS.
+.PHONY: macos-static
+macos-static:
+	CGO_ENABLED=1 GOARCH=arm64 go build -buildmode=c-archive \
+		-ldflags "$(LDFLAGS)" -o $(BUILD)/libcaelo-static-arm64.a ./libcaelo
+	CGO_ENABLED=1 GOARCH=amd64 go build -buildmode=c-archive \
+		-ldflags "$(LDFLAGS)" -o $(BUILD)/libcaelo-static-amd64.a ./libcaelo
+	lipo -create -output $(BUILD)/libcaelo.a \
+		$(BUILD)/libcaelo-static-arm64.a $(BUILD)/libcaelo-static-amd64.a
+	@rm -f $(BUILD)/libcaelo-static-amd64.h $(BUILD)/libcaelo-static-arm64.h
+	@rm -f $(BUILD)/libcaelo-static-arm64.a $(BUILD)/libcaelo-static-amd64.a
+	@lipo -info $(BUILD)/libcaelo.a
+
 .PHONY: linux
 linux:
 	CGO_ENABLED=1 go build -buildmode=c-shared \
