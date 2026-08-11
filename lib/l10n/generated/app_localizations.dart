@@ -296,6 +296,30 @@ abstract class AppLocalizations {
   /// **'Configuration'**
   String get configuration;
 
+  /// No description provided for @configurationName.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuration name'**
+  String get configurationName;
+
+  /// No description provided for @configurationEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste a configuration'**
+  String get configurationEmpty;
+
+  /// No description provided for @addConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Add configuration'**
+  String get addConfiguration;
+
+  /// No description provided for @customConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom config'**
+  String get customConfiguration;
+
   /// Value shown for the configuration row when one has been saved.
   ///
   /// In en, this message translates to:

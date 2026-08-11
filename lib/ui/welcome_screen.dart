@@ -93,7 +93,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       if (mounted) setState(() => _error = l10n.configurationFileInvalid);
       return;
     }
-    await ConfigStore.write(text);
+    await ConfigStore.create(
+      file.name.replaceFirst(RegExp(r'\.conf$'), ''),
+      text,
+    );
     await widget.onGranted();
   }
 

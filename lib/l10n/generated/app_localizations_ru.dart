@@ -119,6 +119,18 @@ class AppLocalizationsRu extends AppLocalizations {
   String get configuration => 'Конфиг';
 
   @override
+  String get configurationName => 'Название конфигурации';
+
+  @override
+  String get configurationEmpty => 'Вставьте конфигурацию';
+
+  @override
+  String get addConfiguration => 'Добавить конфигурацию';
+
+  @override
+  String get customConfiguration => 'Свой конфиг';
+
+  @override
   String get configurationInstalled => 'Добавлен';
 
   @override

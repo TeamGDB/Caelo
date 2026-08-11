@@ -167,7 +167,7 @@ class _ServerPanel extends StatelessWidget {
                       textAlign: TextAlign.left,
                     ),
                   ),
-                  Text('${server.latencyMs} ms'),
+                  if (server.latencyMs case final latency?) Text('$latency ms'),
                 ],
               ),
             ),
@@ -241,15 +241,16 @@ class _ServerPanel extends StatelessWidget {
                     children: [
                       _ServerBadge(label: server.badge),
                       const SizedBox(height: CaeloSpace.xs),
-                      Text(
-                        l10n.latency(server.latencyMs),
-                        style: CaeloTheme.caption(palette).copyWith(
-                          color: server.latencyMs < 60
-                              ? palette.accent
-                              : palette.muted,
-                          fontWeight: FontWeight.w600,
+                      if (server.latencyMs case final latency?)
+                        Text(
+                          l10n.latency(latency),
+                          style: CaeloTheme.caption(palette).copyWith(
+                            color: latency < 60
+                                ? palette.accent
+                                : palette.muted,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 const SizedBox(width: CaeloSpace.sm),
@@ -362,9 +363,15 @@ class _SettingsButton extends StatelessWidget {
     return CaeloIconButton(
       icon: CupertinoIcons.gear_alt,
       semanticLabel: AppLocalizations.of(context).settings,
-      onPressed: () => Navigator.of(
-        context,
-      ).push(CupertinoPageRoute<void>(builder: (_) => const SettingsScreen())),
+      onPressed: () async {
+        final servers = ServerSelectionScope.of(context);
+        final tunnel = TunnelScope.of(context);
+        await Navigator.of(context).push(
+          CupertinoPageRoute<void>(builder: (_) => const SettingsScreen()),
+        );
+        await servers.load();
+        await tunnel.refreshConfiguration();
+      },
       foreground: palette.muted,
     );
   }

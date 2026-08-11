@@ -85,7 +85,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   late CaeloLocaleMode _localeMode = widget.localeMode;
   late bool _accessGranted = widget.accessGranted;
   late final ServerSelectionController _servers = ServerSelectionController(
-    const MockServerCatalog(),
+    const DevelopmentServerCatalog(),
   );
 
   /// The system tunnel wherever there is one, and the in-process tunnel where

@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'settings_store.dart';
+import 'config_store.dart';
 
 @immutable
 class ServerOption {
@@ -10,7 +11,8 @@ class ServerOption {
     required this.location,
     required this.flag,
     required this.badge,
-    required this.latencyMs,
+    this.latencyMs,
+    this.configId,
   });
 
   final String id;
@@ -18,7 +20,8 @@ class ServerOption {
   final String location;
   final String flag;
   final String badge;
-  final int latencyMs;
+  final int? latencyMs;
+  final String? configId;
 }
 
 /// Subscription-owned server source. The backend implementation will replace
@@ -63,16 +66,39 @@ class MockServerCatalog implements ServerCatalog {
   Future<List<ServerOption>> load() async => servers;
 }
 
+class DevelopmentServerCatalog implements ServerCatalog {
+  const DevelopmentServerCatalog();
+
+  @override
+  Future<List<ServerOption>> load() async {
+    final configs = await ConfigStore.list();
+    return [
+      ...MockServerCatalog.servers,
+      for (final config in configs)
+        ServerOption(
+          id: 'user-${config.id}',
+          name: config.name,
+          location: 'Local configuration',
+          flag: '📄',
+          badge: 'Custom',
+          configId: config.id,
+        ),
+    ];
+  }
+}
+
 class ServerSelectionController extends ChangeNotifier {
   ServerSelectionController(
     this.catalog, {
     this.readSelected = SettingsStore.selectedServerId,
     this.writeSelected = SettingsStore.setSelectedServerId,
+    this.activateConfiguration = ConfigStore.select,
   });
 
   final ServerCatalog catalog;
   final Future<String?> Function() readSelected;
   final Future<void> Function(String) writeSelected;
+  final Future<void> Function(String) activateConfiguration;
   List<ServerOption> servers = const [];
   ServerOption? selected;
 
@@ -89,6 +115,7 @@ class ServerSelectionController extends ChangeNotifier {
     if (!servers.contains(server)) return;
     selected = server;
     notifyListeners();
+    if (server.configId case final id?) await activateConfiguration(id);
     await writeSelected(server.id);
   }
 }

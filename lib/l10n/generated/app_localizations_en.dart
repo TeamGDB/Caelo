@@ -119,6 +119,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get configuration => 'Configuration';
 
   @override
+  String get configurationName => 'Configuration name';
+
+  @override
+  String get configurationEmpty => 'Paste a configuration';
+
+  @override
+  String get addConfiguration => 'Add configuration';
+
+  @override
+  String get customConfiguration => 'Custom config';
+
+  @override
   String get configurationInstalled => 'Installed';
 
   @override

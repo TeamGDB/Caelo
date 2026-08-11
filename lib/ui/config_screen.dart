@@ -12,7 +12,9 @@ import 'widgets/caelo_surface.dart';
 /// subscription link that fills this in for you; a screen that asks someone to
 /// paste a `.conf` is exactly the thing Caelo exists to avoid.
 class ConfigScreen extends StatefulWidget {
-  const ConfigScreen({super.key});
+  const ConfigScreen({this.config, super.key});
+
+  final StoredConfig? config;
 
   @override
   State<ConfigScreen> createState() => _ConfigScreenState();
@@ -20,6 +22,7 @@ class ConfigScreen extends StatefulWidget {
 
 class _ConfigScreenState extends State<ConfigScreen> {
   final _controller = TextEditingController();
+  final _nameController = TextEditingController();
   bool _loaded = false;
   String? _error;
 
@@ -30,10 +33,13 @@ class _ConfigScreenState extends State<ConfigScreen> {
   }
 
   Future<void> _load() async {
-    final existing = await ConfigStore.read();
+    final existing = widget.config == null
+        ? null
+        : await ConfigStore.readById(widget.config!.id);
     if (!mounted) return;
     setState(() {
       _controller.text = existing ?? '';
+      _nameController.text = widget.config?.name ?? '';
       _loaded = true;
     });
   }
@@ -41,6 +47,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -48,9 +55,21 @@ class _ConfigScreenState extends State<ConfigScreen> {
     final text = _controller.text.trim();
     try {
       if (text.isEmpty) {
-        await ConfigStore.clear();
+        setState(
+          () => _error = AppLocalizations.of(context).configurationEmpty,
+        );
+        return;
+      }
+      if (!text.contains('[Interface]') || !text.contains('[Peer]')) {
+        setState(
+          () => _error = AppLocalizations.of(context).configurationFileInvalid,
+        );
+        return;
+      }
+      if (widget.config case final config?) {
+        await ConfigStore.update(config.id, _nameController.text, text);
       } else {
-        await ConfigStore.write(text);
+        await ConfigStore.create(_nameController.text, text);
       }
       if (mounted) Navigator.of(context).pop();
     } on Object catch (error) {
@@ -61,7 +80,9 @@ class _ConfigScreenState extends State<ConfigScreen> {
   }
 
   Future<void> _remove() async {
-    await ConfigStore.clear();
+    final config = widget.config;
+    if (config == null) return;
+    await ConfigStore.delete(config.id);
     if (!mounted) return;
     _controller.clear();
     Navigator.of(context).pop();
@@ -99,25 +120,42 @@ class _ConfigScreenState extends State<ConfigScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    child: CaeloPanel(
-                      radius: CaeloRadius.controlAll,
-                      padding: const EdgeInsets.all(CaeloSpace.sm),
-                      child: CupertinoTextField.borderless(
-                        controller: _controller,
-                        maxLines: null,
-                        expands: true,
-                        textAlignVertical: TextAlignVertical.top,
-                        placeholder: l10n.configurationPlaceholder,
-                        placeholderStyle: CaeloTheme.caption(
-                          palette,
-                        ).copyWith(color: palette.dim),
-                        style: TextStyle(
-                          color: palette.foreground,
-                          fontSize: 12,
-                          fontFamily: 'Menlo',
-                          height: 1.45,
+                    child: Column(
+                      children: [
+                        CupertinoTextField(
+                          controller: _nameController,
+                          placeholder: l10n.configurationName,
+                          padding: const EdgeInsets.all(CaeloSpace.md),
+                          decoration: BoxDecoration(
+                            color: palette.surface1,
+                            borderRadius: CaeloRadius.controlAll,
+                            border: Border.all(color: palette.border),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: CaeloSpace.md),
+                        Expanded(
+                          child: CaeloPanel(
+                            radius: CaeloRadius.controlAll,
+                            padding: const EdgeInsets.all(CaeloSpace.sm),
+                            child: CupertinoTextField.borderless(
+                              controller: _controller,
+                              maxLines: null,
+                              expands: true,
+                              textAlignVertical: TextAlignVertical.top,
+                              placeholder: l10n.configurationPlaceholder,
+                              placeholderStyle: CaeloTheme.caption(
+                                palette,
+                              ).copyWith(color: palette.dim),
+                              style: TextStyle(
+                                color: palette.foreground,
+                                fontSize: 12,
+                                fontFamily: 'Menlo',
+                                height: 1.45,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: CaeloSpace.md),
@@ -128,19 +166,22 @@ class _ConfigScreenState extends State<ConfigScreen> {
                     ),
                   ),
                   const SizedBox(height: CaeloSpace.sm),
-                  CupertinoButton(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: CaeloSpace.control,
+                  if (widget.config != null)
+                    CupertinoButton(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: CaeloSpace.control,
+                      ),
+                      minimumSize: const Size.fromHeight(
+                        CaeloSize.minimumTarget,
+                      ),
+                      onPressed: _remove,
+                      child: Text(
+                        l10n.remove,
+                        style: CaeloTheme.caption(
+                          palette,
+                        ).copyWith(color: palette.danger),
+                      ),
                     ),
-                    minimumSize: const Size.fromHeight(CaeloSize.minimumTarget),
-                    onPressed: _remove,
-                    child: Text(
-                      l10n.remove,
-                      style: CaeloTheme.caption(
-                        palette,
-                      ).copyWith(color: palette.danger),
-                    ),
-                  ),
                 ],
               ),
             ),

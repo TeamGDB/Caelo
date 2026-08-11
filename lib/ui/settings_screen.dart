@@ -45,7 +45,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool hasConfig = false;
+  List<StoredConfig> configs = const [];
 
   @override
   void initState() {
@@ -54,8 +54,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> onConfigChanged() async {
-    final config = await ConfigStore.read();
-    if (mounted) setState(() => hasConfig = config != null);
+    final loaded = await ConfigStore.list();
+    if (mounted) setState(() => configs = loaded);
   }
 
   String _themeLabel(AppLocalizations l10n, CaeloThemeMode? mode) =>
@@ -150,11 +150,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _Section(
                   header: l10n.subscriptions,
                   children: [
+                    for (final config in configs)
+                      _Row(
+                        label: config.name,
+                        value: l10n.customConfiguration,
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            CupertinoPageRoute<void>(
+                              builder: (_) => ConfigScreen(config: config),
+                            ),
+                          );
+                          onConfigChanged();
+                        },
+                      ),
                     _Row(
-                      label: l10n.configuration,
-                      value: hasConfig
-                          ? l10n.configurationInstalled
-                          : l10n.configurationNone,
+                      label: l10n.addConfiguration,
+                      labelColour: palette.accent,
                       onTap: () async {
                         await Navigator.of(context).push(
                           CupertinoPageRoute<void>(
@@ -163,12 +174,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         );
                         onConfigChanged();
                       },
-                    ),
-                    _Row(
-                      label: l10n.addSubscription,
-                      labelColour: palette.accent,
-                      // Lands with the subscription parser in the core.
-                      onTap: null,
                     ),
                     if (accessScope != null)
                       _Row(
