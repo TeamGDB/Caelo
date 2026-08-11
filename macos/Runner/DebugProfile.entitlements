@@ -8,5 +8,17 @@
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<!-- The app asks the system to install the extension; the system asks the
+	     user. Without this the request is refused before anyone is asked. -->
+	<key>com.apple.developer.system-extension.install</key>
+	<true/>
+	<key>com.apple.developer.networking.networkextension</key>
+	<array>
+		<string>packet-tunnel-provider-systemextension</string>
+	</array>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.team.gdb.caelo</string>
+	</array>
 </dict>
 </plist>

@@ -27,8 +27,13 @@
 		33CC10F32044A3C60003C045 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F22044A3C60003C045 /* Assets.xcassets */; };
 		33CC10F62044A3C60003C045 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = 33CC10F42044A3C60003C045 /* MainMenu.xib */; };
 		33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33CC11122044BFA00003C045 /* MainFlutterWindow.swift */; };
+		4253DF2F32E3EC39B5B0B1C6 /* CaeloSystemExtension.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 80612124908753B213A8F163 /* CaeloSystemExtension.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4B90AEB6B6C723FB3A33CF15 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F575C15685F9DDB4F043AED /* main.swift */; };
 		64B20794FF5F08D3B29F34A8 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 32A36686B899E981B0567D28 /* Pods_RunnerTests.framework */; };
 		92B67171749E6D866380A26B /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EA1AAC1988F8601B5C49CB99 /* Pods_Runner.framework */; };
+		A62133565EB9B0C4B8C73CF9 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20A5F092F9CBB1C3354855 /* PacketTunnelProvider.swift */; };
+		BACC21B2716218B94AEAE2E6 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0E9051829834B9F3CC730D9E /* Cocoa.framework */; };
+		EBF5E6484CEC0B4423499903 /* TunnelLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1893CDAF92124C652EC65B0B /* TunnelLog.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,9 +51,27 @@
 			remoteGlobalIDString = 33CC111A2044C6BA0003C045;
 			remoteInfo = FLX;
 		};
+		7FA1C9E175DD4BFCEADC0D11 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 33CC10E52044A3C60003C045 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BB36A5D047ED9A375A1FB072;
+			remoteInfo = CaeloSystemExtension;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		1851C5FA6D2DDD30A221841C /* Embed System Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/SystemExtensions;
+			dstSubfolderSpec = 1;
+			files = (
+				4253DF2F32E3EC39B5B0B1C6 /* CaeloSystemExtension.systemextension in Embed System Extensions */,
+			);
+			name = "Embed System Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		33CC110E2044A8840003C045 /* Bundle Framework */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -64,6 +87,10 @@
 /* Begin PBXFileReference section */
 		00205AE7A6C183C9B7BC2CB5 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 		0DA064B81C1A49FE32F3D82F /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
+		0E9051829834B9F3CC730D9E /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		1893CDAF92124C652EC65B0B /* TunnelLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TunnelLog.swift; path = ../platform/apple/TunnelLog.swift; sourceTree = "<group>"; };
+		1D20A5F092F9CBB1C3354855 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PacketTunnelProvider.swift; path = ../platform/apple/PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		2F575C15685F9DDB4F043AED /* main.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		32A36686B899E981B0567D28 /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C80D5294CF71000263BE5 /* RunnerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RunnerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		331C80D7294CF71000263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
@@ -81,9 +108,13 @@
 		33E51913231747F40026EE4D /* DebugProfile.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DebugProfile.entitlements; sourceTree = "<group>"; };
 		33E51914231749380026EE4D /* Release.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = Release.entitlements; sourceTree = "<group>"; };
 		33E5194F232828860026EE4D /* AppInfo.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppInfo.xcconfig; sourceTree = "<group>"; };
+		653CBED88AE33D9C5328898E /* CaeloSystemExtension-Bridging-Header.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "CaeloSystemExtension-Bridging-Header.h"; sourceTree = "<group>"; };
 		676B95532C2DD3A76CE139E1 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		7AB92379E38C4191DDDDD011 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		7CE125FC7E459D590D036914 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		7FECEAAA3AB1C9F89E0B3255 /* CaeloSystemExtension.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = CaeloSystemExtension.entitlements; sourceTree = "<group>"; };
+		80612124908753B213A8F163 /* CaeloSystemExtension.systemextension */ = {isa = PBXFileReference; explicitFileType = "wrapper.system-extension"; includeInIndex = 0; name = CaeloSystemExtension.systemextension; path = CaeloSystemExtension.systemextension; sourceTree = BUILT_PRODUCTS_DIR; };
 		82A38A2EE6BEAEA32FA5D89E /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		EA1AAC1988F8601B5C49CB99 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -107,9 +138,26 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		71D8132D106CBE399EDFCB0B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BACC21B2716218B94AEAE2E6 /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		22E4145C01D24581AD05E99B /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				1D20A5F092F9CBB1C3354855 /* PacketTunnelProvider.swift */,
+				1893CDAF92124C652EC65B0B /* TunnelLog.swift */,
+			);
+			name = Shared;
+			sourceTree = SOURCE_ROOT;
+		};
 		24CAAD5B2721E6D09C064B94 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
@@ -152,6 +200,8 @@
 				33CC10EE2044A3C60003C045 /* Products */,
 				D73912EC22F37F3D000D13A0 /* Frameworks */,
 				24CAAD5B2721E6D09C064B94 /* Pods */,
+				EC170125DC0AB4FB2409BAFF /* CaeloSystemExtension */,
+				22E4145C01D24581AD05E99B /* Shared */,
 			);
 			sourceTree = "<group>";
 		};
@@ -160,6 +210,7 @@
 			children = (
 				33CC10ED2044A3C60003C045 /* caelo.app */,
 				331C80D5294CF71000263BE5 /* RunnerTests.xctest */,
+				80612124908753B213A8F163 /* CaeloSystemExtension.systemextension */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -199,13 +250,34 @@
 			path = Runner;
 			sourceTree = "<group>";
 		};
+		AC52B0EF11EDED874CD5A283 /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				0E9051829834B9F3CC730D9E /* Cocoa.framework */,
+			);
+			name = "OS X";
+			sourceTree = "<group>";
+		};
 		D73912EC22F37F3D000D13A0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				EA1AAC1988F8601B5C49CB99 /* Pods_Runner.framework */,
 				32A36686B899E981B0567D28 /* Pods_RunnerTests.framework */,
+				AC52B0EF11EDED874CD5A283 /* OS X */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		EC170125DC0AB4FB2409BAFF /* CaeloSystemExtension */ = {
+			isa = PBXGroup;
+			children = (
+				7CE125FC7E459D590D036914 /* Info.plist */,
+				7FECEAAA3AB1C9F89E0B3255 /* CaeloSystemExtension.entitlements */,
+				653CBED88AE33D9C5328898E /* CaeloSystemExtension-Bridging-Header.h */,
+				2F575C15685F9DDB4F043AED /* main.swift */,
+			);
+			name = CaeloSystemExtension;
+			path = CaeloSystemExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -240,17 +312,36 @@
 				33CC10EB2044A3C60003C045 /* Resources */,
 				33CC110E2044A8840003C045 /* Bundle Framework */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
+				1851C5FA6D2DDD30A221841C /* Embed System Extensions */,
 				9499ACC818773D76959FAA04 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				33CC11202044C79F0003C045 /* PBXTargetDependency */,
+				B7013A7EA153CFF8A17ACC04 /* PBXTargetDependency */,
 			);
 			name = Runner;
 			productName = Runner;
 			productReference = 33CC10ED2044A3C60003C045 /* caelo.app */;
 			productType = "com.apple.product-type.application";
+		};
+		BB36A5D047ED9A375A1FB072 /* CaeloSystemExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1464E68251C99466D82B79BC /* Build configuration list for PBXNativeTarget "CaeloSystemExtension" */;
+			buildPhases = (
+				F480018E359D58B589F1A488 /* Sources */,
+				71D8132D106CBE399EDFCB0B /* Frameworks */,
+				26976912167CE4C483F39029 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CaeloSystemExtension;
+			productName = CaeloSystemExtension;
+			productReference = 80612124908753B213A8F163 /* CaeloSystemExtension.systemextension */;
+			productType = "com.apple.product-type.system-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -299,11 +390,19 @@
 				33CC10EC2044A3C60003C045 /* Runner */,
 				331C80D4294CF70F00263BE5 /* RunnerTests */,
 				33CC111A2044C6BA0003C045 /* Flutter Assemble */,
+				BB36A5D047ED9A375A1FB072 /* CaeloSystemExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		26976912167CE4C483F39029 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		331C80D3294CF70F00263BE5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -443,6 +542,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F480018E359D58B589F1A488 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A62133565EB9B0C4B8C73CF9 /* PacketTunnelProvider.swift in Sources */,
+				EBF5E6484CEC0B4423499903 /* TunnelLog.swift in Sources */,
+				4B90AEB6B6C723FB3A33CF15 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -455,6 +564,12 @@
 			isa = PBXTargetDependency;
 			target = 33CC111A2044C6BA0003C045 /* Flutter Assemble */;
 			targetProxy = 33CC111F2044C79F0003C045 /* PBXContainerItemProxy */;
+		};
+		B7013A7EA153CFF8A17ACC04 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CaeloSystemExtension;
+			target = BB36A5D047ED9A375A1FB072 /* CaeloSystemExtension */;
+			targetProxy = 7FA1C9E175DD4BFCEADC0D11 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -572,14 +687,16 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/DebugProfile.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = BM4788UD8M;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PROVISIONING_PROFILE_SPECIFIER = "";
+				PROVISIONING_PROFILE_SPECIFIER = Caelo;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Profile;
@@ -704,14 +821,16 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/DebugProfile.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = BM4788UD8M;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PROVISIONING_PROFILE_SPECIFIER = "";
+				PROVISIONING_PROFILE_SPECIFIER = Caelo;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
@@ -724,14 +843,16 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements;
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = BM4788UD8M;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PROVISIONING_PROFILE_SPECIFIER = "";
+				PROVISIONING_PROFILE_SPECIFIER = Caelo;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -752,9 +873,139 @@
 			};
 			name = Release;
 		};
+		39FCBEBA067D61BF0BDDDEC2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CaeloSystemExtension/CaeloSystemExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BM4788UD8M;
+				ENABLE_HARDENED_RUNTIME = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../core/build",
+				);
+				INFOPLIST_FILE = CaeloSystemExtension/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-force_load",
+					"$(SRCROOT)/../core/build/libcaelo.a",
+					"-Wl,-export_dynamic",
+					"-lresolv",
+					"-framework",
+					CoreFoundation,
+					"-framework",
+					Security,
+					"-framework",
+					NetworkExtension,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = team.gdb.caelo.SystemExtension;
+				PRODUCT_NAME = CaeloSystemExtension;
+				PROVISIONING_PROFILE_SPECIFIER = "Caelo SystemExtension";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "../platform/apple/CaeloTunnel-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				WRAPPER_EXTENSION = systemextension;
+			};
+			name = Release;
+		};
+		92299BC296F2D22240C442EE /* Profile */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CaeloSystemExtension/CaeloSystemExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BM4788UD8M;
+				ENABLE_HARDENED_RUNTIME = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../core/build",
+				);
+				INFOPLIST_FILE = CaeloSystemExtension/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-force_load",
+					"$(SRCROOT)/../core/build/libcaelo.a",
+					"-Wl,-export_dynamic",
+					"-lresolv",
+					"-framework",
+					CoreFoundation,
+					"-framework",
+					Security,
+					"-framework",
+					NetworkExtension,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = team.gdb.caelo.SystemExtension;
+				PRODUCT_NAME = CaeloSystemExtension;
+				PROVISIONING_PROFILE_SPECIFIER = "Caelo SystemExtension";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "../platform/apple/CaeloTunnel-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				WRAPPER_EXTENSION = systemextension;
+			};
+			name = Profile;
+		};
+		FF6B671810141C152221507A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = CaeloSystemExtension/CaeloSystemExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Developer ID Application";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = BM4788UD8M;
+				ENABLE_HARDENED_RUNTIME = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../core/build",
+				);
+				INFOPLIST_FILE = CaeloSystemExtension/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 11.0;
+				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-force_load",
+					"$(SRCROOT)/../core/build/libcaelo.a",
+					"-Wl,-export_dynamic",
+					"-lresolv",
+					"-framework",
+					CoreFoundation,
+					"-framework",
+					Security,
+					"-framework",
+					NetworkExtension,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = team.gdb.caelo.SystemExtension;
+				PRODUCT_NAME = CaeloSystemExtension;
+				PROVISIONING_PROFILE_SPECIFIER = "Caelo SystemExtension";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "../platform/apple/CaeloTunnel-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				WRAPPER_EXTENSION = systemextension;
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		1464E68251C99466D82B79BC /* Build configuration list for PBXNativeTarget "CaeloSystemExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				39FCBEBA067D61BF0BDDDEC2 /* Release */,
+				FF6B671810141C152221507A /* Debug */,
+				92299BC296F2D22240C442EE /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		331C80DE294CF71000263BE5 /* Build configuration list for PBXNativeTarget "RunnerTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

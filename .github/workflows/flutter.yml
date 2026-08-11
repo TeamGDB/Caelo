@@ -96,7 +96,14 @@ jobs:
 
       - run: flutter pub get
 
+      # Unsigned. The app now embeds a system extension, and signing one needs
+      # a Developer ID certificate this pipeline has no business holding. What
+      # is being checked is that it compiles and that the core ends up inside.
       - run: ./scripts/build-macos.sh debug
+        env:
+          FLUTTER_XCODE_CODE_SIGNING_ALLOWED: "NO"
+          FLUTTER_XCODE_CODE_SIGNING_REQUIRED: "NO"
+          FLUTTER_XCODE_CODE_SIGN_IDENTITY: ""
 
       - name: Verify the core is in the bundle, and compress it
         run: |
