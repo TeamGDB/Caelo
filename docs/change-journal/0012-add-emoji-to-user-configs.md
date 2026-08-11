@@ -29,5 +29,15 @@ metadata and does not belong inside the tunnel configuration.
 ## Verification and result
 
 - Storage/catalog tests cover a custom `🏢` value and legacy metadata fallback.
-- Full suite and device verification are recorded after the stacked swipe
-  section task.
+- `flutter analyze`: passed with no findings.
+- `flutter test`: all 41 tests passed.
+- Android debug APKs were built successfully for ARM64, ARMv7, x86_64, and the
+  universal target.
+- The stacked Home verification showed every existing user configuration in
+  the server list; older saved rows correctly retained the `📄` fallback.
+
+Implementation commit: `d926a88`
+
+## Rollback
+
+Run `git revert d926a88` from a descendant branch.

@@ -161,24 +161,53 @@ void main() {
     expect(client.calls, contains('connect'));
   });
 
-  testWidgets('uses a branded sheet instead of CupertinoActionSheet', (
+  testWidgets('keeps servers on Home and expands them only by swiping', (
     tester,
   ) async {
     await pumpHome(tester, locale: const Locale('en'));
 
+    final surface = find.byKey(const ValueKey('server-sheet-surface'));
+    final beforeTap = tester.getTopLeft(surface).dy;
     await tester.tap(find.text('Helsinki'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(ServerPickerSheet), findsOneWidget);
+    expect(find.byType(ServerDrawer), findsOneWidget);
     expect(find.byType(CupertinoActionSheet), findsNothing);
+    expect(tester.getTopLeft(surface).dy, beforeTap);
+
+    await tester.drag(
+      find.byKey(const ValueKey('server-drag-handle')),
+      const Offset(0, -360),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(surface).dy, lessThan(beforeTap - 200));
     expect(find.text('Choose server'), findsOneWidget);
-    expect(tester.getBottomLeft(find.byType(ServerPickerSheet)).dy, 600);
   });
 
   testWidgets('makes the power control visually dominant', (tester) async {
     await pumpHome(tester, locale: const Locale('en'));
 
     expect(tester.getSize(find.byType(PowerButton)).width, greaterThan(240));
+    expect(tester.getCenter(find.byType(PowerButton)).dy, greaterThan(300));
+  });
+
+  testWidgets('keeps the server section collapsed while connecting', (
+    tester,
+  ) async {
+    await pumpHome(tester, locale: const Locale('en'));
+    client.emit(const TunnelStatus(phase: TunnelPhase.connecting));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final surface = find.byKey(const ValueKey('server-sheet-surface'));
+    final before = tester.getTopLeft(surface).dy;
+    await tester.drag(
+      find.byKey(const ValueKey('server-drag-handle')),
+      const Offset(0, -360),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(tester.getTopLeft(surface).dy, before);
   });
 
   testWidgets('places Settings in the upper-right safe area', (tester) async {

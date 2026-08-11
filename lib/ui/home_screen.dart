@@ -5,7 +5,6 @@ import '../core/tunnel.dart';
 import '../core/tunnel_controller.dart';
 import '../core/server_catalog.dart';
 import '../l10n/generated/app_localizations.dart';
-import '../theme/app_theme.dart';
 import '../theme/palette.dart';
 import 'settings_screen.dart';
 import 'server_picker_sheet.dart';
@@ -37,14 +36,13 @@ class HomeScreen extends StatelessWidget {
         child: SafeArea(
           child: Stack(
             children: [
-              Center(
+              Align(
+                // Lower than geometric centre: the primary action remains
+                // reachable by a thumb without colliding with the server peek.
+                alignment: const Alignment(0, 0.28),
                 child: Padding(
-                  padding: EdgeInsets.only(
-                    // The server surface permanently owns this space. Tunnel
-                    // phase changes must never move the primary control.
-                    bottom: 126,
-                    left: CaeloSpace.gutter,
-                    right: CaeloSpace.gutter,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: CaeloSpace.gutter,
                   ),
                   child: PowerButton(
                     phase: status.phase,
@@ -58,11 +56,8 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              Positioned(
-                left: CaeloSpace.md,
-                right: CaeloSpace.md,
-                bottom: CaeloSpace.control,
-                child: _ServerPanel(
+              Positioned.fill(
+                child: ServerDrawer(
                   controller: servers,
                   locked: status.phase != TunnelPhase.disconnected,
                   limitedScope:
@@ -82,142 +77,6 @@ class HomeScreen extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Subscription server selection. While the backend is absent the controller
-/// provides explicitly isolated presentation mocks; this widget never mutates
-/// or fabricates [TunnelStatus].
-class _ServerPanel extends StatelessWidget {
-  const _ServerPanel({
-    required this.controller,
-    required this.locked,
-    required this.limitedScope,
-  });
-
-  final ServerSelectionController controller;
-  final bool locked;
-  final bool limitedScope;
-
-  Future<void> _choose(BuildContext context) async {
-    if (locked || controller.servers.isEmpty) return;
-    await showCaeloServerPicker(context, controller);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = CaeloColors.of(context);
-    final l10n = AppLocalizations.of(context);
-    final server = controller.selected;
-
-    return CaeloContentWidth(
-      child: GestureDetector(
-        onTap: locked ? null : () => _choose(context),
-        behavior: HitTestBehavior.opaque,
-        child: SizedBox(
-          height: 110,
-          child: CaeloPanel(
-            radius: CaeloRadius.cardAll,
-            padding: const EdgeInsets.symmetric(
-              horizontal: CaeloSpace.gutter,
-              vertical: CaeloSpace.control,
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 54,
-                  child: Text(
-                    server?.flag ?? '—',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 30),
-                  ),
-                ),
-                const SizedBox(width: CaeloSpace.control),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        l10n.selectedServer,
-                        style: CaeloTheme.caption(palette),
-                      ),
-                      const SizedBox(height: CaeloSpace.xs),
-                      Text(
-                        server?.name ?? '—',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: CaeloTheme.title(palette),
-                      ),
-                      Text(
-                        limitedScope
-                            ? l10n.localTunnelOnly
-                            : server?.location ?? l10n.serverListMockNotice,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: CaeloTheme.caption(palette),
-                      ),
-                    ],
-                  ),
-                ),
-                if (server != null)
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _ServerBadge(label: server.badge),
-                      const SizedBox(height: CaeloSpace.xs),
-                      if (server.latencyMs case final latency?)
-                        Text(
-                          l10n.latency(latency),
-                          style: CaeloTheme.caption(palette).copyWith(
-                            color: latency < 60
-                                ? palette.accent
-                                : palette.muted,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                    ],
-                  ),
-                const SizedBox(width: CaeloSpace.sm),
-                Icon(
-                  locked ? CupertinoIcons.lock : CupertinoIcons.chevron_up,
-                  size: 18,
-                  color: palette.dim,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ServerBadge extends StatelessWidget {
-  const _ServerBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = CaeloColors.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: palette.accentSurface,
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: palette.accentBorder),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        child: Text(
-          label,
-          style: CaeloTheme.caption(
-            palette,
-          ).copyWith(color: palette.accent, fontWeight: FontWeight.w600),
         ),
       ),
     );
