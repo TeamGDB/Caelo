@@ -43,6 +43,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get currentConnection => 'Current connection';
+
+  @override
+  String latency(int ping) {
+    return '$ping ms';
+  }
+
+  @override
   String get noSubscription => 'No subscription yet';
 
   @override

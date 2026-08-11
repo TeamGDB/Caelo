@@ -158,6 +158,18 @@ abstract class AppLocalizations {
   /// **'{protocol} · {ping} ms'**
   String protocolAndPing(String protocol, int ping);
 
+  /// Label above the real node reported by the core on Home.
+  ///
+  /// In en, this message translates to:
+  /// **'Current connection'**
+  String get currentConnection;
+
+  /// Measured round-trip latency reported by the core.
+  ///
+  /// In en, this message translates to:
+  /// **'{ping} ms'**
+  String latency(int ping);
+
   /// Shown instead of a node name when nothing is configured.
   ///
   /// In en, this message translates to:

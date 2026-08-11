@@ -56,6 +56,20 @@
       }
     }
   },
+  "currentConnection": "Current connection",
+  "@currentConnection": {
+    "description": "Label above the real node reported by the core on Home."
+  },
+  "latency": "{ping} ms",
+  "@latency": {
+    "description": "Measured round-trip latency reported by the core.",
+    "placeholders": {
+      "ping": {
+        "type": "int",
+        "example": "42"
+      }
+    }
+  },
   "noSubscription": "No subscription yet",
   "@noSubscription": {
     "description": "Shown instead of a node name when nothing is configured."

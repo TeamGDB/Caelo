@@ -27,6 +27,15 @@
       }
     }
   },
+  "currentConnection": "Текущее подключение",
+  "latency": "{ping} мс",
+  "@latency": {
+    "placeholders": {
+      "ping": {
+        "type": "int"
+      }
+    }
+  },
   "noSubscription": "Подписки пока нет",
   "addSubscription": "Добавить подписку",
   "noConfig": "Конфиг не добавлен",

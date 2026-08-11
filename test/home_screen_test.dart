@@ -44,7 +44,7 @@ void main() {
   testWidgets('says so when nothing is configured', (tester) async {
     await pumpHome(tester, locale: const Locale('en'));
 
-    expect(find.text('Not connected'), findsOneWidget);
+    expect(find.text('Connect'), findsOneWidget);
     expect(find.text('No configuration yet'), findsOneWidget);
   });
 
@@ -60,7 +60,7 @@ void main() {
     await pumpHome(tester, locale: const Locale('en'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Not connected'), findsOneWidget);
+    expect(find.text('Connect'), findsOneWidget);
     expect(find.text('No configuration yet'), findsNothing);
   });
 
@@ -75,9 +75,10 @@ void main() {
         pingMs: 42,
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Connected'), findsOneWidget);
+    expect(find.text('Current connection'), findsOneWidget);
     expect(find.textContaining('Frankfurt 3'), findsOneWidget);
     expect(find.textContaining('AmneziaWG'), findsOneWidget);
     expect(find.textContaining('42'), findsOneWidget);
@@ -97,7 +98,7 @@ void main() {
   testWidgets('translates into Russian', (tester) async {
     await pumpHome(tester, locale: const Locale('ru'));
 
-    expect(find.text('Отключено'), findsOneWidget);
+    expect(find.text('Подключить'), findsOneWidget);
     expect(find.text('Конфиг не добавлен'), findsOneWidget);
   });
 
@@ -118,7 +119,7 @@ void main() {
       await pumpHome(tester, locale: const Locale('en'));
 
       client.emit(connected);
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
 
       expect(caveat, findsOneWidget);
     });
@@ -128,7 +129,7 @@ void main() {
       await pumpHome(tester, locale: const Locale('en'));
 
       client.emit(connected);
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
 
       expect(
         tester
@@ -148,5 +149,53 @@ void main() {
     await tester.pump();
 
     expect(client.calls, contains('connect'));
+  });
+
+  testWidgets('does not invent a connection panel without a core node', (
+    tester,
+  ) async {
+    await pumpHome(tester, locale: const Locale('en'));
+
+    client.emit(const TunnelStatus(phase: TunnelPhase.connecting));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Connecting'), findsOneWidget);
+    expect(find.text('Current connection'), findsNothing);
+  });
+
+  testWidgets('shows the real disconnecting phase inside the button', (
+    tester,
+  ) async {
+    await pumpHome(tester, locale: const Locale('en'));
+
+    client.emit(const TunnelStatus(phase: TunnelPhase.disconnecting));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Disconnecting'), findsOneWidget);
+  });
+
+  testWidgets('shows a core node without inventing missing measurements', (
+    tester,
+  ) async {
+    await pumpHome(tester, locale: const Locale('en'));
+
+    client.emit(
+      const TunnelStatus(phase: TunnelPhase.connected, node: 'Helsinki 1'),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Current connection'), findsOneWidget);
+    expect(find.text('Helsinki 1'), findsOneWidget);
+    expect(find.textContaining('ms'), findsNothing);
+  });
+
+  testWidgets('fits the compact reference viewport in Russian', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await pumpHome(tester, locale: const Locale('ru'));
+
+    expect(find.text('Подключить'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

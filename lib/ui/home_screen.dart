@@ -21,127 +21,183 @@ class HomeScreen extends StatelessWidget {
     final controller = TunnelScope.of(context);
     final status = controller.value;
     final l10n = AppLocalizations.of(context);
+    final buttonLabel = switch (status.phase) {
+      TunnelPhase.disconnected => l10n.connect,
+      TunnelPhase.connecting => l10n.statusConnecting,
+      TunnelPhase.connected => l10n.statusConnected,
+      TunnelPhase.disconnecting => l10n.statusDisconnecting,
+      TunnelPhase.failed => l10n.statusFailed,
+    };
 
     return CupertinoPageScaffold(
       backgroundColor: palette.background,
       child: CaeloPageSurface(
-        child: Stack(
-          children: [
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  PowerButton(
-                    phase: status.phase,
-                    onPressed: controller.toggle,
-                    semanticLabel: status.phase == TunnelPhase.connected
-                        ? l10n.disconnect
-                        : l10n.connect,
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    bottom: status.hasNode ? 104 : 0,
+                    left: CaeloSpace.gutter,
+                    right: CaeloSpace.gutter,
                   ),
-                  const SizedBox(height: CaeloSpace.lg),
-                  _StatusLine(status: status),
-                  const SizedBox(height: CaeloSpace.xs + 2),
-                  _DetailLine(
-                    status: status,
-                    hasConfiguration: controller.hasConfiguration,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      PowerButton(
+                        phase: status.phase,
+                        label: buttonLabel,
+                        onPressed: controller.toggle,
+                        semanticLabel:
+                            status.phase == TunnelPhase.connected ||
+                                status.phase == TunnelPhase.connecting
+                            ? l10n.disconnect
+                            : l10n.connect,
+                      ),
+                      const SizedBox(height: CaeloSpace.md),
+                      _ConfigurationHint(
+                        visible:
+                            !controller.hasConfiguration && !status.hasNode,
+                      ),
+                      const SizedBox(height: CaeloSpace.sm),
+                      // The tunnel is real but it lives on a userspace stack
+                      // inside this process. Never imply the machine is covered.
+                      _Caveat(
+                        visible:
+                            status.phase == TunnelPhase.connected &&
+                            !controller.coversWholeMachine,
+                      ),
+                      const SizedBox(height: CaeloSpace.control),
+                      _ReconnectAction(
+                        visible: status.phase == TunnelPhase.connected,
+                        onPressed: controller.reconnectDifferently,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: CaeloSpace.sm),
-                  // The tunnel is real but it lives on a userspace stack inside
-                  // this process. Letting the screen imply the machine is covered
-                  // would be the single most harmful thing it could get wrong.
-                  _Caveat(
-                    visible:
-                        status.phase == TunnelPhase.connected &&
-                        !controller.coversWholeMachine,
-                  ),
-                  const SizedBox(height: CaeloSpace.lg),
-                  _ReconnectAction(
-                    visible: status.phase == TunnelPhase.connected,
-                    onPressed: controller.reconnectDifferently,
-                  ),
-                ],
+                ),
               ),
-            ),
-            // Bottom corner rather than top: the title bar is transparent, so
-            // anything up there would be sitting in the window's drag region —
-            // and settings should be reachable without inviting a visit.
-            const Positioned(
-              bottom: CaeloSpace.control,
-              right: CaeloSpace.control,
-              child: _SettingsButton(),
-            ),
-          ],
+              if (status.hasNode)
+                Positioned(
+                  left: CaeloSpace.md,
+                  right: CaeloSpace.md,
+                  bottom: CaeloSpace.control,
+                  child: _ConnectionPanel(status: status),
+                ),
+              // Bottom corner rather than top: the desktop title bar can use
+              // the top edge as a drag region. Lift the action over the real
+              // connection panel when that panel is present.
+              Positioned(
+                bottom: status.hasNode ? 128 : CaeloSpace.control,
+                right: CaeloSpace.control,
+                child: const _SettingsButton(),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _StatusLine extends StatelessWidget {
-  const _StatusLine({required this.status});
+class _ConfigurationHint extends StatelessWidget {
+  const _ConfigurationHint({required this.visible});
 
-  final TunnelStatus status;
+  final bool visible;
 
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
     final l10n = AppLocalizations.of(context);
-
-    final (text, colour) = switch (status.phase) {
-      TunnelPhase.disconnected => (l10n.statusDisconnected, palette.muted),
-      TunnelPhase.connecting => (l10n.statusConnecting, palette.foreground),
-      TunnelPhase.connected => (l10n.statusConnected, palette.foreground),
-      TunnelPhase.disconnecting => (l10n.statusDisconnecting, palette.muted),
-      TunnelPhase.failed => (l10n.statusFailed, palette.danger),
-    };
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      child: Text(
-        text,
-        key: ValueKey(text),
-        style: CaeloTheme.status(palette).copyWith(color: colour),
+    return SizedBox(
+      height: 18,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: CaeloMotion.quick,
+        child: Text(
+          visible ? l10n.noConfig : '',
+          style: CaeloTheme.caption(palette),
+        ),
       ),
     );
   }
 }
 
-/// The line that answers "what am I actually on?" without being asked.
-class _DetailLine extends StatelessWidget {
-  const _DetailLine({required this.status, required this.hasConfiguration});
+/// Real connection data reported by the core. The panel does not render until
+/// a node is present and never manufactures a flag, grade or latency.
+class _ConnectionPanel extends StatelessWidget {
+  const _ConnectionPanel({required this.status});
 
   final TunnelStatus status;
-  final bool hasConfiguration;
 
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
     final l10n = AppLocalizations.of(context);
-
-    final parts = <String>[
-      if (status.hasNode) l10n.viaNode(status.node!),
-      if (status.protocol != null && status.pingMs != null)
-        l10n.protocolAndPing(status.protocol!.label, status.pingMs!),
+    final details = <String>[
+      if (status.protocol != null) status.protocol!.label,
+      if (status.pingMs != null) l10n.latency(status.pingMs!),
     ];
 
-    // Having nothing to connect with is worth saying out loud, because it is
-    // the one case where pressing the button cannot work and the reason is not
-    // on screen. A tunnel that is merely down is not: repeating the status in
-    // smaller type underneath it tells nobody anything.
-    final text = switch (parts.isEmpty) {
-      true when !hasConfiguration => l10n.noConfig,
-      true => '',
-      false => parts.join('  ·  '),
-    };
-
-    return SizedBox(
-      height: 18,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: Text(
-          text,
-          key: ValueKey(text),
-          style: CaeloTheme.caption(palette),
+    return CaeloContentWidth(
+      child: CaeloPanel(
+        radius: CaeloRadius.cardAll,
+        padding: const EdgeInsets.symmetric(
+          horizontal: CaeloSpace.gutter,
+          vertical: CaeloSpace.control,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: CaeloSize.minimumTarget,
+              height: CaeloSize.minimumTarget,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: palette.accentSurface,
+                border: Border.all(color: palette.accentBorder),
+              ),
+              child: Icon(
+                CupertinoIcons.globe,
+                color: palette.accent,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: CaeloSpace.control),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    l10n.currentConnection,
+                    style: CaeloTheme.caption(palette),
+                  ),
+                  const SizedBox(height: CaeloSpace.xs),
+                  Text(
+                    status.node!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: CaeloTheme.body(
+                      palette,
+                    ).copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+            if (details.isNotEmpty) ...[
+              const SizedBox(width: CaeloSpace.control),
+              Text(
+                details.join(' · '),
+                textAlign: TextAlign.end,
+                style: CaeloTheme.caption(palette).copyWith(
+                  color: status.pingMs != null && status.pingMs! < 60
+                      ? palette.accent
+                      : palette.muted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

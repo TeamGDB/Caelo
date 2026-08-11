@@ -38,9 +38,15 @@ is built from Flutter primitives and the semantic tokens in
   explicit semantic label.
 
 `PowerButton`
-: Remains the compact single-purpose control defined by the project. Its
-  gradient, borders and glow are palette-driven; nonessential pulse motion is
+: Is the single-purpose centre of Home. It scales from 176 to 224 logical
+  pixels, renders the real tunnel phase inside the control, and uses a
+  palette-driven progress ring or connected glow. Nonessential motion is
   disabled when the operating system requests reduced motion.
+
+`Home connection panel`
+: Appears only after the core reports a node. It may show that node, protocol
+  and measured latency, but it must not invent flags, server grades or fallback
+  measurements. An interactive server selector waits for an explicit core API.
 
 ## Adding a component
 
