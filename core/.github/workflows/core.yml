@@ -1,0 +1,81 @@
+name: Core
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          test -z "$unformatted" || (echo "::error::gofmt: $unformatted" && exit 1)
+
+      - run: go vet ./...
+
+      - run: go test -race ./...
+
+      # The Android sources are behind build tags, so a host build never
+      # compiles them. Without this, a mistake there is found by the app's
+      # build days later.
+      - name: Type-check the Android sources
+        run: GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build ./internal/...
+
+  android:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build libcaelo.so for every ABI
+        run: ./deploy/android/build-so.sh
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libcaelo-android
+          path: build/android/*/libcaelo.so
+          if-no-files-found: error
+
+  macos:
+    runs-on: macos-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build the shared library and the commands
+        run: make dylib probe tun helper
+
+      # Unsigned. macOS builds are signed and notarised at release, not here,
+      # and an artifact from this job must never be handed to anyone as one.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libcaelo-macos
+          path: |
+            build/libcaelo.dylib
+            build/libcaelo.h
+          if-no-files-found: error

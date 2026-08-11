@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>team.gdb.caelo.helper</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Library/PrivilegedHelperTools/team.gdb.caelo.helper</string>
+		<string>-uid</string>
+		<string>__ALLOWED_UID__</string>
+	</array>
+
+	<!-- Started on demand and kept alive. The helper holds the tunnel, so
+	     letting launchd stop it while idle would drop the connection. -->
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+
+	<key>StandardOutPath</key>
+	<string>/var/log/caelo-helper.log</string>
+	<key>StandardErrorPath</key>
+	<string>/var/log/caelo-helper.log</string>
+
+	<!-- The helper is only reachable through its own socket, which it creates
+	     itself so it can own the permissions on it. -->
+	<key>ProcessType</key>
+	<string>Background</string>
+</dict>
+</plist>

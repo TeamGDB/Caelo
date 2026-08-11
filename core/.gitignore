@@ -1,0 +1,26 @@
+# Build output
+/bin/
+/build/
+*.dylib
+*.so
+*.dll
+*.a
+*.h
+
+# Go
+vendor/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Tunnel configs and keys. Real ones carry live credentials; keep test configs
+# outside the working tree entirely (~/.caelo-dev/) rather than relying on this.
+*.conf
+*.key
+*.pem
+secrets/
+local/
