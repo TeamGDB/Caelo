@@ -7,7 +7,7 @@ import '../theme/palette.dart';
 
 /// A persistent part of Home, not a route. Dragging its own scrollable surface
 /// changes the extent continuously and snaps between peek and expanded states.
-class ServerDrawer extends StatelessWidget {
+class ServerDrawer extends StatefulWidget {
   const ServerDrawer({
     required this.controller,
     required this.locked,
@@ -20,21 +20,69 @@ class ServerDrawer extends StatelessWidget {
   final bool limitedScope;
 
   @override
+  State<ServerDrawer> createState() => _ServerDrawerState();
+}
+
+class _ServerDrawerState extends State<ServerDrawer> {
+  final ScrollController _listController = ScrollController();
+  double? _extent;
+  bool _dragging = false;
+
+  @override
+  void didUpdateWidget(ServerDrawer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.locked && !oldWidget.locked) {
+      _extent = null;
+      if (_listController.hasClients) _listController.jumpTo(0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _listController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final peek = (112 / constraints.maxHeight).clamp(0.14, 0.26);
+        final peek = (152 / constraints.maxHeight).clamp(0.18, 0.30);
         const expanded = 0.75;
-        return DraggableScrollableSheet(
-          key: ValueKey(locked),
-          initialChildSize: peek,
-          minChildSize: peek,
-          maxChildSize: locked ? peek : expanded,
-          snap: !locked,
-          snapSizes: locked ? null : [peek, expanded],
-          builder: (context, scrollController) => Align(
-            alignment: Alignment.bottomCenter,
+        final extent = widget.locked ? peek : (_extent ?? peek);
+        void updateExtent(double delta) {
+          if (widget.locked) return;
+          setState(() {
+            _dragging = true;
+            _extent = (extent - delta / constraints.maxHeight).clamp(
+              peek,
+              expanded,
+            );
+          });
+        }
+
+        void settleExtent(double velocity) {
+          if (widget.locked) return;
+          final current = _extent ?? peek;
+          final expand =
+              velocity < -250 ||
+              (velocity <= 250 && current > (peek + expanded) / 2);
+          setState(() {
+            _dragging = false;
+            _extent = expand ? expanded : peek;
+          });
+          if (!expand && _listController.hasClients) {
+            _listController.jumpTo(0);
+          }
+        }
+
+        return Align(
+          alignment: Alignment.bottomCenter,
+          child: AnimatedContainer(
+            duration: _dragging ? Duration.zero : CaeloMotion.standard,
+            curve: Curves.easeOutCubic,
+            height: constraints.maxHeight * extent,
             child: ConstrainedBox(
               constraints: const BoxConstraints(
                 maxWidth: CaeloSize.contentMaxWidth,
@@ -55,68 +103,64 @@ class ServerDrawer extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: CustomScrollView(
-                  controller: scrollController,
-                  physics: locked
-                      ? const NeverScrollableScrollPhysics()
-                      : const ClampingScrollPhysics(),
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: _PeekHeader(
-                        selected: controller.selected,
-                        locked: locked,
-                        limitedScope: limitedScope,
-                      ),
+                child: Column(
+                  children: [
+                    _PeekHeader(
+                      selected: widget.controller.selected,
+                      locked: widget.locked,
+                      limitedScope: widget.limitedScope,
+                      onDragUpdate: updateExtent,
+                      onDragEnd: settleExtent,
                     ),
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(
-                          CaeloSpace.gutter,
-                          CaeloSpace.gutter,
-                          CaeloSpace.gutter,
-                          CaeloSpace.xs,
-                        ),
-                        child: Text(
-                          AppLocalizations.of(context).chooseServer,
-                          style: CaeloTheme.headline(
-                            palette,
-                          ).copyWith(fontSize: 26),
-                        ),
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: CaeloSpace.lg,
-                        ),
-                        child: Text(
-                          AppLocalizations.of(context).serverListMockNotice,
-                          style: CaeloTheme.body(
-                            palette,
-                          ).copyWith(color: palette.muted, height: 1.45),
-                        ),
-                      ),
-                    ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(
-                        CaeloSpace.lg,
-                        52,
-                        CaeloSpace.lg,
-                        CaeloSpace.xl,
-                      ),
-                      sliver: SliverList.separated(
-                        itemCount: controller.servers.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 2),
-                        itemBuilder: (context, index) {
-                          final server = controller.servers[index];
-                          return _ServerRow(
-                            server: server,
-                            selected: server == controller.selected,
-                            onPressed: locked
-                                ? null
-                                : () => controller.select(server),
-                          );
-                        },
+                    Expanded(
+                      child: CustomScrollView(
+                        key: const ValueKey('server-list-scroll'),
+                        controller: _listController,
+                        physics: widget.locked
+                            ? const NeverScrollableScrollPhysics()
+                            : const ClampingScrollPhysics(),
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                CaeloSpace.gutter,
+                                CaeloSpace.gutter,
+                                CaeloSpace.gutter,
+                                CaeloSpace.xs,
+                              ),
+                              child: Text(
+                                AppLocalizations.of(context).chooseServer,
+                                style: CaeloTheme.headline(
+                                  palette,
+                                ).copyWith(fontSize: 26),
+                              ),
+                            ),
+                          ),
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(
+                              CaeloSpace.sm,
+                              CaeloSpace.xs,
+                              CaeloSpace.sm,
+                              CaeloSpace.xl,
+                            ),
+                            sliver: SliverList.separated(
+                              itemCount: widget.controller.servers.length,
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 2),
+                              itemBuilder: (context, index) {
+                                final server = widget.controller.servers[index];
+                                return _ServerRow(
+                                  server: server,
+                                  selected:
+                                      server == widget.controller.selected,
+                                  onPressed: widget.locked
+                                      ? null
+                                      : () => widget.controller.select(server),
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -135,108 +179,125 @@ class _PeekHeader extends StatelessWidget {
     required this.selected,
     required this.locked,
     required this.limitedScope,
+    required this.onDragUpdate,
+    required this.onDragEnd,
   });
 
   final ServerOption? selected;
   final bool locked;
   final bool limitedScope;
+  final ValueChanged<double> onDragUpdate;
+  final ValueChanged<double> onDragEnd;
 
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
     final l10n = AppLocalizations.of(context);
     final server = selected;
-    return SizedBox(
-      height: 112,
-      child: Column(
-        children: [
-          const SizedBox(height: CaeloSpace.control),
-          Container(
-            key: const ValueKey('server-drag-handle'),
-            width: 34,
-            height: 4,
-            decoration: BoxDecoration(
-              color: palette.dim,
-              borderRadius: CaeloRadius.compactAll,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onVerticalDragUpdate: (details) => onDragUpdate(details.delta.dy),
+      onVerticalDragEnd: (details) =>
+          onDragEnd(details.velocity.pixelsPerSecond.dy),
+      child: SizedBox(
+        height: 152,
+        child: Column(
+          children: [
+            const SizedBox(height: CaeloSpace.control),
+            Container(
+              key: const ValueKey('server-drag-handle'),
+              width: 34,
+              height: 4,
+              decoration: BoxDecoration(
+                color: palette.dim,
+                borderRadius: CaeloRadius.compactAll,
+              ),
             ),
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                const SizedBox(height: CaeloSpace.xs),
-                Text(
-                  l10n.selectedServer,
-                  style: CaeloTheme.body(
-                    palette,
-                  ).copyWith(color: palette.muted, fontWeight: FontWeight.w600),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      CaeloSpace.lg,
-                      0,
-                      CaeloSpace.lg,
-                      CaeloSpace.sm,
+            Expanded(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: CaeloSpace.control,
                     ),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 58,
-                          child: Text(
-                            server?.flag ?? '—',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 32),
-                          ),
-                        ),
-                        const SizedBox(width: CaeloSpace.md),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                server?.name ?? '—',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: CaeloTheme.title(palette),
-                              ),
-                              Text(
-                                limitedScope
-                                    ? l10n.localTunnelOnly
-                                    : server?.location ??
-                                          l10n.serverListMockNotice,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: CaeloTheme.body(
-                                  palette,
-                                ).copyWith(color: palette.muted),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (server?.latencyMs case final latency?)
-                          Text(
-                            l10n.latency(latency),
-                            style: CaeloTheme.body(
-                              palette,
-                            ).copyWith(color: palette.primary),
-                          ),
-                        const SizedBox(width: CaeloSpace.sm),
-                        Icon(
-                          locked
-                              ? CupertinoIcons.lock
-                              : CupertinoIcons.chevron_up,
-                          size: 20,
-                          color: palette.muted,
-                        ),
-                      ],
+                    child: Text(
+                      l10n.selectedServer,
+                      style: CaeloTheme.title(
+                        palette,
+                      ).copyWith(color: palette.muted, fontSize: 22),
                     ),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        CaeloSpace.gutter,
+                        0,
+                        CaeloSpace.gutter,
+                        CaeloSpace.control,
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 64,
+                            child: Text(
+                              server?.flag ?? '—',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 38),
+                            ),
+                          ),
+                          const SizedBox(width: CaeloSpace.md),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  server?.name ?? '—',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: CaeloTheme.title(
+                                    palette,
+                                  ).copyWith(fontSize: 24),
+                                ),
+                                Text(
+                                  limitedScope
+                                      ? l10n.localTunnelOnly
+                                      : server?.location ??
+                                            l10n.serverListMockNotice,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: CaeloTheme.body(palette).copyWith(
+                                    color: palette.muted,
+                                    fontSize: 17,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (server?.latencyMs case final latency?)
+                            Text(
+                              l10n.latency(latency),
+                              style: CaeloTheme.body(
+                                palette,
+                              ).copyWith(color: palette.primary, fontSize: 18),
+                            ),
+                          const SizedBox(width: CaeloSpace.sm),
+                          Icon(
+                            locked
+                                ? CupertinoIcons.lock
+                                : CupertinoIcons.chevron_up,
+                            size: 22,
+                            color: palette.muted,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -262,7 +323,7 @@ class _ServerRow extends StatelessWidget {
       child: Container(
         key: ValueKey('server-row-${server.id}'),
         padding: const EdgeInsets.symmetric(
-          horizontal: CaeloSpace.control,
+          horizontal: CaeloSpace.md,
           vertical: 18,
         ),
         decoration: BoxDecoration(
@@ -275,11 +336,11 @@ class _ServerRow extends StatelessWidget {
         child: Row(
           children: [
             SizedBox(
-              width: 58,
+              width: 64,
               child: Text(
                 server.flag,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 28),
+                style: const TextStyle(fontSize: 36),
               ),
             ),
             const SizedBox(width: CaeloSpace.md),
@@ -293,13 +354,13 @@ class _ServerRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: CaeloTheme.body(
                       palette,
-                    ).copyWith(fontSize: 18, fontWeight: FontWeight.w600),
+                    ).copyWith(fontSize: 20, fontWeight: FontWeight.w600),
                   ),
                   Text(
                     server.location,
                     style: CaeloTheme.body(
                       palette,
-                    ).copyWith(color: palette.muted),
+                    ).copyWith(color: palette.muted, fontSize: 17),
                   ),
                 ],
               ),
@@ -307,14 +368,16 @@ class _ServerRow extends StatelessWidget {
             if (server.latencyMs case final latency?)
               Text(
                 AppLocalizations.of(context).latency(latency),
-                style: CaeloTheme.body(palette).copyWith(color: palette.muted),
+                style: CaeloTheme.body(
+                  palette,
+                ).copyWith(color: palette.muted, fontSize: 18),
               ),
             if (selected) ...[
               const SizedBox(width: CaeloSpace.control),
               Icon(
                 CupertinoIcons.check_mark_circled_solid,
                 color: palette.accent,
-                size: 24,
+                size: 28,
               ),
             ],
           ],

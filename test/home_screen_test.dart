@@ -183,6 +183,10 @@ void main() {
 
     expect(tester.getTopLeft(surface).dy, lessThan(beforeTap - 200));
     expect(find.text('Choose server'), findsOneWidget);
+    expect(
+      find.text('Preview servers until your account backend is connected'),
+      findsNothing,
+    );
     expect(find.text('Main'), findsNothing);
     expect(find.text('Stable'), findsNothing);
     expect(find.text('Testing'), findsNothing);
@@ -193,6 +197,28 @@ void main() {
     final decoration = unselected.decoration! as BoxDecoration;
     expect(decoration.color, const Color(0x00000000));
     expect(decoration.border, isNull);
+  });
+
+  testWidgets('scrolling the server list cannot close the section', (
+    tester,
+  ) async {
+    await pumpHome(tester, locale: const Locale('en'));
+    final surface = find.byKey(const ValueKey('server-sheet-surface'));
+
+    await tester.drag(
+      find.byKey(const ValueKey('server-drag-handle')),
+      const Offset(0, -360),
+    );
+    await tester.pumpAndSettle();
+    final expandedTop = tester.getTopLeft(surface).dy;
+
+    await tester.drag(
+      find.byKey(const ValueKey('server-row-demo-helsinki')),
+      const Offset(0, 220),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(surface).dy, expandedTop);
   });
 
   testWidgets('makes the power control visually dominant', (tester) async {
