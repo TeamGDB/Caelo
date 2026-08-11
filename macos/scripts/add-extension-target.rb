@@ -69,6 +69,8 @@ ext.build_configurations.each do |config|
     # Required for notarisation, and a system extension will not load without
     # having been notarised.
     'ENABLE_HARDENED_RUNTIME' => 'YES',
+    'OTHER_CODE_SIGN_FLAGS' => '$(inherited) --timestamp',
+    'CODE_SIGN_INJECT_BASE_ENTITLEMENTS' => 'NO',
     'HEADER_SEARCH_PATHS' => ['$(inherited)', '$(SRCROOT)/../core/build'],
     # Static, like iOS: a system extension has its own ideas about where
     # libraries live. -force_load because nothing references these symbols at

@@ -62,28 +62,24 @@ class CoreFailure implements Exception {
 abstract final class CoreLibrary {
   /// Each platform's loader has its own idea of what a shared library is
   /// called, and each finds it by name on a path it already searches: the APK's
-  /// lib directory on Android, the bundle's Frameworks on macOS, the runner's
-  /// rpath on Linux, the executable's own directory on Windows. Which is why
-  /// nothing here builds a path.
+  /// lib directory on Android, the runner's rpath on Linux, the executable's
+  /// own directory on Windows. Which is why nothing here builds a path.
   ///
-  /// iOS is absent because it has no file at all: the core is a static archive
-  /// linked into the executable. See [_open].
-  static String get _libraryName {
-    if (Platform.isMacOS) return 'libcaelo.dylib';
-    if (Platform.isWindows) return 'caelo.dll';
-    return 'libcaelo.so';
-  }
+  /// The Apple platforms are absent because they have no file at all: there the
+  /// core is a static archive linked into the executable. See [_open].
+  static String get _libraryName =>
+      Platform.isWindows ? 'caelo.dll' : 'libcaelo.so';
 
   /// Set `CAELO_CORE_DYLIB` to load a specific build — how you point a running
   /// app at a core you just rebuilt without reinstalling it.
   static const _overrideVariable = 'CAELO_CORE_DYLIB';
 
   static DynamicLibrary _open() {
-    // On iOS the core is linked into the binary rather than loaded from one.
-    // Opening a path would fail even though the symbols are right there, and
-    // the resulting error would send someone looking for a missing file that
-    // was never supposed to exist.
-    if (Platform.isIOS) return DynamicLibrary.process();
+    // On Apple platforms the core is linked into the binary rather than loaded
+    // from one. Opening a path would fail even though the symbols are right
+    // there, and the resulting error would send someone looking for a missing
+    // file that was never supposed to exist.
+    if (Platform.isIOS || Platform.isMacOS) return DynamicLibrary.process();
 
     final attempted = <String>[];
     Object? lastError;

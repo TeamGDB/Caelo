@@ -105,10 +105,11 @@ jobs:
           FLUTTER_XCODE_CODE_SIGNING_REQUIRED: "NO"
           FLUTTER_XCODE_CODE_SIGN_IDENTITY: ""
 
-      - name: Verify the core is in the bundle, and compress it
+      - name: Verify the core is linked and reachable, and compress
         run: |
           cd build/macos/Build/Products/Debug
-          test -f Caelo.app/Contents/Frameworks/libcaelo.dylib
+          nm -g Caelo.app/Contents/MacOS/Caelo | grep -q '_caelo_version' \
+            || (echo "::error::the core is linked but its symbols are not exported" && exit 1)
           zip -qry Caelo-debug.zip Caelo.app
 
       - uses: actions/upload-artifact@v7

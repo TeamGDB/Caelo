@@ -21,10 +21,20 @@ if [[ ! -d "$CORE_ROOT" ]]; then
 fi
 
 echo "==> Building the core"
-make -C "$CORE_ROOT" dylib
+# Static, and universal. Linked into both the app and the system extension by
+# Xcode, so it is signed as part of them: a library copied in afterwards and
+# re-signed breaks the app's seal, and notarisation refuses that -- correctly.
+make -C "$CORE_ROOT" macos-static
 
 echo "==> Building the app ($MODE)"
 cd "$APP_ROOT"
+
+# Xcode builds incrementally and will not remove a library an older build put
+# in the bundle. One left behind from when the core was a dylib carries an
+# ad-hoc signature, which is enough for the notary to reject the whole archive
+# while the app itself is perfectly fine.
+find build/macos -name libcaelo.dylib -delete 2>/dev/null || true
+
 flutter build macos "--$MODE"
 
 case "$MODE" in
@@ -35,20 +45,6 @@ case "$MODE" in
 esac
 
 APP="$APP_ROOT/build/macos/Build/Products/$BUILD_DIR/Caelo.app"
-FRAMEWORKS="$APP/Contents/Frameworks"
 
-echo "==> Bundling the core into $(basename "$APP")"
-mkdir -p "$FRAMEWORKS"
-cp "$CORE_ROOT/build/libcaelo.dylib" "$FRAMEWORKS/"
-
-# Go emits an absolute install name. Left alone, the loader would look for the
-# library at the path it happened to be built at, which stops working the moment
-# the bundle moves to another machine.
-install_name_tool -id "@rpath/libcaelo.dylib" "$FRAMEWORKS/libcaelo.dylib"
-
-# Ad-hoc signature, because install_name_tool invalidates the one Go left and
-# macOS will refuse to load a dylib whose signature no longer matches. Release
-# builds get a real Developer ID signature during packaging.
-codesign --force --sign - "$FRAMEWORKS/libcaelo.dylib"
 
 echo "==> Done: $APP"
