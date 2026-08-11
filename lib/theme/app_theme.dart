@@ -4,11 +4,10 @@ import 'palette.dart';
 
 /// The Cupertino theme and type scale, resolved against a [CaeloPalette].
 ///
-/// Typography is the platform's own — SF on Apple systems, whatever Cupertino
-/// falls back to elsewhere. Caelo ships no font of its own: the interface is
-/// meant to look like it came with the operating system, and a bundled typeface
-/// would work against that as well as adding a megabyte to a binary people
-/// download over a censored connection.
+/// Typography remains the platform's own — SF on Apple systems and the system
+/// sans-serif elsewhere. This is an explicit product decision: it avoids a
+/// bundled font and keeps downloads smaller, while the shared size and weight
+/// scale preserves Caelo's hierarchy across platforms.
 ///
 /// The sizes come from the Android prototype's scale, which was built against
 /// real screens. Cupertino widgets sit slightly tighter than Material ones, so
@@ -71,4 +70,21 @@ abstract final class CaeloTheme {
   /// Row labels and anything else that reads as body copy.
   static TextStyle body(CaeloPalette palette) =>
       TextStyle(color: palette.foreground, fontSize: 16);
+
+  /// Large page headings and empty-state titles.
+  static TextStyle headline(CaeloPalette palette) => TextStyle(
+    color: palette.foreground,
+    fontSize: 30,
+    height: 1.2,
+    fontWeight: FontWeight.w700,
+    letterSpacing: -0.4,
+  );
+
+  /// Titles used inside branded cards and dialogs.
+  static TextStyle title(CaeloPalette palette) => TextStyle(
+    color: palette.foreground,
+    fontSize: 21,
+    height: 28 / 21,
+    fontWeight: FontWeight.w600,
+  );
 }

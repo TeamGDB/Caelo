@@ -6,6 +6,7 @@ import '../l10n/generated/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
 import 'settings_screen.dart';
+import 'widgets/caelo_surface.dart';
 import 'widgets/power_button.dart';
 
 /// The whole product, more or less: a button, a word, and a line of small text
@@ -23,52 +24,54 @@ class HomeScreen extends StatelessWidget {
 
     return CupertinoPageScaffold(
       backgroundColor: palette.background,
-      child: Stack(
-        children: [
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                PowerButton(
-                  phase: status.phase,
-                  onPressed: controller.toggle,
-                  semanticLabel: status.phase == TunnelPhase.connected
-                      ? l10n.disconnect
-                      : l10n.connect,
-                ),
-                const SizedBox(height: CaeloSpace.lg),
-                _StatusLine(status: status),
-                const SizedBox(height: CaeloSpace.xs + 2),
-                _DetailLine(
-                  status: status,
-                  hasConfiguration: controller.hasConfiguration,
-                ),
-                const SizedBox(height: CaeloSpace.sm),
-                // The tunnel is real but it lives on a userspace stack inside
-                // this process. Letting the screen imply the machine is covered
-                // would be the single most harmful thing it could get wrong.
-                _Caveat(
-                  visible:
-                      status.phase == TunnelPhase.connected &&
-                      !controller.coversWholeMachine,
-                ),
-                const SizedBox(height: CaeloSpace.lg),
-                _ReconnectAction(
-                  visible: status.phase == TunnelPhase.connected,
-                  onPressed: controller.reconnectDifferently,
-                ),
-              ],
+      child: CaeloPageSurface(
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  PowerButton(
+                    phase: status.phase,
+                    onPressed: controller.toggle,
+                    semanticLabel: status.phase == TunnelPhase.connected
+                        ? l10n.disconnect
+                        : l10n.connect,
+                  ),
+                  const SizedBox(height: CaeloSpace.lg),
+                  _StatusLine(status: status),
+                  const SizedBox(height: CaeloSpace.xs + 2),
+                  _DetailLine(
+                    status: status,
+                    hasConfiguration: controller.hasConfiguration,
+                  ),
+                  const SizedBox(height: CaeloSpace.sm),
+                  // The tunnel is real but it lives on a userspace stack inside
+                  // this process. Letting the screen imply the machine is covered
+                  // would be the single most harmful thing it could get wrong.
+                  _Caveat(
+                    visible:
+                        status.phase == TunnelPhase.connected &&
+                        !controller.coversWholeMachine,
+                  ),
+                  const SizedBox(height: CaeloSpace.lg),
+                  _ReconnectAction(
+                    visible: status.phase == TunnelPhase.connected,
+                    onPressed: controller.reconnectDifferently,
+                  ),
+                ],
+              ),
             ),
-          ),
-          // Bottom corner rather than top: the title bar is transparent, so
-          // anything up there would be sitting in the window's drag region —
-          // and settings should be reachable without inviting a visit.
-          const Positioned(
-            bottom: CaeloSpace.sm,
-            right: CaeloSpace.sm,
-            child: _SettingsButton(),
-          ),
-        ],
+            // Bottom corner rather than top: the title bar is transparent, so
+            // anything up there would be sitting in the window's drag region —
+            // and settings should be reachable without inviting a visit.
+            const Positioned(
+              bottom: CaeloSpace.control,
+              right: CaeloSpace.control,
+              child: _SettingsButton(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -210,18 +213,13 @@ class _SettingsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
-    return CupertinoButton(
-      padding: const EdgeInsets.all(CaeloSpace.sm),
-      minimumSize: Size.zero,
+    return CaeloIconButton(
+      icon: CupertinoIcons.gear_alt,
+      semanticLabel: AppLocalizations.of(context).settings,
       onPressed: () => Navigator.of(
         context,
       ).push(CupertinoPageRoute<void>(builder: (_) => const SettingsScreen())),
-      child: Icon(
-        CupertinoIcons.gear_alt,
-        size: 20,
-        color: palette.dim,
-        semanticLabel: AppLocalizations.of(context).settings,
-      ),
+      foreground: palette.muted,
     );
   }
 }

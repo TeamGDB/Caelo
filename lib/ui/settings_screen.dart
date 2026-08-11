@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../theme/palette.dart';
 import 'config_screen.dart';
 import 'log_screen.dart';
+import 'widgets/caelo_surface.dart';
 
 /// Resolved once. The core's version cannot change while the app is running,
 /// and a settings screen that re-crosses the FFI boundary on every rebuild is
@@ -103,82 +104,93 @@ class _SettingsScreenState extends State<SettingsScreen> {
         border: Border(bottom: BorderSide(color: palette.border, width: 0)),
         middle: Text(l10n.settings),
       ),
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.symmetric(vertical: CaeloSpace.lg),
-          children: [
-            _Section(
-              header: l10n.subscriptions,
+      child: CaeloPageSurface(
+        child: SafeArea(
+          child: CaeloContentWidth(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: CaeloSpace.lg),
               children: [
-                _Row(
-                  label: l10n.configuration,
-                  value: hasConfig
-                      ? l10n.configurationInstalled
-                      : l10n.configurationNone,
-                  onTap: () async {
-                    await Navigator.of(context).push(
-                      CupertinoPageRoute<void>(
-                        builder: (_) => const ConfigScreen(),
+                _Section(
+                  header: l10n.subscriptions,
+                  children: [
+                    _Row(
+                      label: l10n.configuration,
+                      value: hasConfig
+                          ? l10n.configurationInstalled
+                          : l10n.configurationNone,
+                      onTap: () async {
+                        await Navigator.of(context).push(
+                          CupertinoPageRoute<void>(
+                            builder: (_) => const ConfigScreen(),
+                          ),
+                        );
+                        onConfigChanged();
+                      },
+                    ),
+                    _Row(
+                      label: l10n.addSubscription,
+                      labelColour: palette.accent,
+                      // Lands with the subscription parser in the core.
+                      onTap: null,
+                    ),
+                  ],
+                ),
+                _Section(
+                  header: l10n.appearance,
+                  children: [
+                    _Row(
+                      label: l10n.theme,
+                      value: _themeLabel(l10n, themeScope?.mode),
+                      onTap: themeScope == null
+                          ? null
+                          : () => _pickTheme(context),
+                    ),
+                    _Row(
+                      label: l10n.appearanceLanguage,
+                      value: l10n.languageSystem,
+                    ),
+                  ],
+                ),
+                _Section(
+                  header: l10n.diagnostics,
+                  footer: l10n.diagnosticLogNote,
+                  children: [
+                    _Row(
+                      label: l10n.diagnosticLogOn,
+                      trailing: CupertinoSwitch(
+                        value: Diagnostics.enabled,
+                        activeTrackColor: palette.accent,
+                        onChanged: (on) async {
+                          await Diagnostics.setEnabled(on);
+                          if (mounted) setState(() {});
+                        },
                       ),
-                    );
-                    onConfigChanged();
-                  },
+                    ),
+                    _Row(
+                      label: l10n.viewLog,
+                      onTap: () => Navigator.of(context).push(
+                        CupertinoPageRoute<void>(
+                          builder: (_) => const LogScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                _Row(
-                  label: l10n.addSubscription,
-                  labelColour: palette.accent,
-                  // Lands with the subscription parser in the core.
-                  onTap: null,
-                ),
-              ],
-            ),
-            _Section(
-              header: l10n.appearance,
-              children: [
-                _Row(
-                  label: l10n.theme,
-                  value: _themeLabel(l10n, themeScope?.mode),
-                  onTap: themeScope == null ? null : () => _pickTheme(context),
-                ),
-                _Row(
-                  label: l10n.appearanceLanguage,
-                  value: l10n.languageSystem,
-                ),
-              ],
-            ),
-            _Section(
-              header: l10n.diagnostics,
-              footer: l10n.diagnosticLogNote,
-              children: [
-                _Row(
-                  label: l10n.diagnosticLogOn,
-                  trailing: CupertinoSwitch(
-                    value: Diagnostics.enabled,
-                    activeTrackColor: palette.accent,
-                    onChanged: (on) async {
-                      await Diagnostics.setEnabled(on);
-                      if (mounted) setState(() {});
-                    },
-                  ),
-                ),
-                _Row(
-                  label: l10n.viewLog,
-                  onTap: () => Navigator.of(context).push(
-                    CupertinoPageRoute<void>(builder: (_) => const LogScreen()),
-                  ),
+                _Section(
+                  header: l10n.about,
+                  children: [
+                    const _Row(label: 'Caelo', value: '0.1.0'),
+                    _Row(label: l10n.core, value: _coreSummary(l10n)),
+                    _Row(label: l10n.licence, value: 'GPL-3.0-or-later'),
+                    _Row(
+                      label: l10n.sourceCode,
+                      value: 'github.com/TeamGDB/Caelo',
+                    ),
+                  ],
                 ),
               ],
             ),
-            _Section(
-              header: l10n.about,
-              children: [
-                const _Row(label: 'Caelo', value: '0.1.0'),
-                _Row(label: l10n.core, value: _coreSummary(l10n)),
-                _Row(label: l10n.licence, value: 'GPL-3.0-or-later'),
-                _Row(label: l10n.sourceCode, value: 'github.com/TeamGDB/Caelo'),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -215,13 +227,9 @@ class _Section extends StatelessWidget {
               style: CaeloTheme.sectionHeader(palette),
             ),
           ),
-          Container(
+          CaeloPanel(
             margin: const EdgeInsets.symmetric(horizontal: CaeloSpace.md),
-            decoration: BoxDecoration(
-              color: palette.surface1,
-              borderRadius: CaeloRadius.mediumAll,
-              border: Border.all(color: palette.border, width: 1),
-            ),
+            radius: CaeloRadius.controlAll,
             child: Column(children: _separated(children, palette)),
           ),
           if (footer != null)
@@ -278,35 +286,51 @@ class _Row extends StatelessWidget {
     // of the screen does not change once the core wires them up.
     final enabled = onTap != null || value != null || trailing != null;
 
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: CaeloSpace.md,
-          vertical: CaeloSpace.sm + CaeloSpace.xs,
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: labelColour == null
-                      ? palette.foreground
-                      : labelColour!.withValues(alpha: enabled ? 1 : 0.4),
+    return Semantics(
+      button: onTap != null,
+      enabled: enabled,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minHeight: CaeloSize.minimumTarget + CaeloSpace.sm,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: CaeloSpace.md),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: labelColour == null
+                          ? palette.foreground
+                          : labelColour!.withValues(alpha: enabled ? 1 : 0.4),
+                    ),
+                  ),
                 ),
-              ),
+                if (value != null)
+                  Flexible(
+                    child: Text(
+                      value!,
+                      style: CaeloTheme.rowValue(palette),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ?trailing,
+                if (onTap != null) ...[
+                  const SizedBox(width: CaeloSpace.sm),
+                  Icon(
+                    CupertinoIcons.chevron_forward,
+                    size: 16,
+                    color: palette.dim,
+                  ),
+                ],
+              ],
             ),
-            if (value != null)
-              Text(
-                value!,
-                style: CaeloTheme.rowValue(palette),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ?trailing,
-          ],
+          ),
         ),
       ),
     );

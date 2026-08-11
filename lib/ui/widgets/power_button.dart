@@ -30,10 +30,11 @@ class _PowerButtonState extends State<PowerButton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pulse = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1100),
+    duration: const Duration(milliseconds: 1800),
   );
 
   bool _pressed = false;
+  bool _reduceMotion = false;
 
   @override
   void initState() {
@@ -47,11 +48,21 @@ class _PowerButtonState extends State<PowerButton>
     if (widget.phase != oldWidget.phase) _syncPulse();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (_reduceMotion == reduceMotion) return;
+    _reduceMotion = reduceMotion;
+    _syncPulse();
+  }
+
   /// The ring breathes only while the outcome is unknown. Once the tunnel
   /// settles either way, motion stops — a screen that keeps animating reads as
   /// "still working on it".
   void _syncPulse() {
-    if (widget.phase.isBusy) {
+    if (widget.phase.isBusy && !_reduceMotion) {
       _pulse.repeat(reverse: true);
     } else {
       _pulse.stop();
@@ -71,6 +82,22 @@ class _PowerButtonState extends State<PowerButton>
     _ => palette.surface2,
   };
 
+  Gradient _gradient(CaeloPalette palette) => switch (widget.phase) {
+    TunnelPhase.connected => RadialGradient(
+      colors: [
+        palette.accent,
+        Color.lerp(palette.accent, palette.foreground, 0.1)!,
+      ],
+      center: const Alignment(-0.25, -0.35),
+      radius: 0.95,
+    ),
+    _ => RadialGradient(
+      colors: [palette.surface1, _fill(palette)],
+      center: const Alignment(-0.25, -0.35),
+      radius: 0.95,
+    ),
+  };
+
   Color _border(CaeloPalette palette) => switch (widget.phase) {
     TunnelPhase.connected => palette.accentBorder,
     TunnelPhase.failed => palette.dangerBorder,
@@ -78,7 +105,10 @@ class _PowerButtonState extends State<PowerButton>
   };
 
   Color _glyph(CaeloPalette palette) => switch (widget.phase) {
-    TunnelPhase.connected => palette.accent,
+    TunnelPhase.connected =>
+      palette.brightness == Brightness.dark
+          ? palette.background
+          : const Color(0xFFFFFFFF),
     TunnelPhase.failed => palette.danger,
     TunnelPhase.connecting || TunnelPhase.disconnecting => palette.muted,
     TunnelPhase.disconnected => palette.dim,
@@ -97,7 +127,7 @@ class _PowerButtonState extends State<PowerButton>
         onTap: widget.onPressed,
         child: AnimatedScale(
           scale: _pressed ? 0.98 : 1,
-          duration: const Duration(milliseconds: 120),
+          duration: _reduceMotion ? Duration.zero : CaeloMotion.quick,
           curve: Curves.easeOut,
           child: AnimatedBuilder(
             animation: _pulse,
@@ -109,21 +139,30 @@ class _PowerButtonState extends State<PowerButton>
               };
 
               return AnimatedContainer(
-                duration: const Duration(milliseconds: 260),
+                duration: _reduceMotion ? Duration.zero : CaeloMotion.standard,
                 curve: Curves.easeOut,
                 width: PowerButton._diameter,
                 height: PowerButton._diameter,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _fill(palette),
-                  border: Border.all(color: _border(palette), width: 1),
+                  gradient: _gradient(palette),
+                  border: Border.all(
+                    color: _border(palette),
+                    width: widget.phase == TunnelPhase.connected
+                        ? CaeloStroke.emphasis
+                        : CaeloStroke.hairline,
+                  ),
                   boxShadow: glowAlpha == 0
                       ? null
                       : [
                           BoxShadow(
                             color: palette.accent.withValues(alpha: glowAlpha),
-                            blurRadius: 44,
-                            spreadRadius: 2,
+                            blurRadius: widget.phase == TunnelPhase.connected
+                                ? 48
+                                : 36,
+                            spreadRadius: widget.phase == TunnelPhase.connected
+                                ? 4
+                                : 1,
                           ),
                         ],
                 ),
@@ -132,7 +171,7 @@ class _PowerButtonState extends State<PowerButton>
             },
             child: Center(
               child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
+                duration: _reduceMotion ? Duration.zero : CaeloMotion.quick,
                 child: Icon(
                   CupertinoIcons.power,
                   key: ValueKey(_glyph(palette)),
