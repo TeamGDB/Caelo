@@ -78,6 +78,15 @@ abstract final class SettingsStore {
     await _save(settings);
   }
 
+  static Future<bool> accessGranted() async =>
+      (await _load())['accessGranted'] == true;
+
+  static Future<void> setAccessGranted(bool granted) async {
+    final settings = Map<String, dynamic>.from(await _load());
+    settings['accessGranted'] = granted;
+    await _save(settings);
+  }
+
   /// Whether the diagnostic log is being kept.
   ///
   /// Off by default, and stored rather than assumed: someone who turned it on

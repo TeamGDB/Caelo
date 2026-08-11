@@ -4,6 +4,20 @@
   "@appTitle": {
     "description": "The application name. Not translated."
   },
+  "welcome": "Welcome",
+  "welcomeExplanation": "Paste an invitation link to connect your account and receive its servers and configurations.",
+  "invitationPlaceholder": "https://…",
+  "invitationEmpty": "Paste an invitation link",
+  "invitationInvalid": "Check the invitation link",
+  "invitationUnavailable": "Could not check the invitation right now",
+  "continueAction": "Continue",
+  "cancel": "Cancel",
+  "qrLogin": "Sign in with QR",
+  "qrMockExplanation": "The camera and account backend are not connected yet. Continue with a temporary local demo session?",
+  "mockBackendNotice": "Temporary preview: invitation and QR verification are local until the backend is ready.",
+  "importOwnConfiguration": "Import your own configuration file",
+  "configurationFileInvalid": "Choose a valid WireGuard .conf file",
+  "forgetAccount": "Disconnect account",
   "statusDisconnected": "Not connected",
   "@statusDisconnected": {
     "description": "Main screen status, tunnel is down and idle."

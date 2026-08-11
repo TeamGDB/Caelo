@@ -12,6 +12,52 @@ class AppLocalizationsRu extends AppLocalizations {
   String get appTitle => 'Caelo';
 
   @override
+  String get welcome => 'Добро пожаловать';
+
+  @override
+  String get welcomeExplanation =>
+      'Вставьте ссылку приглашения, чтобы подключить аккаунт и получить его серверы и конфигурации.';
+
+  @override
+  String get invitationPlaceholder => 'https://…';
+
+  @override
+  String get invitationEmpty => 'Вставьте ссылку приглашения';
+
+  @override
+  String get invitationInvalid => 'Проверьте ссылку приглашения';
+
+  @override
+  String get invitationUnavailable => 'Сейчас не удалось проверить приглашение';
+
+  @override
+  String get continueAction => 'Продолжить';
+
+  @override
+  String get cancel => 'Отмена';
+
+  @override
+  String get qrLogin => 'Войти по QR';
+
+  @override
+  String get qrMockExplanation =>
+      'Камера и backend аккаунтов пока не подключены. Продолжить с временной локальной демо-сессией?';
+
+  @override
+  String get mockBackendNotice =>
+      'Временный режим: приглашения и QR проверяются локально до готовности backend.';
+
+  @override
+  String get importOwnConfiguration => 'Добавить свой файл конфигурации';
+
+  @override
+  String get configurationFileInvalid =>
+      'Выберите корректный файл WireGuard .conf';
+
+  @override
+  String get forgetAccount => 'Отключить аккаунт';
+
+  @override
   String get statusDisconnected => 'Отключено';
 
   @override

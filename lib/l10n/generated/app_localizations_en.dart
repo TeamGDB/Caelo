@@ -12,6 +12,52 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'Caelo';
 
   @override
+  String get welcome => 'Welcome';
+
+  @override
+  String get welcomeExplanation =>
+      'Paste an invitation link to connect your account and receive its servers and configurations.';
+
+  @override
+  String get invitationPlaceholder => 'https://…';
+
+  @override
+  String get invitationEmpty => 'Paste an invitation link';
+
+  @override
+  String get invitationInvalid => 'Check the invitation link';
+
+  @override
+  String get invitationUnavailable =>
+      'Could not check the invitation right now';
+
+  @override
+  String get continueAction => 'Continue';
+
+  @override
+  String get cancel => 'Cancel';
+
+  @override
+  String get qrLogin => 'Sign in with QR';
+
+  @override
+  String get qrMockExplanation =>
+      'The camera and account backend are not connected yet. Continue with a temporary local demo session?';
+
+  @override
+  String get mockBackendNotice =>
+      'Temporary preview: invitation and QR verification are local until the backend is ready.';
+
+  @override
+  String get importOwnConfiguration => 'Import your own configuration file';
+
+  @override
+  String get configurationFileInvalid => 'Choose a valid WireGuard .conf file';
+
+  @override
+  String get forgetAccount => 'Disconnect account';
+
+  @override
   String get statusDisconnected => 'Not connected';
 
   @override

@@ -15,6 +15,7 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   ffi: ^2.2.0
+  file_selector: ^1.1.0
   path_provider: ^2.1.6
   share_plus: ^13.3.0
 
@@ -28,3 +29,5 @@ flutter:
   # Cupertino only — no Material widgets, so no Material icon font to ship.
   uses-material-design: false
   generate: true
+  assets:
+    - docs/caelo.png

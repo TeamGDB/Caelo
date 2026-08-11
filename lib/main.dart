@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/android_tunnel_client.dart';
+import 'core/account_gateway.dart';
 import 'core/core_tunnel_client.dart';
 import 'core/service_client.dart';
 import 'core/service_tunnel_client.dart';
@@ -16,6 +17,7 @@ import 'l10n/generated/app_localizations.dart';
 import 'theme/app_theme.dart';
 import 'theme/palette.dart';
 import 'ui/home_screen.dart';
+import 'ui/welcome_screen.dart';
 import 'ui/window_chrome.dart';
 
 void main() async {
@@ -30,6 +32,7 @@ void main() async {
   // locale should not briefly render as the system default on every launch.
   var themeMode = CaeloThemeMode.system;
   var localeMode = CaeloLocaleMode.system;
+  var accessGranted = false;
   try {
     themeMode = await SettingsStore.themeMode();
   } on Object {
@@ -40,19 +43,34 @@ void main() async {
   } on Object {
     // Locale failure is independent of theme failure and falls back to the OS.
   }
+  try {
+    accessGranted = await SettingsStore.accessGranted();
+  } on Object {
+    // A missing or unreadable setting means onboarding has not completed.
+  }
 
-  runApp(CaeloApp(themeMode: themeMode, localeMode: localeMode));
+  runApp(
+    CaeloApp(
+      themeMode: themeMode,
+      localeMode: localeMode,
+      accessGranted: accessGranted,
+    ),
+  );
 }
 
 class CaeloApp extends StatefulWidget {
   const CaeloApp({
     this.themeMode = CaeloThemeMode.system,
     this.localeMode = CaeloLocaleMode.system,
+    this.accessGranted = false,
+    this.accountGateway = const MockAccountGateway(),
     super.key,
   });
 
   final CaeloThemeMode themeMode;
   final CaeloLocaleMode localeMode;
+  final bool accessGranted;
+  final AccountGateway accountGateway;
 
   @override
   State<CaeloApp> createState() => _CaeloAppState();
@@ -64,6 +82,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
 
   late CaeloThemeMode _themeMode = widget.themeMode;
   late CaeloLocaleMode _localeMode = widget.localeMode;
+  late bool _accessGranted = widget.accessGranted;
 
   /// The system tunnel wherever there is one, and the in-process tunnel where
   /// there is not.
@@ -104,6 +123,11 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     await SettingsStore.setLocaleMode(mode);
   }
 
+  Future<void> setAccessGranted(bool granted) async {
+    setState(() => _accessGranted = granted);
+    await SettingsStore.setAccessGranted(granted);
+  }
+
   @override
   void didChangePlatformBrightness() => setState(() {});
 
@@ -127,28 +151,56 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
       child: LocaleModeScope(
         mode: _localeMode,
         onChanged: setLocaleMode,
-        child: CaeloColors(
-          palette: palette,
-          child: TunnelScope(
-            notifier: _controller,
-            child: CupertinoApp(
-              locale: _localeMode.locale,
-              onGenerateTitle: (context) =>
-                  AppLocalizations.of(context).appTitle,
-              theme: CaeloTheme.data(palette),
-              localizationsDelegates: const [
-                AppLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-              ],
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: const HomeScreen(),
+        child: AccessScope(
+          accessGranted: _accessGranted,
+          onChanged: setAccessGranted,
+          child: CaeloColors(
+            palette: palette,
+            child: TunnelScope(
+              notifier: _controller,
+              child: CupertinoApp(
+                locale: _localeMode.locale,
+                onGenerateTitle: (context) =>
+                    AppLocalizations.of(context).appTitle,
+                theme: CaeloTheme.data(palette),
+                localizationsDelegates: const [
+                  AppLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                ],
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: _accessGranted
+                    ? const HomeScreen()
+                    : WelcomeScreen(
+                        gateway: widget.accountGateway,
+                        onGranted: () => setAccessGranted(true),
+                      ),
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
+
+class AccessScope extends InheritedWidget {
+  const AccessScope({
+    required this.accessGranted,
+    required this.onChanged,
+    required super.child,
+    super.key,
+  });
+
+  final bool accessGranted;
+  final Future<void> Function(bool) onChanged;
+
+  static AccessScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AccessScope>();
+
+  @override
+  bool updateShouldNotify(AccessScope oldWidget) =>
+      accessGranted != oldWidget.accessGranted;
 }
 
 /// The saved locale preference. Null locale in [CaeloLocaleMode.system] lets

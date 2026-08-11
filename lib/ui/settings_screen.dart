@@ -5,7 +5,7 @@ import '../core/diagnostics.dart';
 import '../core/ffi/core_library.dart';
 import '../core/settings_store.dart';
 import '../l10n/generated/app_localizations.dart';
-import '../main.dart' show LocaleModeScope, ThemeModeScope;
+import '../main.dart' show AccessScope, LocaleModeScope, ThemeModeScope;
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
 import 'config_screen.dart';
@@ -132,6 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final l10n = AppLocalizations.of(context);
     final themeScope = ThemeModeScope.maybeOf(context);
     final localeScope = LocaleModeScope.maybeOf(context);
+    final accessScope = AccessScope.maybeOf(context);
 
     return CupertinoPageScaffold(
       backgroundColor: palette.background,
@@ -169,6 +170,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       // Lands with the subscription parser in the core.
                       onTap: null,
                     ),
+                    if (accessScope != null)
+                      _Row(
+                        label: l10n.forgetAccount,
+                        labelColour: palette.danger,
+                        onTap: () {
+                          final changeAccess = accessScope.onChanged;
+                          Navigator.of(
+                            context,
+                          ).popUntil((route) => route.isFirst);
+                          changeAccess(false);
+                        },
+                      ),
                   ],
                 ),
                 _Section(

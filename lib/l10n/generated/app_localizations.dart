@@ -104,6 +104,90 @@ abstract class AppLocalizations {
   /// **'Caelo'**
   String get appTitle;
 
+  /// No description provided for @welcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome'**
+  String get welcome;
+
+  /// No description provided for @welcomeExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste an invitation link to connect your account and receive its servers and configurations.'**
+  String get welcomeExplanation;
+
+  /// No description provided for @invitationPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'https://…'**
+  String get invitationPlaceholder;
+
+  /// No description provided for @invitationEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste an invitation link'**
+  String get invitationEmpty;
+
+  /// No description provided for @invitationInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the invitation link'**
+  String get invitationInvalid;
+
+  /// No description provided for @invitationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not check the invitation right now'**
+  String get invitationUnavailable;
+
+  /// No description provided for @continueAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get continueAction;
+
+  /// No description provided for @cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get cancel;
+
+  /// No description provided for @qrLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with QR'**
+  String get qrLogin;
+
+  /// No description provided for @qrMockExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'The camera and account backend are not connected yet. Continue with a temporary local demo session?'**
+  String get qrMockExplanation;
+
+  /// No description provided for @mockBackendNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Temporary preview: invitation and QR verification are local until the backend is ready.'**
+  String get mockBackendNotice;
+
+  /// No description provided for @importOwnConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Import your own configuration file'**
+  String get importOwnConfiguration;
+
+  /// No description provided for @configurationFileInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a valid WireGuard .conf file'**
+  String get configurationFileInvalid;
+
+  /// No description provided for @forgetAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect account'**
+  String get forgetAccount;
+
   /// Main screen status, tunnel is down and idle.
   ///
   /// In en, this message translates to:
