@@ -1,3 +1,9 @@
+// Only the platforms that hand an application a descriptor for a device the
+// system opened. Windows has no such arrangement, and without this the
+// package half-compiles there: the file that declares adopt is excluded by
+// its own constraint and this one is not.
+//go:build android || linux || darwin
+
 // Package fdtun runs a tunnel on a device the host platform created.
 //
 // On Android an application cannot open a tun device itself: the system does

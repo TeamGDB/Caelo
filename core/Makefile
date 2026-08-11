@@ -36,6 +36,10 @@ dylib: macos
 # A static archive for the macOS system extension. A system extension has its
 # own ideas about where libraries live, and linking the core in rather than
 # alongside removes the question entirely — the same trade already made on iOS.
+#
+# The generated header is kept, not swept up with the per-architecture leavings:
+# the Swift bridging header includes it. Deleting it worked on every machine
+# that had ever run `make macos` and on no CI runner.
 .PHONY: macos-static
 macos-static:
 	CGO_ENABLED=1 GOARCH=arm64 go build -buildmode=c-archive \
@@ -44,7 +48,8 @@ macos-static:
 		-ldflags "$(LDFLAGS)" -o $(BUILD)/libcaelo-static-amd64.a ./libcaelo
 	lipo -create -output $(BUILD)/libcaelo.a \
 		$(BUILD)/libcaelo-static-arm64.a $(BUILD)/libcaelo-static-amd64.a
-	@rm -f $(BUILD)/libcaelo-static-amd64.h $(BUILD)/libcaelo-static-arm64.h
+	@rm -f $(BUILD)/libcaelo-static-amd64.h
+	@mv $(BUILD)/libcaelo-static-arm64.h $(BUILD)/libcaelo.h
 	@rm -f $(BUILD)/libcaelo-static-arm64.a $(BUILD)/libcaelo-static-amd64.a
 	@lipo -info $(BUILD)/libcaelo.a
 

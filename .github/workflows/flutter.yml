@@ -105,11 +105,32 @@ jobs:
           FLUTTER_XCODE_CODE_SIGNING_REQUIRED: "NO"
           FLUTTER_XCODE_CODE_SIGN_IDENTITY: ""
 
+      # Both halves are checked, because both have shipped broken. The app is
+      # what loads the core; the extension is what runs the tunnel, and it is
+      # the one nothing here can launch.
       - name: Verify the core is linked and reachable, and compress
         run: |
           cd build/macos/Build/Products/Debug
-          nm -g Caelo.app/Contents/MacOS/Caelo | grep -q '_caelo_version' \
-            || (echo "::error::the core is linked but its symbols are not exported" && exit 1)
+          ext=Caelo.app/Contents/Library/SystemExtensions/team.gdb.caelo.SystemExtension.systemextension
+
+          # Anything in MacOS/ will do. A debug build puts the app's own code in
+          # a dylib beside the executable and leaves a stub behind, so naming
+          # the executable would only ever pass in release.
+          nm -g Caelo.app/Contents/MacOS/* 2>/dev/null | grep -q '_caelo_version' \
+            || (echo "::error::the core is linked into the app but its symbols are not exported" && exit 1)
+          nm -g "$ext/Contents/MacOS/team.gdb.caelo.SystemExtension" | grep -q '_caelo_version' \
+            || (echo "::error::the core is not reachable from the system extension" && exit 1)
+
+          # Every @rpath dependency has to be inside the extension. It carries
+          # none of the app's frameworks, and one inherited link flag is enough
+          # for dyld to kill it milliseconds into launch -- which the system
+          # then reports as a tunnel that connects forever.
+          otool -L "$ext/Contents/MacOS/team.gdb.caelo.SystemExtension" \
+            | grep -o '@rpath/[^ ]*' | sort -u | while read -r dep; do
+              test -e "$ext/Contents/Frameworks/${dep#@rpath/}" \
+                || (echo "::error::the extension links ${dep#@rpath/}, which it does not carry" && exit 1)
+            done
+
           zip -qry Caelo-debug.zip Caelo.app
 
       - uses: actions/upload-artifact@v7
