@@ -8,8 +8,12 @@
 	<array>
 		<string>packet-tunnel-provider</string>
 	</array>
-	<!-- The app group the extension will need is not here yet: App Groups is
-	     not enabled on the App ID, and asking for one that does not exist makes
-	     signing fail outright. It goes in with the extension. -->
+	<!-- How the app and the extension will reach each other. They are separate
+	     processes on iOS and share nothing else, and the tunnel's own log is
+	     written on the far side of that boundary. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.team.gdb.caelo</string>
+	</array>
 </dict>
 </plist>
