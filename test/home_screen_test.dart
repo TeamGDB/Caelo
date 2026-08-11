@@ -4,7 +4,9 @@ import 'package:caelo/l10n/generated/app_localizations.dart';
 import 'package:caelo/theme/app_theme.dart';
 import 'package:caelo/theme/palette.dart';
 import 'package:caelo/ui/home_screen.dart';
+import 'package:caelo/ui/widgets/caelo_surface.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_tunnel_client.dart';
@@ -149,6 +151,25 @@ void main() {
     await tester.pump();
 
     expect(client.calls, contains('connect'));
+  });
+
+  testWidgets('places Settings in the upper-right safe area', (tester) async {
+    await pumpHome(tester, locale: const Locale('en'));
+
+    final button = find.byType(CaeloIconButton);
+    expect(button, findsOneWidget);
+    expect(tester.getTopRight(button).dx, greaterThan(700));
+    expect(tester.getTopRight(button).dy, lessThan(100));
+  });
+
+  testWidgets('reserves transparent title-bar space on macOS', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      await pumpHome(tester, locale: const Locale('en'));
+      expect(tester.getTopRight(find.byType(CaeloIconButton)).dy, 36);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 
   testWidgets('does not invent a connection panel without a core node', (

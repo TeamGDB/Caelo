@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 
 import '../core/tunnel.dart';
 import '../core/tunnel_controller.dart';
@@ -84,11 +85,13 @@ class HomeScreen extends StatelessWidget {
                   bottom: CaeloSpace.control,
                   child: _ConnectionPanel(status: status),
                 ),
-              // Bottom corner rather than top: the desktop title bar can use
-              // the top edge as a drag region. Lift the action over the real
-              // connection panel when that panel is present.
+              // Mobile SafeArea starts below the status bar. macOS reports no
+              // such inset for its transparent title bar, so reserve its chrome
+              // explicitly and keep the button out of the traffic-light row.
               Positioned(
-                bottom: status.hasNode ? 128 : CaeloSpace.control,
+                top: defaultTargetPlatform == TargetPlatform.macOS
+                    ? 36
+                    : CaeloSpace.control,
                 right: CaeloSpace.control,
                 child: const _SettingsButton(),
               ),
