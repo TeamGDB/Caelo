@@ -61,7 +61,7 @@ type Info struct {
 // first packet is what proves the peer is there. Callers that need to know
 // whether traffic really flows should follow this with Check.
 func (s *Session) Connect(configText string) (*Info, error) {
-	cfg, err := awg.ParseConfig(configText)
+	cfg, err := awg.Parse(configText)
 	if err != nil {
 		return nil, fmt.Errorf("reading configuration: %w", err)
 	}

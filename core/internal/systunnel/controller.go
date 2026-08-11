@@ -64,7 +64,7 @@ func (c *Controller) Start(configText string) (*Status, error) {
 		c.stopLocked()
 	}
 
-	cfg, err := awg.ParseConfig(configText)
+	cfg, err := awg.Parse(configText)
 	if err != nil {
 		return nil, fmt.Errorf("reading configuration: %w", err)
 	}

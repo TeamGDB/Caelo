@@ -55,7 +55,7 @@ func Run(configText string, opts Options) (*Result, error) {
 		opts.Timeout = 30 * time.Second
 	}
 
-	cfg, err := awg.ParseConfig(configText)
+	cfg, err := awg.Parse(configText)
 	if err != nil {
 		return nil, fmt.Errorf("reading configuration: %w", err)
 	}
