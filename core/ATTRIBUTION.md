@@ -14,6 +14,29 @@ Consumed as published. Nothing below is copied into this tree.
 | [wireguard-go](https://git.zx2c4.com/wireguard-go/) | MIT | via `amneziawg-go` | Upstream of the above; its copyright notices travel with that dependency. |
 | [sing-box](https://github.com/SagerNet/sing-box) | GPL-3.0-or-later, with an additional §7 clause restricting use of the name and implied association | v1.13.16 | Everything that is not AmneziaWG. Added to `go.mod` with the endpoint registration. |
 | [gVisor](https://github.com/google/gvisor) | Apache-2.0 | via `amneziawg-go` | Userspace network stack. |
+| [wireguard-windows](https://git.zx2c4.com/wireguard-windows/) | MIT | v1.0.1 | Only `tunnel/winipcfg`: addresses, routes, MTU and DNS on a Windows adapter through the IP Helper API. Used so that none of that is done by parsing the output of `netsh`, which prints in the machine's own language. |
+| [go-winio](https://github.com/Microsoft/go-winio) | MIT | v0.6.2 | Named pipes on Windows, with a security descriptor. The pipe is what decides who may drive the tunnel there. |
+
+## Wintun
+
+The Windows tunnel adapter. Not a Go dependency and not in this tree: `wintun.dll` is
+fetched at packaging time from [wintun.net](https://www.wintun.net/) against a pinned
+version and SHA-256, and shipped beside `caelo-service.exe`.
+
+| What | Licence |
+| --- | --- |
+| [Wintun](https://git.zx2c4.com/wintun/) source | GPL-2.0 |
+| The prebuilt `wintun.dll` from wintun.net/builds | WireGuard LLC's own [Prebuilt Binaries License](https://git.zx2c4.com/wintun/tree/prebuilt-binaries-license.txt) |
+
+The prebuilt licence is not a free-software one. It permits redistribution only
+"insofar as the Software is distributed alongside other software that uses the Software
+only via the Permitted API", and forbids reverse engineering, removing its notices, and
+using WireGuard's or Wintun's names to imply endorsement. Caelo uses only the documented
+API, through `golang.zx2c4.com/wintun`, and ships the DLL unmodified.
+
+It is aggregated with Caelo rather than combined into it: a separate program, loaded at
+run time, distributed alongside. Nothing in this repository is a derivative of it, and no
+part of Caelo's own GPL-3.0-or-later licensing extends to it or is restricted by it.
 
 ## Forks
 

@@ -14,12 +14,18 @@ package system
 
 // Config describes the tunnel the routes should point at.
 //
-// Declared here rather than per platform so that a field added for one is a
-// compile error on the others until they deal with it, instead of being
-// silently ignored by whichever was not updated.
+// Declared once rather than per platform: three copies of the same five fields
+// would drift, and the drift would show up as a platform quietly ignoring
+// something the others act on.
 type Config struct {
-	// Interface is the tunnel device: utun4 on macOS, caelo0 on Linux.
+	// Interface is the tunnel device: utun4 on macOS, caelo0 on Linux, Caelo
+	// on Windows.
 	Interface string
+
+	// Handle identifies the device to the platform's own API where a name will
+	// not do. On Windows it is the adapter's LUID, which is what every call
+	// that configures an adapter takes; elsewhere it is zero and unused.
+	Handle uint64
 
 	// Address is the tunnel's own address, without a prefix length.
 	Address string
