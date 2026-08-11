@@ -25,10 +25,24 @@ if [[ ! -d "$CORE_ROOT" ]]; then
   exit 1
 fi
 
+# Work out where the NDK is rather than making everyone export two variables.
+# Flutter already knows the SDK path, so ask it, and take the newest NDK there.
 if [[ -z "${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-}}" ]]; then
-  echo "error: set ANDROID_NDK_HOME to your NDK installation" >&2
-  echo "  e.g. \$ANDROID_HOME/ndk/<version>" >&2
-  exit 1
+  SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+  if [[ -z "$SDK" ]]; then
+    SDK="$(flutter config --list 2>/dev/null | sed -n 's/^ *android-sdk: *//p' | head -1)"
+  fi
+
+  if [[ -n "$SDK" && -d "$SDK/ndk" ]]; then
+    # Version-sorted, so 27 wins over 9 — a plain sort would not.
+    ANDROID_NDK_HOME="$SDK/ndk/$(ls "$SDK/ndk" | sort -V | tail -1)"
+    export ANDROID_NDK_HOME
+    echo "==> Using NDK at $ANDROID_NDK_HOME"
+  else
+    echo "error: no NDK found. Set ANDROID_NDK_HOME, or install one with:" >&2
+    echo "  sdkmanager --install 'ndk;27.0.12077973'" >&2
+    exit 1
+  fi
 fi
 
 echo "==> Building the core for Android"
