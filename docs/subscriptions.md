@@ -6,8 +6,8 @@ it current; that is the whole product, and this is the contract both halves of i
 Written for two audiences: whoever implements a server, and whoever changes the client
 and needs to know what they may not break. The example in
 [`examples/subscription-server`](../examples/subscription-server) is this document in
-Go, and the types are in [`core/subscription`](../core/subscription) so nobody has to
-transcribe them.
+Go — it imports nothing of Caelo's, because anybody implementing this will write their
+own types in whatever language their service is in.
 
 ## The request
 
@@ -15,13 +15,24 @@ transcribe them.
 GET https://example.com/sub/<token>
 ```
 
-Nothing else. No headers are required, the token is the whole credential, and a server
-that needs more than one round trip to answer is a server that will be slow on the
-network these users are on.
+The token is the whole credential, and a server that needs more than one round trip to
+answer is a server that will be slow on the network these users are on.
 
-The client sends `User-Agent: Caelo/<version>`. Servers that vary their answer by client
-are the reason the header exists; servers that reject unfamiliar ones break for every
-client but the two they tested.
+The client sends two headers:
+
+```
+User-Agent: Caelo/<version>
+Accept: application/vnd.caelo.subscription+json, application/json
+```
+
+Servers that vary their answer by client are the reason the first exists; servers that
+reject unfamiliar ones break for every client but the two they tested.
+
+The second is how a server offers more than the plain document without breaking anyone.
+A server that understands it may answer with the [Caelo document](#the-caelo-document);
+one that does not answers with plain sing-box JSON and everything still works. **The
+client decides which it got by the response's `Content-Type`, not by what it asked for**,
+so a server may ignore the header entirely.
 
 ## The response
 
@@ -87,6 +98,64 @@ text regardless. A server's choice of quoting should not decide whether a tunnel
 up.
 
 Omit what does not apply. A node with no obfuscation fields is plain WireGuard and works.
+
+## The Caelo document
+
+Optional, and only what the plain document cannot carry: an identity for each node, and
+what to show about it.
+
+```
+Content-Type: application/vnd.caelo.subscription+json
+```
+
+```json
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "fra-01",
+      "country": "DE",
+      "description": "Best for video",
+      "maintenance": false,
+      "endpoint": { "type": "amneziawg", "tag": "Frankfurt", "…": "…" }
+    }
+  ]
+}
+```
+
+Each node carries its own endpoint. The alternative — a table of metadata beside the
+`endpoints` array — needs a key to join them on, and the only candidate is the `tag`,
+which is exactly the unreliable thing an identity is being added to replace.
+
+| Field | |
+| --- | --- |
+| `version` | This document's shape. `1` today. A client that does not know a version reads the endpoints and ignores everything else, rather than refusing a subscription over a field it did not recognise. |
+| `id` | **Stable for the same node across refreshes.** Not the tag, not the position: both change. This is what a client's "use this one" is remembered by, and a server that renumbers them will silently unpin everybody. |
+| `country` | ISO 3166-1 alpha-2, uppercase. A flag is built from it by the client; sending an emoji is sending a picture that a client cannot sort by. |
+| `description` | One short line, in the subscriber's language if the server knows it. Not a place for terms of service. |
+| `maintenance` | The server saying "not this one, for now". The client skips it when choosing and may still show it, greyed. Absent means usable. |
+| `endpoint` | The same object the plain document carries, unchanged. |
+
+Everything except `endpoint` is optional.
+
+**Order still decides priority**, here as in the plain document.
+
+**Latency is never sent.** It depends on where the client is standing, and a number
+measured somewhere else is worse than no number: it looks authoritative and is not. The
+client measures for itself, by probing.
+
+### Identity without the Caelo document
+
+A plain sing-box subscription has no identity to give. The client makes one, in this
+order, and the rule is written down because it decides whose choice survives a refresh:
+
+1. the `id` from the Caelo document;
+2. otherwise the `tag`, if it is not empty and no other node in the document shares it;
+3. otherwise the position, which is stable only until the server reorders.
+
+A node manually chosen under rule 3 loses that choice when the list is reordered. That is
+a real limitation of plain subscriptions rather than something the client can fix, and
+it is the reason the Caelo document exists.
 
 ### Headers
 

@@ -108,13 +108,23 @@ void main() {
   });
 
   group('choosing which node to try', () {
-    Subscription withNodes(List<String> tags, {String? pinned}) => Subscription(
+    Subscription withNodes(
+      List<String> tags, {
+      String? pinned,
+      Set<String> underMaintenance = const {},
+    }) => Subscription(
       id: 'x',
       url: 'https://example.com/sub/token',
-      pinnedTag: pinned,
+      pinnedId: pinned,
       nodes: [
         for (var i = 0; i < tags.length; i++)
-          SubscriptionNode(tag: tags[i], endpoint: '{}', position: i),
+          SubscriptionNode(
+            id: 'tag:${tags[i]}',
+            tag: tags[i],
+            endpoint: '{}',
+            position: i,
+            maintenance: underMaintenance.contains(tags[i]),
+          ),
       ],
     );
 
@@ -125,13 +135,25 @@ void main() {
     });
 
     test('puts a chosen node first and leaves the rest as served', () {
-      final subscription = withNodes(['A', 'B', 'C'], pinned: 'B');
+      final subscription = withNodes(['A', 'B', 'C'], pinned: 'tag:B');
       expect(subscription.preferred?.tag, 'B');
       expect(subscription.candidates.map((each) => each.tag), ['B', 'A', 'C']);
     });
 
+    test('skips a node the server has taken out of service', () {
+      final subscription = withNodes(['A', 'B', 'C'], underMaintenance: {'A'});
+      // The server said so before anybody spent time finding out.
+      expect(subscription.preferred?.tag, 'B');
+      expect(subscription.candidates.map((each) => each.tag), ['B', 'C']);
+    });
+
+    test('has nothing to try when every node is out of service', () {
+      final subscription = withNodes(['A'], underMaintenance: {'A'});
+      expect(subscription.candidates, isEmpty);
+    });
+
     test('falls back to the server when the chosen node is gone', () {
-      final subscription = withNodes(['A', 'B'], pinned: 'Withdrawn');
+      final subscription = withNodes(['A', 'B'], pinned: 'tag:Withdrawn');
       expect(subscription.preferred?.tag, 'A');
       expect(subscription.candidates.map((each) => each.tag), ['A', 'B']);
     });
@@ -171,6 +193,85 @@ void main() {
     });
   });
 
+  group('the Caelo document', () {
+    String caelo(List<Map<String, dynamic>> nodes) =>
+        jsonEncode({'version': 1, 'nodes': nodes});
+
+    test('carries identity and what to show, and keeps the order', () {
+      final nodes = readNodes(
+        caelo([
+          {
+            'id': 'fra-01',
+            'country': 'de',
+            'description': 'Best for video',
+            'endpoint': node('Frankfurt'),
+          },
+          {
+            'id': 'ams-01',
+            'country': 'NL',
+            'maintenance': true,
+            'endpoint': node('Amsterdam'),
+          },
+        ]),
+        contentType: caeloDocumentType,
+      );
+
+      expect(nodes.map((each) => each.id), ['fra-01', 'ams-01']);
+      expect(nodes.first.description, 'Best for video');
+      expect(nodes.first.country, 'DE', reason: 'normalised to upper case');
+      expect(nodes.first.flag, '🇩🇪', reason: 'built here, not transmitted');
+      expect(nodes.last.maintenance, isTrue);
+    });
+
+    test('is read as plain sing-box when the server did not say otherwise', () {
+      // The content type decides, not what was asked for. A server may ignore
+      // the Accept header entirely.
+      expect(
+        () => readNodes(
+          caelo([
+            {'id': 'x', 'endpoint': node('A')},
+          ]),
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('reads what it recognises from a version it does not know', () {
+      final nodes = readNodes(
+        jsonEncode({
+          'version': 99,
+          'nodes': [
+            {'id': 'fra-01', 'endpoint': node('Frankfurt'), 'whatever': 1},
+          ],
+        }),
+        contentType: caeloDocumentType,
+      );
+
+      // Turning down a whole subscription over a field we have not learned yet
+      // would mean the client stops working when its server is upgraded.
+      expect(nodes.single.id, 'fra-01');
+    });
+  });
+
+  group('identity when the server gave none', () {
+    test('a unique tag identifies a node', () {
+      final nodes = readNodes(document([node('First'), node('Second')]));
+      expect(nodes.map((each) => each.id), ['tag:First', 'tag:Second']);
+    });
+
+    test('a shared tag identifies neither, so position is used', () {
+      final nodes = readNodes(
+        document([node('Same'), node('Same'), node('Other')]),
+      );
+      expect(nodes.map((each) => each.id), ['at:0', 'at:1', 'tag:Other']);
+    });
+
+    test('an empty tag falls back to position', () {
+      final nodes = readNodes(document([node('')]));
+      expect(nodes.single.id, 'at:0');
+    });
+  });
+
   test('a subscription survives being written down and read back', () {
     final original = Subscription(
       id: 'abc123',
@@ -180,7 +281,7 @@ void main() {
       usage: SubscriptionUsage.parse('total=10; download=4; expire=1893456000'),
       updateInterval: const Duration(hours: 12),
       lastFetched: DateTime.utc(2026, 8, 11, 12),
-      pinnedTag: 'Second',
+      pinnedId: 'tag:Second',
     );
 
     final restored = Subscription.fromJson(
@@ -190,7 +291,7 @@ void main() {
     expect(restored.id, original.id);
     expect(restored.url, original.url);
     expect(restored.name, original.name);
-    expect(restored.pinnedTag, 'Second');
+    expect(restored.pinnedId, 'tag:Second');
     expect(restored.updateInterval, const Duration(hours: 12));
     expect(restored.lastFetched, original.lastFetched);
     expect(restored.usage.remainingBytes, 6);

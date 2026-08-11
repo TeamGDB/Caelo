@@ -37,6 +37,10 @@ import (
 // document is another protocol, and this server serves only this one.
 const endpointType = "amneziawg"
 
+// caeloDocumentType is what a client sends in Accept to say it can read more
+// than the plain document, and what this server answers with when it can.
+const caeloDocumentType = "application/vnd.caelo.subscription+json"
+
 // document is what a subscription URL returns: plain sing-box JSON.
 //
 // Only endpoints, because only AmneziaWG is implemented. A server that also
@@ -44,6 +48,26 @@ const endpointType = "amneziawg"
 // what it cannot run.
 type document struct {
 	Endpoints []endpoint `json:"endpoints"`
+}
+
+// caeloDocument is the richer answer: each node carries its own endpoint, so
+// there is nothing to join the metadata to it on. A table beside the endpoints
+// array would need a key, and the only candidate is the tag — which is exactly
+// the unreliable thing an identity is being added to replace.
+type caeloDocument struct {
+	Version int         `json:"version"`
+	Nodes   []caeloNode `json:"nodes"`
+}
+
+type caeloNode struct {
+	// Stable for the same node across refreshes. This is what a client's "use
+	// this one" is remembered by, so a server that renumbers them silently
+	// unpins everybody.
+	ID          string   `json:"id"`
+	Country     string   `json:"country,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Maintenance bool     `json:"maintenance,omitempty"`
+	Endpoint    endpoint `json:"endpoint"`
 }
 
 // endpoint is sing-box's WireGuard endpoint plus the obfuscation set. Fields
@@ -100,6 +124,16 @@ type config struct {
 	UpdateIntervalHours int                   `json:"update_interval_hours"`
 	Subscribers         map[string]subscriber `json:"subscribers"`
 	Nodes               map[string]endpoint   `json:"nodes"`
+	Meta                map[string]meta       `json:"meta,omitempty"`
+}
+
+// meta is what a node looks like to a person, kept beside the configuration
+// rather than inside it: none of it can go in the endpoint, which has to stay
+// valid sing-box JSON.
+type meta struct {
+	Country     string `json:"country,omitempty"`
+	Description string `json:"description,omitempty"`
+	Maintenance bool   `json:"maintenance,omitempty"`
 }
 
 type subscriber struct {
@@ -211,18 +245,21 @@ func (s *store) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	answer := document{}
-	for _, name := range who.Nodes {
-		node := loaded.Nodes[name]
-		node.Type = endpointType
-		answer.Endpoints = append(answer.Endpoints, node)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("subscription-userinfo", userinfo(who))
 	if loaded.UpdateIntervalHours > 0 {
 		w.Header().Set("profile-update-interval", fmt.Sprint(loaded.UpdateIntervalHours))
+	}
+
+	// Offered rather than assumed. A client that did not ask gets plain sing-box
+	// JSON, which is what keeps the same link usable in other clients.
+	var answer any
+	if strings.Contains(r.Header.Get("Accept"), caeloDocumentType) {
+		w.Header().Set("Content-Type", caeloDocumentType)
+		answer = caeloAnswer(loaded, who)
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+		answer = plainAnswer(loaded, who)
 	}
 
 	if err := json.NewEncoder(w).Encode(answer); err != nil {
@@ -231,6 +268,36 @@ func (s *store) serve(w http.ResponseWriter, r *http.Request) {
 		// exactly this.
 		log.Printf("writing a response: %v", err)
 	}
+}
+
+func plainAnswer(loaded config, who subscriber) document {
+	answer := document{}
+	for _, name := range who.Nodes {
+		node := loaded.Nodes[name]
+		node.Type = endpointType
+		answer.Endpoints = append(answer.Endpoints, node)
+	}
+	return answer
+}
+
+func caeloAnswer(loaded config, who subscriber) caeloDocument {
+	answer := caeloDocument{Version: 1}
+	for _, name := range who.Nodes {
+		node := loaded.Nodes[name]
+		node.Type = endpointType
+		about := loaded.Meta[name]
+		answer.Nodes = append(answer.Nodes, caeloNode{
+			// The name in the file, which is what an operator renames a node
+			// away from rather than to: it is not shown anywhere and has no
+			// reason to change when the tag does.
+			ID:          name,
+			Country:     about.Country,
+			Description: about.Description,
+			Maintenance: about.Maintenance,
+			Endpoint:    node,
+		})
+	}
+	return answer
 }
 
 // userinfo renders the header the V2Ray and Clash ecosystems already use, so

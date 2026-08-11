@@ -5,41 +5,69 @@
       "expires": "2027-01-01T00:00:00Z",
       "quota_bytes": 107374182400,
       "used_bytes": 44040192,
-      "nodes": ["frankfurt", "amsterdam"]
+      "nodes": [
+        "frankfurt",
+        "amsterdam"
+      ]
     }
   },
   "nodes": {
     "frankfurt": {
       "tag": "Frankfurt",
-      "address": ["10.8.1.23/32"],
+      "address": [
+        "10.8.1.23/32"
+      ],
       "private_key": "REPLACE-WITH-A-REAL-BASE64-KEY==============",
       "mtu": 1376,
-      "dns": ["1.1.1.1"],
+      "dns": [
+        "1.1.1.1"
+      ],
       "peers": [
         {
           "address": "203.0.113.10",
           "port": 45330,
           "public_key": "REPLACE-WITH-A-REAL-BASE64-KEY==============",
-          "allowed_ips": ["0.0.0.0/0"],
+          "allowed_ips": [
+            "0.0.0.0/0"
+          ],
           "persistent_keepalive_interval": 25
         }
       ],
-      "jc": 6, "jmin": 10, "jmax": 50,
-      "s1": 112, "s2": 70, "s3": 33, "s4": 9,
+      "jc": 6,
+      "jmin": 10,
+      "jmax": 50,
+      "s1": 112,
+      "s2": 70,
+      "s3": 33,
+      "s4": 9,
       "h1": "1148446321"
     },
     "amsterdam": {
       "tag": "Amsterdam",
-      "address": ["10.8.2.23/32"],
+      "address": [
+        "10.8.2.23/32"
+      ],
       "private_key": "REPLACE-WITH-A-REAL-BASE64-KEY==============",
       "peers": [
         {
           "address": "203.0.113.20",
           "port": 45330,
           "public_key": "REPLACE-WITH-A-REAL-BASE64-KEY==============",
-          "allowed_ips": ["0.0.0.0/0"]
+          "allowed_ips": [
+            "0.0.0.0/0"
+          ]
         }
       ]
+    }
+  },
+  "meta": {
+    "frankfurt": {
+      "country": "DE",
+      "description": "Best for video"
+    },
+    "amsterdam": {
+      "country": "NL",
+      "description": "Quiet most of the day"
     }
   }
 }
