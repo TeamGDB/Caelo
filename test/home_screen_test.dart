@@ -122,6 +122,39 @@ void main() {
     expect(find.text('Frankfurt 3'), findsNothing);
   });
 
+  testWidgets('shows a measured ping for the selected custom server only', (
+    tester,
+  ) async {
+    const custom = ServerOption(
+      id: 'user-office',
+      name: 'Office',
+      description: 'Work network',
+      flag: '🏢',
+      configId: 'office',
+    );
+    serverController.servers = const [custom];
+    serverController.selected = custom;
+    await pumpHome(tester, locale: const Locale('en'));
+
+    expect(find.text('42 ms'), findsNothing);
+
+    client.emit(
+      const TunnelStatus(
+        phase: TunnelPhase.connected,
+        node: 'Office',
+        pingMs: 42,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('42 ms'), findsOneWidget);
+
+    client.emit(const TunnelStatus.disconnected());
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('42 ms'), findsNothing);
+  });
+
   testWidgets('says so when an attempt fails', (tester) async {
     await pumpHome(tester, locale: const Locale('en'));
 

@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import 'config_store.dart';
+import 'ffi/core_library.dart';
+import 'node_chooser.dart';
 import 'settings_store.dart';
 import 'subscription.dart';
 import 'subscription_store.dart';
@@ -28,27 +32,55 @@ class ServerOption {
   final String? subscriptionId;
   final String? nodeId;
   final bool available;
+
+  ServerOption withLatency(int latencyMs) => ServerOption(
+    id: id,
+    name: name,
+    description: description,
+    flag: flag,
+    latencyMs: latencyMs,
+    configId: configId,
+    subscriptionId: subscriptionId,
+    nodeId: nodeId,
+    available: available,
+  );
 }
 
 /// The server list Home consumes, independent of where its nodes are stored.
 abstract interface class ServerCatalog {
   Future<List<ServerOption>> load();
+
+  Future<int?> measureLatency(ServerOption server);
 }
 
 class SubscriptionServerCatalog implements ServerCatalog {
   SubscriptionServerCatalog({
     Future<List<Subscription>> Function()? loadSubscriptions,
     Future<List<StoredConfig>> Function()? loadConfigurations,
+    Future<Map<String, dynamic>> Function(String)? probeConfiguration,
   }) : _loadSubscriptions = loadSubscriptions ?? SubscriptionStore.all,
-       _loadConfigurations = loadConfigurations ?? ConfigStore.list;
+       _loadConfigurations = loadConfigurations ?? ConfigStore.list,
+       _probeConfiguration = probeConfiguration ?? _probe;
 
   final Future<List<Subscription>> Function() _loadSubscriptions;
   final Future<List<StoredConfig>> Function() _loadConfigurations;
+  final Future<Map<String, dynamic>> Function(String) _probeConfiguration;
+  final Map<String, String> _subscriptionEndpoints = {};
 
   @override
   Future<List<ServerOption>> load() async {
     final configs = await _loadConfigurations();
     final subscriptions = await _loadSubscriptions();
+    _subscriptionEndpoints
+      ..clear()
+      ..addEntries(
+        subscriptions.expand(
+          (subscription) => subscription.nodes.map(
+            (node) =>
+                MapEntry('node:${subscription.id}:${node.id}', node.endpoint),
+          ),
+        ),
+      );
     return [
       for (final subscription in subscriptions)
         for (final node in subscription.nodes)
@@ -73,6 +105,30 @@ class SubscriptionServerCatalog implements ServerCatalog {
         ),
     ];
   }
+
+  @override
+  Future<int?> measureLatency(ServerOption server) async {
+    final configId = server.configId;
+    final endpoint = configId != null
+        ? await ConfigStore.readById(configId)
+        : _subscriptionEndpoints[server.id];
+    if (endpoint == null || endpoint.trim().isEmpty || !server.available) {
+      return null;
+    }
+    try {
+      final result = await _probeConfiguration(endpoint);
+      return (result['elapsed_ms'] as num?)?.round();
+    } on Object {
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>> _probe(String configuration) =>
+      CoreLibrary.probe(
+        configuration,
+        url: NodeChooser.probeUrl,
+        timeout: NodeChooser.perNode,
+      );
 }
 
 class ServerSelectionController extends ChangeNotifier {
@@ -91,14 +147,33 @@ class ServerSelectionController extends ChangeNotifier {
   final Future<void> Function(String, String) activateNode;
   List<ServerOption> servers = const [];
   ServerOption? selected;
+  int _loadGeneration = 0;
 
   Future<void> load() async {
+    final generation = ++_loadGeneration;
     final loaded = await catalog.load();
     final savedId = await readSelected();
     servers = loaded;
     selected = loaded.where((server) => server.id == savedId).firstOrNull;
     selected ??= loaded.firstOrNull;
     notifyListeners();
+    unawaited(_measureLatencies(generation));
+  }
+
+  Future<void> _measureLatencies(int generation) async {
+    for (final server in [...servers]) {
+      if (generation != _loadGeneration) return;
+      if (server.latencyMs != null) continue;
+      final latency = await catalog.measureLatency(server);
+      if (generation != _loadGeneration || latency == null) continue;
+      final measured = server.withLatency(latency);
+      servers = [
+        for (final current in servers)
+          if (current.id == server.id) measured else current,
+      ];
+      if (selected?.id == server.id) selected = measured;
+      notifyListeners();
+    }
   }
 
   Future<void> select(ServerOption server) async {
@@ -128,6 +203,12 @@ class ServerSelectionController extends ChangeNotifier {
     if (node == null || node.maintenance) return;
     await SubscriptionStore.save(subscription.copyWith(pinnedId: node.id));
     await ConfigStore.activateSubscriptionNode(node.endpoint);
+  }
+
+  @override
+  void dispose() {
+    _loadGeneration++;
+    super.dispose();
   }
 }
 

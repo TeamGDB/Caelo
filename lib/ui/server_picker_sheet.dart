@@ -12,12 +12,14 @@ class ServerDrawer extends StatefulWidget {
     required this.controller,
     required this.locked,
     required this.limitedScope,
+    this.selectedLatencyMs,
     super.key,
   });
 
   final ServerSelectionController controller;
   final bool locked;
   final bool limitedScope;
+  final int? selectedLatencyMs;
 
   @override
   State<ServerDrawer> createState() => _ServerDrawerState();
@@ -134,6 +136,9 @@ class _ServerDrawerState extends State<ServerDrawer> {
                           selected: widget.controller.selected,
                           locked: widget.locked,
                           limitedScope: widget.limitedScope,
+                          latencyMs:
+                              widget.selectedLatencyMs ??
+                              widget.controller.selected?.latencyMs,
                           onDragUpdate: updateExtent,
                           onDragEnd: settleExtent,
                           onTap: toggleFromTap,
@@ -190,6 +195,15 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                           selected:
                                               server ==
                                               widget.controller.selected,
+                                          latencyMs:
+                                              server ==
+                                                      widget
+                                                          .controller
+                                                          .selected &&
+                                                  widget.selectedLatencyMs !=
+                                                      null
+                                              ? widget.selectedLatencyMs
+                                              : server.latencyMs,
                                           onPressed:
                                               widget.locked || !server.available
                                               ? null
@@ -229,6 +243,7 @@ class _PeekHeader extends StatelessWidget {
     required this.onDragEnd,
     required this.onTap,
     required this.expanded,
+    required this.latencyMs,
   });
 
   final ServerOption? selected;
@@ -238,6 +253,7 @@ class _PeekHeader extends StatelessWidget {
   final ValueChanged<double> onDragEnd;
   final VoidCallback onTap;
   final bool expanded;
+  final int? latencyMs;
 
   @override
   Widget build(BuildContext context) {
@@ -324,7 +340,7 @@ class _PeekHeader extends StatelessWidget {
                               ],
                             ),
                           ),
-                          if (server?.latencyMs case final latency?)
+                          if (latencyMs case final latency?)
                             Text(
                               l10n.latency(latency),
                               style: CaeloTheme.body(
@@ -360,11 +376,13 @@ class _ServerRow extends StatelessWidget {
     required this.server,
     required this.selected,
     required this.onPressed,
+    required this.latencyMs,
   });
 
   final ServerOption server;
   final bool selected;
   final VoidCallback? onPressed;
+  final int? latencyMs;
 
   @override
   Widget build(BuildContext context) {
@@ -434,10 +452,8 @@ class _ServerRow extends StatelessWidget {
                     key: ValueKey('server-latency-${server.id}'),
                     width: 76,
                     child: Text(
-                      server.latencyMs != null
-                          ? AppLocalizations.of(
-                              context,
-                            ).latency(server.latencyMs!)
+                      latencyMs != null
+                          ? AppLocalizations.of(context).latency(latencyMs!)
                           : '',
                       textAlign: TextAlign.right,
                       style: CaeloTheme.body(

@@ -63,14 +63,20 @@ void main() {
     expect(configs.single.toJson().toString(), isNot(contains('PrivateKey')));
     expect(configs.single.toJson().toString(), isNot(contains('PublicKey')));
 
-    final servers = await SubscriptionServerCatalog(
+    final catalog = SubscriptionServerCatalog(
       loadSubscriptions: () async => const [],
-    ).load();
+      probeConfiguration: (configuration) async {
+        expect(configuration, _first);
+        return {'elapsed_ms': 64};
+      },
+    );
+    final servers = await catalog.load();
     final custom = servers.singleWhere((server) => server.configId != null);
     expect(custom.name, 'My office');
     expect(custom.flag, '🏢');
     expect(custom.description, 'Work network');
     expect(custom.latencyMs, isNull);
+    expect(await catalog.measureLatency(custom), 64);
   });
 
   test('old metadata gets a neutral emoji without migration failure', () {

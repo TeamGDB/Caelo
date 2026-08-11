@@ -4,6 +4,22 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_server_catalog.dart';
 
+class _MeasuringCatalog implements ServerCatalog {
+  static const server = ServerOption(
+    id: 'user-office',
+    name: 'Office',
+    description: 'Work network',
+    flag: '🏢',
+    configId: 'office',
+  );
+
+  @override
+  Future<List<ServerOption>> load() async => const [server];
+
+  @override
+  Future<int?> measureLatency(ServerOption server) async => 73;
+}
+
 void main() {
   test(
     'restores and persists selection without coupling to the catalog',
@@ -24,6 +40,24 @@ void main() {
       expect(saved, 'test-frankfurt');
     },
   );
+
+  test('fills a missing latency after the list is already available', () async {
+    final controller = ServerSelectionController(
+      _MeasuringCatalog(),
+      readSelected: () async => null,
+      writeSelected: (_) async {},
+      activateConfiguration: (_) async {},
+      activateNode: (_, _) async {},
+    );
+    addTearDown(controller.dispose);
+
+    await controller.load();
+    expect(controller.servers.single.name, 'Office');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.servers.single.latencyMs, 73);
+    expect(controller.selected?.latencyMs, 73);
+  });
 
   test('test catalog contains no endpoint or configuration material', () async {
     final servers = await const FakeServerCatalog().load();
@@ -56,6 +90,10 @@ void main() {
       final catalog = SubscriptionServerCatalog(
         loadSubscriptions: () async => const [subscription],
         loadConfigurations: () async => const [],
+        probeConfiguration: (configuration) async {
+          expect(configuration, '<redacted>');
+          return {'elapsed_ms': 51};
+        },
       );
 
       final server = (await catalog.load()).single;
@@ -66,6 +104,7 @@ void main() {
       expect(server.flag, '🇫🇮');
       expect(server.subscriptionId, 'account');
       expect(server.nodeId, 'north');
+      expect(await catalog.measureLatency(server), 51);
     },
   );
 

@@ -63,6 +63,9 @@ class HomeScreen extends StatelessWidget {
               child: ServerDrawer(
                 controller: servers,
                 locked: status.phase != TunnelPhase.disconnected,
+                selectedLatencyMs: status.phase == TunnelPhase.connected
+                    ? status.pingMs
+                    : null,
                 limitedScope:
                     status.phase == TunnelPhase.connected &&
                     !controller.coversWholeMachine,

@@ -29,4 +29,7 @@ class FakeServerCatalog implements ServerCatalog {
 
   @override
   Future<List<ServerOption>> load() async => servers;
+
+  @override
+  Future<int?> measureLatency(ServerOption server) async => server.latencyMs;
 }
