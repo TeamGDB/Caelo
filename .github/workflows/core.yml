@@ -112,10 +112,17 @@ jobs:
 
       - run: make linux
 
+      # The privileged half. Built here as well as by the app's pipeline
+      # because a core that compiles for Linux but whose service does not is a
+      # combination nothing else would catch.
+      - run: make service
+
       - uses: actions/upload-artifact@v7
         with:
           name: core-linux
-          path: core/build/libcaelo.so
+          path: |
+            core/build/libcaelo.so
+            core/build/caelo-service
           if-no-files-found: error
 
   windows:
@@ -140,10 +147,19 @@ jobs:
             -ldflags "-X github.com/TeamGDB/Caelo/core/internal/version.Version=$version" \
             -o build/caelo.dll ./libcaelo
 
+      - name: Build caelo-service.exe
+        shell: bash
+        run: |
+          version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+          go build \
+            -ldflags "-X github.com/TeamGDB/Caelo/core/internal/version.Version=$version" \
+            -o build/caelo-service.exe ./cmd/caelo-service
+
       - uses: actions/upload-artifact@v7
         with:
           name: core-windows
           path: |
             core/build/caelo.dll
             core/build/caelo.h
+            core/build/caelo-service.exe
           if-no-files-found: error
