@@ -4,6 +4,7 @@ import '../core/config_store.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
+import 'widgets/caelo_surface.dart';
 
 /// Where a tunnel configuration is pasted in.
 ///
@@ -11,7 +12,9 @@ import '../theme/palette.dart';
 /// subscription link that fills this in for you; a screen that asks someone to
 /// paste a `.conf` is exactly the thing Caelo exists to avoid.
 class ConfigScreen extends StatefulWidget {
-  const ConfigScreen({super.key});
+  const ConfigScreen({this.config, super.key});
+
+  final StoredConfig? config;
 
   @override
   State<ConfigScreen> createState() => _ConfigScreenState();
@@ -19,6 +22,9 @@ class ConfigScreen extends StatefulWidget {
 
 class _ConfigScreenState extends State<ConfigScreen> {
   final _controller = TextEditingController();
+  final _nameController = TextEditingController();
+  final _emojiController = TextEditingController();
+  final _descriptionController = TextEditingController();
   bool _loaded = false;
   String? _error;
 
@@ -29,10 +35,15 @@ class _ConfigScreenState extends State<ConfigScreen> {
   }
 
   Future<void> _load() async {
-    final existing = await ConfigStore.read();
+    final existing = widget.config == null
+        ? null
+        : await ConfigStore.readById(widget.config!.id);
     if (!mounted) return;
     setState(() {
       _controller.text = existing ?? '';
+      _nameController.text = widget.config?.name ?? '';
+      _emojiController.text = widget.config?.emoji ?? '📄';
+      _descriptionController.text = widget.config?.description ?? '';
       _loaded = true;
     });
   }
@@ -40,6 +51,9 @@ class _ConfigScreenState extends State<ConfigScreen> {
   @override
   void dispose() {
     _controller.dispose();
+    _nameController.dispose();
+    _emojiController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -47,9 +61,32 @@ class _ConfigScreenState extends State<ConfigScreen> {
     final text = _controller.text.trim();
     try {
       if (text.isEmpty) {
-        await ConfigStore.clear();
+        setState(
+          () => _error = AppLocalizations.of(context).configurationEmpty,
+        );
+        return;
+      }
+      if (!text.contains('[Interface]') || !text.contains('[Peer]')) {
+        setState(
+          () => _error = AppLocalizations.of(context).configurationFileInvalid,
+        );
+        return;
+      }
+      if (widget.config case final config?) {
+        await ConfigStore.update(
+          config.id,
+          _nameController.text,
+          text,
+          emoji: _emojiController.text,
+          description: _descriptionController.text,
+        );
       } else {
-        await ConfigStore.write(text);
+        await ConfigStore.create(
+          _nameController.text,
+          text,
+          emoji: _emojiController.text,
+          description: _descriptionController.text,
+        );
       }
       if (mounted) Navigator.of(context).pop();
     } on Object catch (error) {
@@ -60,7 +97,9 @@ class _ConfigScreenState extends State<ConfigScreen> {
   }
 
   Future<void> _remove() async {
-    await ConfigStore.clear();
+    final config = widget.config;
+    if (config == null) return;
+    await ConfigStore.delete(config.id);
     if (!mounted) return;
     _controller.clear();
     Navigator.of(context).pop();
@@ -89,58 +128,126 @@ class _ConfigScreenState extends State<ConfigScreen> {
           ),
         ),
       ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(CaeloSpace.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: palette.surface1,
-                    borderRadius: CaeloRadius.mediumAll,
-                    border: Border.all(color: palette.border, width: 1),
-                  ),
-                  padding: const EdgeInsets.all(CaeloSpace.sm),
-                  child: CupertinoTextField.borderless(
-                    controller: _controller,
-                    maxLines: null,
-                    expands: true,
-                    textAlignVertical: TextAlignVertical.top,
-                    placeholder: l10n.configurationPlaceholder,
-                    placeholderStyle: CaeloTheme.caption(
-                      palette,
-                    ).copyWith(color: palette.dim),
-                    style: TextStyle(
-                      color: palette.foreground,
-                      fontSize: 12,
-                      fontFamily: 'Menlo',
-                      height: 1.45,
+      child: CaeloPageSurface(
+        child: SafeArea(
+          child: CaeloContentWidth(
+            child: Padding(
+              padding: const EdgeInsets.all(CaeloSpace.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 82,
+                              child: CupertinoTextField(
+                                controller: _emojiController,
+                                placeholder: '🏳️',
+                                textAlign: TextAlign.center,
+                                maxLength: 8,
+                                padding: const EdgeInsets.all(CaeloSpace.md),
+                                decoration: BoxDecoration(
+                                  color: palette.surface1,
+                                  borderRadius: CaeloRadius.controlAll,
+                                  border: Border.all(color: palette.border),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: CaeloSpace.sm),
+                            Expanded(
+                              child: CupertinoTextField(
+                                controller: _nameController,
+                                placeholder: l10n.configurationName,
+                                padding: const EdgeInsets.all(CaeloSpace.md),
+                                decoration: BoxDecoration(
+                                  color: palette.surface1,
+                                  borderRadius: CaeloRadius.controlAll,
+                                  border: Border.all(color: palette.border),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                              top: CaeloSpace.xs,
+                              left: CaeloSpace.xs,
+                            ),
+                            child: Text(
+                              l10n.configurationEmoji,
+                              style: CaeloTheme.caption(palette),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: CaeloSpace.md),
+                        CupertinoTextField(
+                          controller: _descriptionController,
+                          placeholder: l10n.configurationDescription,
+                          padding: const EdgeInsets.all(CaeloSpace.md),
+                          decoration: BoxDecoration(
+                            color: palette.surface1,
+                            borderRadius: CaeloRadius.controlAll,
+                            border: Border.all(color: palette.border),
+                          ),
+                        ),
+                        const SizedBox(height: CaeloSpace.md),
+                        Expanded(
+                          child: CaeloPanel(
+                            radius: CaeloRadius.controlAll,
+                            padding: const EdgeInsets.all(CaeloSpace.sm),
+                            child: CupertinoTextField.borderless(
+                              controller: _controller,
+                              maxLines: null,
+                              expands: true,
+                              textAlignVertical: TextAlignVertical.top,
+                              placeholder: l10n.configurationPlaceholder,
+                              placeholderStyle: CaeloTheme.caption(
+                                palette,
+                              ).copyWith(color: palette.dim),
+                              style: TextStyle(
+                                color: palette.foreground,
+                                fontSize: 12,
+                                fontFamily: 'Menlo',
+                                height: 1.45,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
+                  const SizedBox(height: CaeloSpace.md),
+                  Text(
+                    _error ?? l10n.configurationWarning,
+                    style: CaeloTheme.caption(palette).copyWith(
+                      color: _error == null ? palette.dim : palette.danger,
+                    ),
+                  ),
+                  const SizedBox(height: CaeloSpace.sm),
+                  if (widget.config != null)
+                    CupertinoButton(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: CaeloSpace.control,
+                      ),
+                      minimumSize: const Size.fromHeight(
+                        CaeloSize.minimumTarget,
+                      ),
+                      onPressed: _remove,
+                      child: Text(
+                        l10n.remove,
+                        style: CaeloTheme.caption(
+                          palette,
+                        ).copyWith(color: palette.danger),
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(height: CaeloSpace.md),
-              Text(
-                _error ?? l10n.configurationWarning,
-                style: CaeloTheme.caption(palette).copyWith(
-                  color: _error == null ? palette.dim : palette.danger,
-                ),
-              ),
-              const SizedBox(height: CaeloSpace.sm),
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(vertical: CaeloSpace.sm),
-                minimumSize: Size.zero,
-                onPressed: _remove,
-                child: Text(
-                  l10n.remove,
-                  style: CaeloTheme.caption(
-                    palette,
-                  ).copyWith(color: palette.danger),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -104,6 +104,96 @@ abstract class AppLocalizations {
   /// **'Caelo'**
   String get appTitle;
 
+  /// No description provided for @welcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome'**
+  String get welcome;
+
+  /// No description provided for @welcomeExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste an invitation link to connect your account and receive its servers and configurations.'**
+  String get welcomeExplanation;
+
+  /// No description provided for @invitationPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'https://…'**
+  String get invitationPlaceholder;
+
+  /// No description provided for @invitationEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste an invitation link'**
+  String get invitationEmpty;
+
+  /// No description provided for @invitationInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the invitation link'**
+  String get invitationInvalid;
+
+  /// No description provided for @invitationUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not check the invitation right now'**
+  String get invitationUnavailable;
+
+  /// No description provided for @continueAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get continueAction;
+
+  /// No description provided for @cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get cancel;
+
+  /// No description provided for @qrLogin.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with QR'**
+  String get qrLogin;
+
+  /// No description provided for @qrUnavailableExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'QR sign-in is not available yet. Use an invitation link.'**
+  String get qrUnavailableExplanation;
+
+  /// No description provided for @importOwnConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Import your own configuration file'**
+  String get importOwnConfiguration;
+
+  /// No description provided for @configurationFileInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a valid WireGuard .conf file'**
+  String get configurationFileInvalid;
+
+  /// No description provided for @forgetAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect account'**
+  String get forgetAccount;
+
+  /// No description provided for @selectedServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Current server'**
+  String get selectedServer;
+
+  /// No description provided for @chooseServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose server'**
+  String get chooseServer;
+
   /// Main screen status, tunnel is down and idle.
   ///
   /// In en, this message translates to:
@@ -158,6 +248,18 @@ abstract class AppLocalizations {
   /// **'{protocol} · {ping} ms'**
   String protocolAndPing(String protocol, int ping);
 
+  /// Label above the real node reported by the core on Home.
+  ///
+  /// In en, this message translates to:
+  /// **'Current connection'**
+  String get currentConnection;
+
+  /// Measured round-trip latency reported by the core.
+  ///
+  /// In en, this message translates to:
+  /// **'{ping} ms'**
+  String latency(int ping);
+
   /// Shown instead of a node name when nothing is configured.
   ///
   /// In en, this message translates to:
@@ -181,6 +283,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Configuration'**
   String get configuration;
+
+  /// No description provided for @configurationName.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuration name'**
+  String get configurationName;
+
+  /// No description provided for @configurationEmoji.
+  ///
+  /// In en, this message translates to:
+  /// **'Flag or emoji'**
+  String get configurationEmoji;
+
+  /// No description provided for @configurationDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Server description'**
+  String get configurationDescription;
+
+  /// No description provided for @customServerDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'User configuration'**
+  String get customServerDescription;
+
+  /// No description provided for @configurationEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste a configuration'**
+  String get configurationEmpty;
+
+  /// No description provided for @addConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Add configuration'**
+  String get addConfiguration;
+
+  /// No description provided for @customConfiguration.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom config'**
+  String get customConfiguration;
 
   /// Value shown for the configuration row when one has been saved.
   ///
@@ -253,6 +397,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'System'**
   String get languageSystem;
+
+  /// Always use the Russian interface locale.
+  ///
+  /// In en, this message translates to:
+  /// **'Russian'**
+  String get languageRussian;
+
+  /// Always use the English interface locale.
+  ///
+  /// In en, this message translates to:
+  /// **'English'**
+  String get languageEnglish;
 
   /// Settings section with version and licence information.
   ///

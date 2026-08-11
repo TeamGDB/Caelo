@@ -1,7 +1,21 @@
 import 'dart:convert';
 
+import 'package:flutter/widgets.dart';
+
 import '../theme/palette.dart';
 import 'app_storage.dart';
+
+/// How the interface chooses its locale.
+enum CaeloLocaleMode {
+  system(null),
+  russian(Locale('ru')),
+  english(Locale('en'));
+
+  const CaeloLocaleMode(this.locale);
+
+  /// Null deliberately hands locale resolution back to Flutter and the OS.
+  final Locale? locale;
+}
 
 /// The handful of preferences the app keeps.
 ///
@@ -47,6 +61,38 @@ abstract final class SettingsStore {
   static Future<void> setThemeMode(CaeloThemeMode mode) async {
     final settings = Map<String, dynamic>.from(await _load());
     settings['themeMode'] = mode.name;
+    await _save(settings);
+  }
+
+  static Future<CaeloLocaleMode> localeMode() async {
+    final name = (await _load())['localeMode'] as String?;
+    return CaeloLocaleMode.values.firstWhere(
+      (mode) => mode.name == name,
+      orElse: () => CaeloLocaleMode.system,
+    );
+  }
+
+  static Future<void> setLocaleMode(CaeloLocaleMode mode) async {
+    final settings = Map<String, dynamic>.from(await _load());
+    settings['localeMode'] = mode.name;
+    await _save(settings);
+  }
+
+  static Future<bool> accessGranted() async =>
+      (await _load())['accessGranted'] == true;
+
+  static Future<void> setAccessGranted(bool granted) async {
+    final settings = Map<String, dynamic>.from(await _load());
+    settings['accessGranted'] = granted;
+    await _save(settings);
+  }
+
+  static Future<String?> selectedServerId() async =>
+      (await _load())['selectedServerId'] as String?;
+
+  static Future<void> setSelectedServerId(String id) async {
+    final settings = Map<String, dynamic>.from(await _load());
+    settings['selectedServerId'] = id;
     await _save(settings);
   }
 

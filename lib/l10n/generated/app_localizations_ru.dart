@@ -12,6 +12,54 @@ class AppLocalizationsRu extends AppLocalizations {
   String get appTitle => 'Caelo';
 
   @override
+  String get welcome => 'Добро пожаловать';
+
+  @override
+  String get welcomeExplanation =>
+      'Вставьте ссылку приглашения, чтобы подключить аккаунт и получить его серверы и конфигурации.';
+
+  @override
+  String get invitationPlaceholder => 'https://…';
+
+  @override
+  String get invitationEmpty => 'Вставьте ссылку приглашения';
+
+  @override
+  String get invitationInvalid => 'Проверьте ссылку приглашения';
+
+  @override
+  String get invitationUnavailable => 'Сейчас не удалось проверить приглашение';
+
+  @override
+  String get continueAction => 'Продолжить';
+
+  @override
+  String get cancel => 'Отмена';
+
+  @override
+  String get qrLogin => 'Войти по QR';
+
+  @override
+  String get qrUnavailableExplanation =>
+      'Вход по QR пока недоступен. Используйте ссылку приглашения.';
+
+  @override
+  String get importOwnConfiguration => 'Добавить свой файл конфигурации';
+
+  @override
+  String get configurationFileInvalid =>
+      'Выберите корректный файл WireGuard .conf';
+
+  @override
+  String get forgetAccount => 'Отключить аккаунт';
+
+  @override
+  String get selectedServer => 'Текущий сервер';
+
+  @override
+  String get chooseServer => 'Выберите сервер';
+
+  @override
   String get statusDisconnected => 'Отключено';
 
   @override
@@ -43,6 +91,14 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get currentConnection => 'Текущее подключение';
+
+  @override
+  String latency(int ping) {
+    return '$ping мс';
+  }
+
+  @override
   String get noSubscription => 'Подписки пока нет';
 
   @override
@@ -53,6 +109,27 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get configuration => 'Конфиг';
+
+  @override
+  String get configurationName => 'Название конфигурации';
+
+  @override
+  String get configurationEmoji => 'Флаг или эмодзи';
+
+  @override
+  String get configurationDescription => 'Описание сервера';
+
+  @override
+  String get customServerDescription => 'Пользовательская конфигурация';
+
+  @override
+  String get configurationEmpty => 'Вставьте конфигурацию';
+
+  @override
+  String get addConfiguration => 'Добавить конфигурацию';
+
+  @override
+  String get customConfiguration => 'Свой конфиг';
 
   @override
   String get configurationInstalled => 'Добавлен';
@@ -91,6 +168,12 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get languageSystem => 'Системный';
+
+  @override
+  String get languageRussian => 'Русский';
+
+  @override
+  String get languageEnglish => 'English';
 
   @override
   String get about => 'О программе';

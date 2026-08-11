@@ -8,6 +8,7 @@ import '../core/diagnostics.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
+import 'widgets/caelo_surface.dart';
 
 /// The diagnostic log, as it is being written.
 ///
@@ -119,98 +120,103 @@ class _LogScreenState extends State<LogScreen> {
           ),
         ),
       ),
-      child: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: Container(
-                width: double.infinity,
-                margin: const EdgeInsets.all(CaeloSpace.md),
-                decoration: BoxDecoration(
-                  color: palette.surface1,
-                  borderRadius: CaeloRadius.mediumAll,
-                  border: Border.all(color: palette.border, width: 1),
-                ),
-                child: _lines.isEmpty
-                    ? Center(
-                        child: Text(
-                          Diagnostics.enabled
-                              ? l10n.logEmpty
-                              : l10n.logDisabled,
-                          textAlign: TextAlign.center,
-                          style: CaeloTheme.caption(palette),
-                        ),
-                      )
-                    : CupertinoScrollbar(
-                        controller: _scroll,
-                        child: ListView.builder(
-                          controller: _scroll,
-                          padding: const EdgeInsets.all(CaeloSpace.sm),
-                          itemCount: _lines.length,
-                          itemBuilder: (context, index) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 1),
+      child: CaeloPageSurface(
+        child: SafeArea(
+          child: CaeloContentWidth(
+            child: Column(
+              children: [
+                Expanded(
+                  child: CaeloPanel(
+                    margin: const EdgeInsets.all(CaeloSpace.md),
+                    radius: CaeloRadius.controlAll,
+                    child: _lines.isEmpty
+                        ? Center(
                             child: Text(
-                              _lines[index],
-                              style: TextStyle(
-                                color: _lines[index].contains('error')
-                                    ? palette.danger
-                                    : palette.foreground,
-                                fontSize: 11,
-                                fontFamily: 'Menlo',
-                                height: 1.35,
+                              Diagnostics.enabled
+                                  ? l10n.logEmpty
+                                  : l10n.logDisabled,
+                              textAlign: TextAlign.center,
+                              style: CaeloTheme.caption(palette),
+                            ),
+                          )
+                        : CupertinoScrollbar(
+                            controller: _scroll,
+                            child: ListView.builder(
+                              controller: _scroll,
+                              padding: const EdgeInsets.all(CaeloSpace.sm),
+                              itemCount: _lines.length,
+                              itemBuilder: (context, index) => Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 1,
+                                ),
+                                child: Text(
+                                  _lines[index],
+                                  style: TextStyle(
+                                    color: _lines[index].contains('error')
+                                        ? palette.danger
+                                        : palette.foreground,
+                                    fontSize: 11,
+                                    fontFamily: 'Menlo',
+                                    height: 1.35,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
+                  ),
+                ),
+                if (_notice != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: CaeloSpace.sm),
+                    child: Text(
+                      _notice!,
+                      style: CaeloTheme.caption(
+                        palette,
+                      ).copyWith(color: palette.accent),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    CaeloSpace.md,
+                    0,
+                    CaeloSpace.md,
+                    CaeloSpace.md,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      CupertinoButton(
+                        minimumSize: const Size(
+                          CaeloSize.minimumTarget,
+                          CaeloSize.minimumTarget,
+                        ),
+                        onPressed: () => _copy(l10n),
+                        child: Text(
+                          l10n.logCopy,
+                          style: CaeloTheme.caption(
+                            palette,
+                          ).copyWith(color: palette.accent, fontSize: 15),
                         ),
                       ),
-              ),
-            ),
-            if (_notice != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: CaeloSpace.sm),
-                child: Text(
-                  _notice!,
-                  style: CaeloTheme.caption(
-                    palette,
-                  ).copyWith(color: palette.accent),
+                      CupertinoButton(
+                        minimumSize: const Size(
+                          CaeloSize.minimumTarget,
+                          CaeloSize.minimumTarget,
+                        ),
+                        onPressed: () => _clear(l10n),
+                        child: Text(
+                          l10n.logClear,
+                          style: CaeloTheme.caption(
+                            palette,
+                          ).copyWith(color: palette.danger, fontSize: 15),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                CaeloSpace.md,
-                0,
-                CaeloSpace.md,
-                CaeloSpace.md,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    onPressed: () => _copy(l10n),
-                    child: Text(
-                      l10n.logCopy,
-                      style: CaeloTheme.caption(
-                        palette,
-                      ).copyWith(color: palette.accent, fontSize: 15),
-                    ),
-                  ),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    onPressed: () => _clear(l10n),
-                    child: Text(
-                      l10n.logClear,
-                      style: CaeloTheme.caption(
-                        palette,
-                      ).copyWith(color: palette.danger, fontSize: 15),
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

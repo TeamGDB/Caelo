@@ -1,6 +1,21 @@
 {
   "@@locale": "ru",
   "appTitle": "Caelo",
+  "welcome": "Добро пожаловать",
+  "welcomeExplanation": "Вставьте ссылку приглашения, чтобы подключить аккаунт и получить его серверы и конфигурации.",
+  "invitationPlaceholder": "https://…",
+  "invitationEmpty": "Вставьте ссылку приглашения",
+  "invitationInvalid": "Проверьте ссылку приглашения",
+  "invitationUnavailable": "Сейчас не удалось проверить приглашение",
+  "continueAction": "Продолжить",
+  "cancel": "Отмена",
+  "qrLogin": "Войти по QR",
+  "qrUnavailableExplanation": "Вход по QR пока недоступен. Используйте ссылку приглашения.",
+  "importOwnConfiguration": "Добавить свой файл конфигурации",
+  "configurationFileInvalid": "Выберите корректный файл WireGuard .conf",
+  "forgetAccount": "Отключить аккаунт",
+  "selectedServer": "Текущий сервер",
+  "chooseServer": "Выберите сервер",
   "statusDisconnected": "Отключено",
   "statusConnecting": "Подключение",
   "statusConnected": "Подключено",
@@ -27,10 +42,26 @@
       }
     }
   },
+  "currentConnection": "Текущее подключение",
+  "latency": "{ping} мс",
+  "@latency": {
+    "placeholders": {
+      "ping": {
+        "type": "int"
+      }
+    }
+  },
   "noSubscription": "Подписки пока нет",
   "addSubscription": "Добавить подписку",
   "noConfig": "Конфиг не добавлен",
   "configuration": "Конфиг",
+  "configurationName": "Название конфигурации",
+  "configurationEmoji": "Флаг или эмодзи",
+  "configurationDescription": "Описание сервера",
+  "customServerDescription": "Пользовательская конфигурация",
+  "configurationEmpty": "Вставьте конфигурацию",
+  "addConfiguration": "Добавить конфигурацию",
+  "customConfiguration": "Свой конфиг",
   "configurationInstalled": "Добавлен",
   "configurationNone": "Нет",
   "configurationPlaceholder": "Вставь сюда AmneziaWG .conf",
@@ -43,6 +74,8 @@
   "subscriptions": "Подписки",
   "appearanceLanguage": "Язык",
   "languageSystem": "Системный",
+  "languageRussian": "Русский",
+  "languageEnglish": "English",
   "about": "О программе",
   "version": "Версия",
   "core": "Ядро",

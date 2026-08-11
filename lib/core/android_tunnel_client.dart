@@ -134,6 +134,18 @@ class AndroidTunnelClient implements TunnelClient {
         );
       }
 
+      // Measure through the live tunnel. Failure to measure is not allowed to
+      // tear down a descriptor that Android and the core already accepted:
+      // the previous implementation kept that tunnel up, and adding a display
+      // value must not change connection semantics.
+      int? pingMs;
+      try {
+        final reachability = await CoreLibrary.check();
+        pingMs = (reachability['elapsed_ms'] as num?)?.round();
+      } on Object catch (error) {
+        Diagnostics.record('latency measurement failed', error: error);
+      }
+
       _emit(
         TunnelStatus(
           phase: TunnelPhase.connected,
@@ -141,6 +153,7 @@ class AndroidTunnelClient implements TunnelClient {
           protocol: description['obfuscated'] == true
               ? TunnelProtocol.amneziaWg
               : TunnelProtocol.vless,
+          pingMs: pingMs,
         ),
       );
     } on Object {

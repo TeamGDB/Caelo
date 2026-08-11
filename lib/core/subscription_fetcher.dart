@@ -47,7 +47,10 @@ abstract final class SubscriptionFetcher {
   /// reason is recorded beside them: both are true at once, and a client that
   /// threw away a working list because a refresh failed would be broken by its
   /// own maintenance.
-  static Future<Subscription> refresh(Subscription subscription) async {
+  static Future<Subscription> refresh(
+    Subscription subscription, {
+    bool throwOnFailure = false,
+  }) async {
     try {
       final fetched = await _fetch(subscription.url);
 
@@ -74,6 +77,7 @@ abstract final class SubscriptionFetcher {
       final kept = subscription.copyWith(lastError: error.message);
       await SubscriptionStore.save(kept);
       Diagnostics.record('subscription refresh failed', error: error);
+      if (throwOnFailure) rethrow;
       return kept;
     }
   }
@@ -172,8 +176,16 @@ abstract final class SubscriptionFetcher {
       throw const SubscriptionFailed(
         'the server\'s certificate was not accepted',
       );
-    } on Object catch (error) {
-      throw SubscriptionFailed('$error');
+    } on HttpException {
+      // HttpException often includes the request URI. A subscription URL is a
+      // bearer credential and must not reach diagnostics through an error.
+      throw const SubscriptionFailed(
+        'the server response could not be completed',
+      );
+    } on Object {
+      throw const SubscriptionFailed(
+        'could not read the subscription response',
+      );
     } finally {
       client.close(force: true);
     }

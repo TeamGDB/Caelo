@@ -107,6 +107,24 @@ func caelo_probe(configText *C.char, url *C.char, timeoutMs C.int) *C.char {
 	return success(result)
 }
 
+// caelo_measure_latency proves a configuration and then measures one warm
+// HTTPS round trip through the same userspace tunnel. The first request remains
+// available as elapsed_ms; latency_ms is the value intended for the server UI.
+//
+//export caelo_measure_latency
+func caelo_measure_latency(configText *C.char, url *C.char, timeoutMs C.int) *C.char {
+	result, err := probe.Run(C.GoString(configText), probe.Options{
+		URL:            C.GoString(url),
+		Timeout:        time.Duration(timeoutMs) * time.Millisecond,
+		Verbose:        diag.Verbose(),
+		MeasureLatency: true,
+	})
+	if err != nil {
+		return failure(err)
+	}
+	return success(result)
+}
+
 // caelo_disconnect tears the tunnel down.
 //
 //export caelo_disconnect

@@ -92,6 +92,13 @@ stronger answer than a ping — a server can answer ICMP and still refuse the ha
 an obfuscated endpoint is supposed to ignore anything that is not the right first packet.
 Only a reply that came back through the tunnel proves the node works.
 
+The server list uses the separate
+`caelo_measure_latency(config, url, timeoutMs)` call. It performs the same
+proving request first and then reports a second, warm HTTPS round trip as
+`latency_ms`. This deliberately is not called ICMP ping: the value describes
+real traffic through an established AmneziaWG/WireGuard tunnel, while
+`caelo_probe.elapsed_ms` keeps its original cold availability semantics.
+
 Junk packets, header magic ranges and signature packets are passed to the device layer as
 the strings they arrived as. That grammar already has one implementation and does not need
 a second one here to disagree with it.

@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Subscription refresh and reachability probes are product traffic, not
+         Flutter debug traffic, so release builds need this in main. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- A foreground service is what keeps the tunnel alive while the app is
          in the background. Android 14 requires the specific type as well. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>

@@ -12,6 +12,54 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'Caelo';
 
   @override
+  String get welcome => 'Welcome';
+
+  @override
+  String get welcomeExplanation =>
+      'Paste an invitation link to connect your account and receive its servers and configurations.';
+
+  @override
+  String get invitationPlaceholder => 'https://…';
+
+  @override
+  String get invitationEmpty => 'Paste an invitation link';
+
+  @override
+  String get invitationInvalid => 'Check the invitation link';
+
+  @override
+  String get invitationUnavailable =>
+      'Could not check the invitation right now';
+
+  @override
+  String get continueAction => 'Continue';
+
+  @override
+  String get cancel => 'Cancel';
+
+  @override
+  String get qrLogin => 'Sign in with QR';
+
+  @override
+  String get qrUnavailableExplanation =>
+      'QR sign-in is not available yet. Use an invitation link.';
+
+  @override
+  String get importOwnConfiguration => 'Import your own configuration file';
+
+  @override
+  String get configurationFileInvalid => 'Choose a valid WireGuard .conf file';
+
+  @override
+  String get forgetAccount => 'Disconnect account';
+
+  @override
+  String get selectedServer => 'Current server';
+
+  @override
+  String get chooseServer => 'Choose server';
+
+  @override
   String get statusDisconnected => 'Not connected';
 
   @override
@@ -43,6 +91,14 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get currentConnection => 'Current connection';
+
+  @override
+  String latency(int ping) {
+    return '$ping ms';
+  }
+
+  @override
   String get noSubscription => 'No subscription yet';
 
   @override
@@ -53,6 +109,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get configuration => 'Configuration';
+
+  @override
+  String get configurationName => 'Configuration name';
+
+  @override
+  String get configurationEmoji => 'Flag or emoji';
+
+  @override
+  String get configurationDescription => 'Server description';
+
+  @override
+  String get customServerDescription => 'User configuration';
+
+  @override
+  String get configurationEmpty => 'Paste a configuration';
+
+  @override
+  String get addConfiguration => 'Add configuration';
+
+  @override
+  String get customConfiguration => 'Custom config';
 
   @override
   String get configurationInstalled => 'Installed';
@@ -91,6 +168,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get languageSystem => 'System';
+
+  @override
+  String get languageRussian => 'Russian';
+
+  @override
+  String get languageEnglish => 'English';
 
   @override
   String get about => 'About';

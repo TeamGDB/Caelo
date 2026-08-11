@@ -1,16 +1,17 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 
 import '../core/tunnel.dart';
 import '../core/tunnel_controller.dart';
+import '../core/server_catalog.dart';
 import '../l10n/generated/app_localizations.dart';
-import '../theme/app_theme.dart';
 import '../theme/palette.dart';
 import 'settings_screen.dart';
+import 'server_picker_sheet.dart';
+import 'widgets/caelo_surface.dart';
 import 'widgets/power_button.dart';
 
-/// The whole product, more or less: a button, a word, and a line of small text
-/// saying what you got. Everything else is a settings screen you should never
-/// need to open.
+/// The product centre: one primary action and a persistent server surface.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -20,184 +21,75 @@ class HomeScreen extends StatelessWidget {
     final controller = TunnelScope.of(context);
     final status = controller.value;
     final l10n = AppLocalizations.of(context);
+    final servers = ServerSelectionScope.of(context);
+    final buttonLabel = switch (status.phase) {
+      TunnelPhase.disconnected => l10n.connect,
+      TunnelPhase.connecting => l10n.statusConnecting,
+      TunnelPhase.connected => l10n.statusConnected,
+      TunnelPhase.disconnecting => l10n.statusDisconnecting,
+      TunnelPhase.failed => l10n.statusFailed,
+    };
 
     return CupertinoPageScaffold(
       backgroundColor: palette.background,
-      child: Stack(
-        children: [
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                PowerButton(
-                  phase: status.phase,
-                  onPressed: controller.toggle,
-                  semanticLabel: status.phase == TunnelPhase.connected
-                      ? l10n.disconnect
-                      : l10n.connect,
+      child: CaeloPageSurface(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: SafeArea(
+                child: Align(
+                  // Lower than geometric centre: the primary action remains
+                  // reachable by a thumb without colliding with the server peek.
+                  alignment: const Alignment(0, 0),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: CaeloSpace.gutter,
+                    ),
+                    child: PowerButton(
+                      phase: status.phase,
+                      label: buttonLabel,
+                      onPressed: controller.toggle,
+                      semanticLabel:
+                          status.phase == TunnelPhase.connected ||
+                              status.phase == TunnelPhase.connecting
+                          ? l10n.disconnect
+                          : l10n.connect,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: CaeloSpace.lg),
-                _StatusLine(status: status),
-                const SizedBox(height: CaeloSpace.xs + 2),
-                _DetailLine(
-                  status: status,
-                  hasConfiguration: controller.hasConfiguration,
-                ),
-                const SizedBox(height: CaeloSpace.sm),
-                // The tunnel is real but it lives on a userspace stack inside
-                // this process. Letting the screen imply the machine is covered
-                // would be the single most harmful thing it could get wrong.
-                _Caveat(
-                  visible:
-                      status.phase == TunnelPhase.connected &&
-                      !controller.coversWholeMachine,
-                ),
-                const SizedBox(height: CaeloSpace.lg),
-                _ReconnectAction(
-                  visible: status.phase == TunnelPhase.connected,
-                  onPressed: controller.reconnectDifferently,
-                ),
-              ],
+              ),
             ),
-          ),
-          // Bottom corner rather than top: the title bar is transparent, so
-          // anything up there would be sitting in the window's drag region —
-          // and settings should be reachable without inviting a visit.
-          const Positioned(
-            bottom: CaeloSpace.sm,
-            right: CaeloSpace.sm,
-            child: _SettingsButton(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusLine extends StatelessWidget {
-  const _StatusLine({required this.status});
-
-  final TunnelStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = CaeloColors.of(context);
-    final l10n = AppLocalizations.of(context);
-
-    final (text, colour) = switch (status.phase) {
-      TunnelPhase.disconnected => (l10n.statusDisconnected, palette.muted),
-      TunnelPhase.connecting => (l10n.statusConnecting, palette.foreground),
-      TunnelPhase.connected => (l10n.statusConnected, palette.foreground),
-      TunnelPhase.disconnecting => (l10n.statusDisconnecting, palette.muted),
-      TunnelPhase.failed => (l10n.statusFailed, palette.danger),
-    };
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      child: Text(
-        text,
-        key: ValueKey(text),
-        style: CaeloTheme.status(palette).copyWith(color: colour),
-      ),
-    );
-  }
-}
-
-/// The line that answers "what am I actually on?" without being asked.
-class _DetailLine extends StatelessWidget {
-  const _DetailLine({required this.status, required this.hasConfiguration});
-
-  final TunnelStatus status;
-  final bool hasConfiguration;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = CaeloColors.of(context);
-    final l10n = AppLocalizations.of(context);
-
-    final parts = <String>[
-      if (status.hasNode) l10n.viaNode(status.node!),
-      if (status.protocol != null && status.pingMs != null)
-        l10n.protocolAndPing(status.protocol!.label, status.pingMs!),
-    ];
-
-    // Having nothing to connect with is worth saying out loud, because it is
-    // the one case where pressing the button cannot work and the reason is not
-    // on screen. A tunnel that is merely down is not: repeating the status in
-    // smaller type underneath it tells nobody anything.
-    final text = switch (parts.isEmpty) {
-      true when !hasConfiguration => l10n.noConfig,
-      true => '',
-      false => parts.join('  ·  '),
-    };
-
-    return SizedBox(
-      height: 18,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: Text(
-          text,
-          key: ValueKey(text),
-          style: CaeloTheme.caption(palette),
-        ),
-      ),
-    );
-  }
-}
-
-/// States plainly what "connected" currently covers. It disappears when the
-/// NetworkExtension lands and the answer becomes "everything".
-class _Caveat extends StatelessWidget {
-  const _Caveat({required this.visible});
-
-  final bool visible;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = CaeloColors.of(context);
-    return SizedBox(
-      height: 16,
-      child: AnimatedOpacity(
-        opacity: visible ? 1 : 0,
-        duration: const Duration(milliseconds: 220),
-        child: Text(
-          AppLocalizations.of(context).localTunnelOnly,
-          style: CaeloTheme.caption(
-            palette,
-          ).copyWith(color: palette.dim, fontSize: 11),
-        ),
-      ),
-    );
-  }
-}
-
-/// Present only when it can do something, and quiet even then. Reaching for it
-/// means the automatic choice was wrong, which should be rare.
-class _ReconnectAction extends StatelessWidget {
-  const _ReconnectAction({required this.visible, required this.onPressed});
-
-  final bool visible;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = CaeloColors.of(context);
-    return AnimatedOpacity(
-      opacity: visible ? 1 : 0,
-      duration: const Duration(milliseconds: 220),
-      child: IgnorePointer(
-        ignoring: !visible,
-        child: CupertinoButton(
-          padding: const EdgeInsets.symmetric(
-            horizontal: CaeloSpace.md,
-            vertical: CaeloSpace.sm,
-          ),
-          minimumSize: Size.zero,
-          onPressed: onPressed,
-          child: Text(
-            AppLocalizations.of(context).reconnectDifferently,
-            style: CaeloTheme.caption(palette).copyWith(color: palette.dim),
-          ),
+            Positioned.fill(
+              child: ServerDrawer(
+                controller: servers,
+                locked: status.phase != TunnelPhase.disconnected,
+                selectedLatencyMs: status.phase == TunnelPhase.connected
+                    ? status.pingMs
+                    : null,
+                limitedScope:
+                    status.phase == TunnelPhase.connected &&
+                    !controller.coversWholeMachine,
+              ),
+            ),
+            // Mobile SafeArea starts below the status bar. macOS reports no
+            // such inset for its transparent title bar, so reserve its chrome
+            // explicitly and keep the button out of the traffic-light row.
+            Positioned.fill(
+              child: SafeArea(
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: defaultTargetPlatform == TargetPlatform.macOS
+                          ? 36
+                          : CaeloSpace.control,
+                      right: CaeloSpace.control,
+                      child: const _SettingsButton(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -210,18 +102,19 @@ class _SettingsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
-    return CupertinoButton(
-      padding: const EdgeInsets.all(CaeloSpace.sm),
-      minimumSize: Size.zero,
-      onPressed: () => Navigator.of(
-        context,
-      ).push(CupertinoPageRoute<void>(builder: (_) => const SettingsScreen())),
-      child: Icon(
-        CupertinoIcons.gear_alt,
-        size: 20,
-        color: palette.dim,
-        semanticLabel: AppLocalizations.of(context).settings,
-      ),
+    return CaeloIconButton(
+      icon: CupertinoIcons.gear_alt,
+      semanticLabel: AppLocalizations.of(context).settings,
+      onPressed: () async {
+        final servers = ServerSelectionScope.of(context);
+        final tunnel = TunnelScope.of(context);
+        await Navigator.of(context).push(
+          CupertinoPageRoute<void>(builder: (_) => const SettingsScreen()),
+        );
+        await servers.load();
+        await tunnel.refreshConfiguration();
+      },
+      foreground: palette.muted,
     );
   }
 }

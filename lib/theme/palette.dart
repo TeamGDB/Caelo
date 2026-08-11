@@ -23,6 +23,7 @@ class CaeloPalette {
     required this.foreground,
     required this.muted,
     required this.dim,
+    required this.primary,
     required this.accent,
     required this.accentSurface,
     required this.accentBorder,
@@ -55,6 +56,9 @@ class CaeloPalette {
   /// Tertiary text — present, but not asking to be read.
   final Color dim;
 
+  /// Idle primary action. Kept separate from [accent], which means connected.
+  final Color primary;
+
   /// Connected.
   final Color accent;
 
@@ -79,6 +83,7 @@ class CaeloPalette {
     foreground: Color(0xFFF0F2F4),
     muted: Color(0xFFAEB4BD),
     dim: Color(0xFF6E757F),
+    primary: Color(0xFF72B9D6),
     accent: Color(0xFF54C69A),
     accentSurface: Color(0xFF0E211B),
     accentBorder: Color(0xFF235141),
@@ -103,6 +108,7 @@ class CaeloPalette {
     foreground: Color(0xFF0A3735),
     muted: Color(0xFF496964),
     dim: Color(0xFF6B8781),
+    primary: Color(0xFF3697B8),
     accent: Color(0xFF2FA982),
     accentSurface: Color(0xFFDCF0E7),
     accentBorder: Color(0xFFA9D9C6),
@@ -144,20 +150,54 @@ class CaeloColors extends InheritedWidget {
       palette.brightness != oldWidget.palette.brightness;
 }
 
-/// Corner radii. Three values, and there is no fourth.
+/// Corner radii named after the job they do rather than after their size.
+///
+/// The UI specification contains many one-off values inherited from the
+/// Android prototype. Caelo deliberately keeps a smaller semantic set: a new
+/// component chooses the role it plays instead of introducing another nearly
+/// identical radius.
 abstract final class CaeloRadius {
-  static const small = Radius.circular(4);
-  static const medium = Radius.circular(8);
+  static const compact = Radius.circular(8);
+  static const control = Radius.circular(16);
+  static const card = Radius.circular(22);
+  static const dialog = Radius.circular(28);
 
-  static const smallAll = BorderRadius.all(small);
-  static const mediumAll = BorderRadius.all(medium);
+  static const compactAll = BorderRadius.all(compact);
+  static const controlAll = BorderRadius.all(control);
+  static const cardAll = BorderRadius.all(card);
+  static const dialogAll = BorderRadius.all(dialog);
 }
 
 /// Spacing step. Everything is a multiple of 4.
 abstract final class CaeloSpace {
   static const xs = 4.0;
   static const sm = 8.0;
+  static const control = 12.0;
   static const md = 16.0;
+  static const gutter = 20.0;
   static const lg = 24.0;
   static const xl = 40.0;
+}
+
+/// Cross-platform dimensions shared by controls and page layouts.
+abstract final class CaeloSize {
+  /// Smallest interactive area, including icon-only controls.
+  static const minimumTarget = 48.0;
+
+  /// The interface remains a focused column on wide desktop windows.
+  static const contentMaxWidth = 560.0;
+  static const dialogMaxWidth = 520.0;
+}
+
+/// Motion uses a small shared scale so reduced-motion handling can be applied
+/// consistently rather than being rediscovered in each widget.
+abstract final class CaeloMotion {
+  static const quick = Duration(milliseconds: 180);
+  static const standard = Duration(milliseconds: 240);
+  static const emphasis = Duration(milliseconds: 320);
+}
+
+abstract final class CaeloStroke {
+  static const hairline = 1.0;
+  static const emphasis = 1.5;
 }

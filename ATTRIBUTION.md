@@ -16,6 +16,7 @@ These are consumed as ordinary dependencies, not copied into this tree.
 | [sing-box](https://github.com/SagerNet/sing-box) | GPL-3.0-or-later, with an additional §7 clause restricting use of the name and implied association | v1.13.16 | Imported as a Go module by the core. Caelo registers its own protocol types through the public registry API. |
 | [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) | MIT | v3.0.20260805 | The AmneziaWG implementation, used as published. |
 | [wireguard-go](https://git.zx2c4.com/wireguard-go/) | MIT | via `amneziawg-go` | Upstream of `amneziawg-go`; its copyright notices travel with that dependency. |
+| [file_selector](https://github.com/flutter/packages/tree/main/packages/file_selector/file_selector) | BSD-3-Clause | 1.1.0 | Used as published to open the operating system file picker for local `.conf` import. |
 
 ## Forks
 

@@ -1,21 +1,26 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/android_tunnel_client.dart';
+import 'core/account_gateway.dart';
 import 'core/core_tunnel_client.dart';
 import 'core/service_client.dart';
 import 'core/service_tunnel_client.dart';
 import 'core/diagnostics.dart';
 import 'core/apple_tunnel_client.dart';
 import 'core/settings_store.dart';
+import 'core/server_catalog.dart';
+import 'core/subscription_fetcher.dart';
 import 'core/tunnel.dart';
 import 'core/tunnel_controller.dart';
 import 'l10n/generated/app_localizations.dart';
 import 'theme/app_theme.dart';
 import 'theme/palette.dart';
 import 'ui/home_screen.dart';
+import 'ui/welcome_screen.dart';
 import 'ui/window_chrome.dart';
 
 void main() async {
@@ -26,11 +31,49 @@ void main() async {
   // refuse to start.
   await Diagnostics.load().catchError((_) {});
 
-  runApp(const CaeloApp());
+  // Resolve appearance before the first frame. A saved dark scheme or Russian
+  // locale should not briefly render as the system default on every launch.
+  var themeMode = CaeloThemeMode.system;
+  var localeMode = CaeloLocaleMode.system;
+  var accessGranted = false;
+  try {
+    themeMode = await SettingsStore.themeMode();
+  } on Object {
+    // Defaults are usable even if the settings directory is unavailable.
+  }
+  try {
+    localeMode = await SettingsStore.localeMode();
+  } on Object {
+    // Locale failure is independent of theme failure and falls back to the OS.
+  }
+  try {
+    accessGranted = await SettingsStore.accessGranted();
+  } on Object {
+    // A missing or unreadable setting means onboarding has not completed.
+  }
+
+  runApp(
+    CaeloApp(
+      themeMode: themeMode,
+      localeMode: localeMode,
+      accessGranted: accessGranted,
+    ),
+  );
 }
 
 class CaeloApp extends StatefulWidget {
-  const CaeloApp({super.key});
+  const CaeloApp({
+    this.themeMode = CaeloThemeMode.system,
+    this.localeMode = CaeloLocaleMode.system,
+    this.accessGranted = false,
+    this.accountGateway = const SubscriptionAccountGateway(),
+    super.key,
+  });
+
+  final CaeloThemeMode themeMode;
+  final CaeloLocaleMode localeMode;
+  final bool accessGranted;
+  final AccountGateway accountGateway;
 
   @override
   State<CaeloApp> createState() => _CaeloAppState();
@@ -40,7 +83,12 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   // The only place a TunnelClient implementation is named.
   late final TunnelController _controller = TunnelController(_pickClient());
 
-  CaeloThemeMode _themeMode = CaeloThemeMode.system;
+  late CaeloThemeMode _themeMode = widget.themeMode;
+  late CaeloLocaleMode _localeMode = widget.localeMode;
+  late bool _accessGranted = widget.accessGranted;
+  late final ServerSelectionController _servers = ServerSelectionController(
+    SubscriptionServerCatalog(),
+  );
 
   /// The system tunnel wherever there is one, and the in-process tunnel where
   /// there is not.
@@ -69,17 +117,40 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     // The system scheme can change while the app is open, and the palette is
     // resolved from it.
     WidgetsBinding.instance.addObserver(this);
-    _loadThemeMode();
+    unawaited(_loadServers());
   }
 
-  Future<void> _loadThemeMode() async {
-    final mode = await SettingsStore.themeMode();
-    if (mounted) setState(() => _themeMode = mode);
+  Future<void> _loadServers() async {
+    // Cached nodes make Home useful immediately, including while offline.
+    await _servers.load();
+    try {
+      await SubscriptionFetcher.refreshDue();
+      await _servers.load();
+    } on Object catch (error) {
+      Diagnostics.record('subscription startup refresh failed', error: error);
+    }
+  }
+
+  Future<void> _completeOnboarding() async {
+    // The gateway has stored the freshly fetched subscription. Reload before
+    // exposing Home so its first frame already contains the real node list.
+    await _servers.load();
+    await setAccessGranted(true);
   }
 
   Future<void> setThemeMode(CaeloThemeMode mode) async {
     setState(() => _themeMode = mode);
     await SettingsStore.setThemeMode(mode);
+  }
+
+  Future<void> setLocaleMode(CaeloLocaleMode mode) async {
+    setState(() => _localeMode = mode);
+    await SettingsStore.setLocaleMode(mode);
+  }
+
+  Future<void> setAccessGranted(bool granted) async {
+    setState(() => _accessGranted = granted);
+    await SettingsStore.setAccessGranted(granted);
   }
 
   @override
@@ -89,6 +160,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
+    _servers.dispose();
     super.dispose();
   }
 
@@ -102,25 +174,82 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     return ThemeModeScope(
       mode: _themeMode,
       onChanged: setThemeMode,
-      child: CaeloColors(
-        palette: palette,
-        child: TunnelScope(
-          notifier: _controller,
-          child: CupertinoApp(
-            onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
-            theme: CaeloTheme.data(palette),
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalCupertinoLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const HomeScreen(),
+      child: LocaleModeScope(
+        mode: _localeMode,
+        onChanged: setLocaleMode,
+        child: ServerSelectionScope(
+          controller: _servers,
+          child: AccessScope(
+            accessGranted: _accessGranted,
+            onChanged: setAccessGranted,
+            child: CaeloColors(
+              palette: palette,
+              child: TunnelScope(
+                notifier: _controller,
+                child: CupertinoApp(
+                  locale: _localeMode.locale,
+                  onGenerateTitle: (context) =>
+                      AppLocalizations.of(context).appTitle,
+                  theme: CaeloTheme.data(palette),
+                  localizationsDelegates: const [
+                    AppLocalizations.delegate,
+                    GlobalCupertinoLocalizations.delegate,
+                    GlobalWidgetsLocalizations.delegate,
+                  ],
+                  supportedLocales: AppLocalizations.supportedLocales,
+                  home: _accessGranted
+                      ? const HomeScreen()
+                      : WelcomeScreen(
+                          gateway: widget.accountGateway,
+                          onGranted: _completeOnboarding,
+                        ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+class AccessScope extends InheritedWidget {
+  const AccessScope({
+    required this.accessGranted,
+    required this.onChanged,
+    required super.child,
+    super.key,
+  });
+
+  final bool accessGranted;
+  final Future<void> Function(bool) onChanged;
+
+  static AccessScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AccessScope>();
+
+  @override
+  bool updateShouldNotify(AccessScope oldWidget) =>
+      accessGranted != oldWidget.accessGranted;
+}
+
+/// The saved locale preference. Null locale in [CaeloLocaleMode.system] lets
+/// Flutter resolve the operating system locale in the ordinary way.
+class LocaleModeScope extends InheritedWidget {
+  const LocaleModeScope({
+    required this.mode,
+    required this.onChanged,
+    required super.child,
+    super.key,
+  });
+
+  final CaeloLocaleMode mode;
+  final Future<void> Function(CaeloLocaleMode) onChanged;
+
+  static LocaleModeScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<LocaleModeScope>();
+
+  @override
+  bool updateShouldNotify(LocaleModeScope oldWidget) => mode != oldWidget.mode;
 }
 
 /// Lets the settings screen read and change the scheme without being handed a

@@ -4,6 +4,21 @@
   "@appTitle": {
     "description": "The application name. Not translated."
   },
+  "welcome": "Welcome",
+  "welcomeExplanation": "Paste an invitation link to connect your account and receive its servers and configurations.",
+  "invitationPlaceholder": "https://…",
+  "invitationEmpty": "Paste an invitation link",
+  "invitationInvalid": "Check the invitation link",
+  "invitationUnavailable": "Could not check the invitation right now",
+  "continueAction": "Continue",
+  "cancel": "Cancel",
+  "qrLogin": "Sign in with QR",
+  "qrUnavailableExplanation": "QR sign-in is not available yet. Use an invitation link.",
+  "importOwnConfiguration": "Import your own configuration file",
+  "configurationFileInvalid": "Choose a valid WireGuard .conf file",
+  "forgetAccount": "Disconnect account",
+  "selectedServer": "Current server",
+  "chooseServer": "Choose server",
   "statusDisconnected": "Not connected",
   "@statusDisconnected": {
     "description": "Main screen status, tunnel is down and idle."
@@ -56,6 +71,20 @@
       }
     }
   },
+  "currentConnection": "Current connection",
+  "@currentConnection": {
+    "description": "Label above the real node reported by the core on Home."
+  },
+  "latency": "{ping} ms",
+  "@latency": {
+    "description": "Measured round-trip latency reported by the core.",
+    "placeholders": {
+      "ping": {
+        "type": "int",
+        "example": "42"
+      }
+    }
+  },
   "noSubscription": "No subscription yet",
   "@noSubscription": {
     "description": "Shown instead of a node name when nothing is configured."
@@ -69,6 +98,13 @@
     "description": "Shown under the status when no tunnel configuration has been added."
   },
   "configuration": "Configuration",
+  "configurationName": "Configuration name",
+  "configurationEmoji": "Flag or emoji",
+  "configurationDescription": "Server description",
+  "customServerDescription": "User configuration",
+  "configurationEmpty": "Paste a configuration",
+  "addConfiguration": "Add configuration",
+  "customConfiguration": "Custom config",
   "@configuration": {
     "description": "Settings row for the AmneziaWG .conf the app connects with."
   },
@@ -119,6 +155,14 @@
   "languageSystem": "System",
   "@languageSystem": {
     "description": "Language option that follows the operating system."
+  },
+  "languageRussian": "Russian",
+  "@languageRussian": {
+    "description": "Always use the Russian interface locale."
+  },
+  "languageEnglish": "English",
+  "@languageEnglish": {
+    "description": "Always use the English interface locale."
   },
   "about": "About",
   "@about": {
