@@ -13,8 +13,8 @@
 // after the given time whatever else happens, so a mistake costs you that long
 // and not your network.
 //
-// This is the hands-on path. The app drives the same code through
-// caelo-helper, and what ships is a NetworkExtension.
+// This is the hands-on path, and a development tool only. The app ships a
+// NetworkExtension, where the system owns the tunnel and nothing runs as root.
 package main
 
 import (

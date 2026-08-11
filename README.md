@@ -49,9 +49,9 @@ to open them.
 
 | Platform | Tunnel | Covers |
 | --- | --- | --- |
-| **macOS** | privileged helper; NetworkExtension to come | the whole machine |
+| **macOS** | NetworkExtension system extension | the whole machine |
 | **Android** | `VpnService` | the whole device |
-| **iOS** | in-process; packet tunnel extension to come | this process only |
+| **iOS** | NetworkExtension packet tunnel | the whole device |
 | **Linux** | — | interface only |
 | **Windows** | — | interface only |
 

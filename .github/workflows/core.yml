@@ -80,7 +80,7 @@ jobs:
       # Universal. A dylib built only for the host would fail to load on the
       # other architecture, and it would fail at the user rather than here.
       - name: Build the macOS library and commands
-        run: make macos probe tun helper
+        run: make macos probe tun
 
       - name: Build the iOS xcframework
         run: make ios

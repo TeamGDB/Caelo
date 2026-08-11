@@ -77,11 +77,6 @@ probe:
 tun:
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-tun ./cmd/caelo-tun
 
-# The privileged half. Installed with deploy/macos/install-helper.sh.
-.PHONY: helper
-helper:
-	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-helper ./cmd/caelo-helper
-
 .PHONY: test
 test:
 	go test ./...

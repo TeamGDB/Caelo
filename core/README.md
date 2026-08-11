@@ -107,46 +107,9 @@ What it changes, and puts back on exit — including on Ctrl-C and SIGTERM:
 If restoring fails it says so loudly and names what did not come back, because someone
 whose network is broken needs to know what to undo by hand.
 
-This is the hands-on path. For the app to do the same thing from its button, see the
-helper below. What ships is a NetworkExtension — a user-facing application has no business
-asking anyone to type `sudo`.
-
-## caelo-helper
-
-The privileged half, so the app's button can route the whole machine without the app
-itself ever running as root.
-
-```bash
-make helper
-sudo ./deploy/macos/install-helper.sh install
-```
-
-It installs as a launchd daemon and listens on `/var/run/caelo-helper.sock`. Remove it
-with `sudo ./deploy/macos/install-helper.sh uninstall`; routing is restored as it stops.
-
-The helper runs as root, so what matters is what it refuses:
-
-- **One user.** The uid allowed to talk to it is fixed at install time — whoever ran the
-  installer. It refuses to start at all without one, because defaulting to "anyone" would
-  hand root to every process on the machine and would work, so nobody would notice.
-- **Asked, not told.** The peer's uid comes from the kernel via `LOCAL_PEERCRED`, not from
-  anything the caller sends, so a caller cannot claim to be someone else. The socket is
-  also `0600` and owned by that user: permissions stop the connection being made, the
-  credential check stops it being served.
-- **Configuration by value, not by path.** `connect` carries the `.conf` over the socket.
-  Handing a root process a filename would turn `connect` into "read any file on this
-  machine".
-- **Four commands.** `connect`, `disconnect`, `status`, `version`. Anything else is refused
-  without a hint as to what would have worked.
-- **Root-owned binary**, mode `544`. A helper its own user could overwrite would be a way
-  to *become* root rather than a way to avoid asking for it.
-
-The tunnel belongs to the helper, not to the app. Quitting Caelo does not drop it, and a
-crash does not leave the machine routed through an interface nobody is holding open. The
-app asks on launch what is already up rather than assuming.
-
-None of this makes a resident root daemon free. It is the reason the NetworkExtension is
-the destination and this is the way station.
+This is the hands-on path, and the only one: what ships is a NetworkExtension, where the
+system owns the tunnel and no part of Caelo runs as root at all. A user-facing application
+has no business asking anyone to type `sudo`.
 
 ## Building and testing
 

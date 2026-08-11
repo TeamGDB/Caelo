@@ -4,8 +4,8 @@
 //
 // Unlike the in-process tunnel in package tunnel, this creates a real utun
 // interface and takes over routing, so every application goes through it. That
-// needs root, which is why the only things that use it are a command run under
-// sudo and a launchd helper.
+// needs root, which is why the only thing that uses it is caelo-tun, run under
+// sudo by hand. Nothing shipped to anyone goes through here.
 package systunnel
 
 import (

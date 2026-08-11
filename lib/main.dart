@@ -6,10 +6,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/android_tunnel_client.dart';
 import 'core/core_tunnel_client.dart';
 import 'core/diagnostics.dart';
-import 'core/helper_client.dart';
 import 'core/apple_tunnel_client.dart';
 import 'core/settings_store.dart';
-import 'core/system_tunnel_client.dart';
 import 'core/tunnel.dart';
 import 'core/tunnel_controller.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -42,20 +40,13 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
 
   CaeloThemeMode _themeMode = CaeloThemeMode.system;
 
-  /// Prefers the privileged helper, which routes the whole machine, and falls
-  /// back to the in-process tunnel when it is not installed.
-  ///
-  /// Chosen once at launch rather than per connection. A button whose meaning
-  /// changes underneath someone — this process now, the whole machine in a
-  /// minute — is worse than one that is consistently the lesser thing and says
-  /// so.
-  ///
-  /// On Android and iOS the system owns the tunnel, so there is nothing to
-  /// choose: the platform path is the only one that can work.
+  /// On every platform with a system tunnel — Android, iOS, macOS — that is
+  /// the only path, because it is the only one that can route the machine
+  /// rather than this process. The in-process tunnel is what Linux and Windows
+  /// have until they grow one.
   static TunnelClient _pickClient() {
     if (Platform.isAndroid) return AndroidTunnelClient();
     if (AppleTunnelClient.isSupported) return AppleTunnelClient();
-    if (Platform.isMacOS && HelperClient.isRunning) return SystemTunnelClient();
     return CoreTunnelClient();
   }
 
