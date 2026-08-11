@@ -19,6 +19,12 @@ is built from Flutter primitives and the semantic tokens in
 - **Product logic does not enter the design layer.** The shared widgets render
   state and forward intent; node selection and connection decisions remain in
   the Go core.
+- **The initial language follows the operating system.** Settings offers
+  explicit Russian and English choices, applies them without restarting the
+  application and stores the choice in the existing local settings file.
+- **Settings stays in the upper-right safe area.** Mobile system insets are
+  respected by `SafeArea`; macOS additionally reserves room for Caelo's
+  transparent title bar. No platform-specific screen variant is introduced.
 
 ## Shared primitives
 
