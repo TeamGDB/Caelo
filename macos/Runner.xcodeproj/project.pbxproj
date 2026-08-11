@@ -33,6 +33,7 @@
 		92B67171749E6D866380A26B /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EA1AAC1988F8601B5C49CB99 /* Pods_Runner.framework */; };
 		A62133565EB9B0C4B8C73CF9 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20A5F092F9CBB1C3354855 /* PacketTunnelProvider.swift */; };
 		BACC21B2716218B94AEAE2E6 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0E9051829834B9F3CC730D9E /* Cocoa.framework */; };
+		BD5EDAC351840E91349B420B /* VpnManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9DADFA27AFA2DA4CF02BB74 /* VpnManager.swift */; };
 		EBF5E6484CEC0B4423499903 /* TunnelLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1893CDAF92124C652EC65B0B /* TunnelLog.swift */; };
 /* End PBXBuildFile section */
 
@@ -117,6 +118,7 @@
 		80612124908753B213A8F163 /* CaeloSystemExtension.systemextension */ = {isa = PBXFileReference; explicitFileType = "wrapper.system-extension"; includeInIndex = 0; name = CaeloSystemExtension.systemextension; path = CaeloSystemExtension.systemextension; sourceTree = BUILT_PRODUCTS_DIR; };
 		82A38A2EE6BEAEA32FA5D89E /* Pods-Runner.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.debug.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		E9DADFA27AFA2DA4CF02BB74 /* VpnManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VpnManager.swift; path = ../platform/apple/VpnManager.swift; sourceTree = "<group>"; };
 		EA1AAC1988F8601B5C49CB99 /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		FE3CBC69C9B29434C558F84F /* Pods-Runner.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.release.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -154,6 +156,7 @@
 			children = (
 				1D20A5F092F9CBB1C3354855 /* PacketTunnelProvider.swift */,
 				1893CDAF92124C652EC65B0B /* TunnelLog.swift */,
+				E9DADFA27AFA2DA4CF02BB74 /* VpnManager.swift */,
 			);
 			name = Shared;
 			sourceTree = SOURCE_ROOT;
@@ -539,6 +542,7 @@
 				33CC11132044BFA00003C045 /* MainFlutterWindow.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
+				BD5EDAC351840E91349B420B /* VpnManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

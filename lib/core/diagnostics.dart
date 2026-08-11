@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'app_storage.dart';
 import 'ffi/core_library.dart';
-import 'ios_tunnel_client.dart';
+import 'apple_tunnel_client.dart';
 import 'settings_store.dart';
 
 /// What the app has been doing, for when a tunnel will not come up and the
@@ -163,10 +163,12 @@ abstract final class Diagnostics {
       core.add('core  <not loaded>');
     }
 
-    // On iOS the core the app can reach is not the one running the tunnel:
-    // that one lives in the extension, in another process, and everything
-    // worth reading happens there. Fetched separately and folded in.
-    if (Platform.isIOS) core.addAll(_extensionLines.map((l) => 'tun   $l'));
+    // On Apple platforms the core the app can reach is not the one running
+    // the tunnel: that one lives in the extension, in another process, and
+    // everything worth reading happens there. Fetched separately, folded in.
+    if (AppleTunnelClient.isSupported) {
+      core.addAll(_extensionLines.map((l) => 'tun   $l'));
+    }
 
     return [..._lines.map((line) => 'app   $line'), ...core]
       ..sort(_byTimestamp);
@@ -185,11 +187,11 @@ abstract final class Diagnostics {
 
   static List<String> _extensionLines = const [];
 
-  /// Pulls the tunnel's own log across the process boundary. iOS only; on every
-  /// other platform the core in this process is the one that ran the tunnel.
+  /// Pulls the tunnel's own log across the process boundary. Apple only; on
+  /// every other platform the core in this process is the one that ran it.
   static Future<void> refreshFromExtension() async {
-    if (!Platform.isIOS) return;
-    _extensionLines = await IosTunnelClient.extensionLog();
+    if (!AppleTunnelClient.isSupported) return;
+    _extensionLines = await AppleTunnelClient.extensionLog();
     _changes.add(null);
   }
 

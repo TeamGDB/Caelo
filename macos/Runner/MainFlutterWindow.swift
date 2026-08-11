@@ -2,6 +2,8 @@ import Cocoa
 import FlutterMacOS
 
 class MainFlutterWindow: NSWindow {
+  private var vpn: VpnManager?
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
@@ -42,6 +44,10 @@ class MainFlutterWindow: NSWindow {
     self.apply(brightness: "dark")
 
     RegisterGeneratedPlugins(registry: flutterViewController)
+
+    // Held for the window's lifetime: it owns the channel and observes VPN
+    // status changes, and a manager that is collected stops reporting them.
+    vpn = VpnManager(messenger: flutterViewController.engine.binaryMessenger)
 
     super.awakeFromNib()
   }

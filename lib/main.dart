@@ -7,7 +7,7 @@ import 'core/android_tunnel_client.dart';
 import 'core/core_tunnel_client.dart';
 import 'core/diagnostics.dart';
 import 'core/helper_client.dart';
-import 'core/ios_tunnel_client.dart';
+import 'core/apple_tunnel_client.dart';
 import 'core/settings_store.dart';
 import 'core/system_tunnel_client.dart';
 import 'core/tunnel.dart';
@@ -54,7 +54,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   /// choose: the platform path is the only one that can work.
   static TunnelClient _pickClient() {
     if (Platform.isAndroid) return AndroidTunnelClient();
-    if (Platform.isIOS) return IosTunnelClient();
+    if (AppleTunnelClient.isSupported) return AppleTunnelClient();
     if (Platform.isMacOS && HelperClient.isRunning) return SystemTunnelClient();
     return CoreTunnelClient();
   }

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 
 import 'config_store.dart';
@@ -8,18 +10,20 @@ import 'tunnel.dart';
 
 /// A [TunnelClient] that asks the system to run the tunnel.
 ///
-/// On iOS the app never touches a tunnel. It describes one, asks the system to
+/// On both Apple platforms the app never touches a tunnel. It describes one, asks the system to
 /// start it, and is told what happened; the tunnel itself runs in
 /// CaeloPacketTunnel, in another process. So unlike every other platform, this
 /// client does not drive the core at all — the extension does, and this asks
-/// the extension.
+/// the extension. macOS installs that extension the first time someone
+/// connects, and the system asks the user to approve it; iOS ships it inside
+/// the app. Everything after that is the same.
 ///
 /// The consequence worth knowing: the tunnel outlives the app completely. It
 /// keeps running with the app closed, and the system may stop it without the
 /// app being involved, which is why status arrives as a notification rather
 /// than as the result of anything requested here.
-class IosTunnelClient implements TunnelClient {
-  IosTunnelClient() {
+class AppleTunnelClient implements TunnelClient {
+  AppleTunnelClient() {
     _channel.setMethodCallHandler(_onPlatformCall);
     unawaited(_adoptExistingTunnel());
   }
@@ -126,6 +130,9 @@ class IosTunnelClient implements TunnelClient {
     await disconnect();
     await connect();
   }
+
+  /// Whether this platform's tunnel is run by the system rather than by us.
+  static bool get isSupported => Platform.isIOS || Platform.isMacOS;
 
   /// The tunnel's own log, fetched from the process that has it.
   ///

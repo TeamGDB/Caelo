@@ -1,10 +1,16 @@
-import Flutter
 import Foundation
 import NetworkExtension
 
+#if os(macOS)
+import FlutterMacOS
+import SystemExtensions
+#else
+import Flutter
+#endif
+
 /// Drives the tunnel from the app's side.
 ///
-/// On iOS the app never touches the tunnel itself. It describes one to the
+/// The app never touches the tunnel itself on either Apple platform. It describes one to the
 /// system, asks the system to start it, and is told what happened. The tunnel
 /// runs in CaeloPacketTunnel, in another process, and the two share no memory —
 /// so anything the interface wants to show has to be asked for across that
@@ -20,6 +26,10 @@ final class VpnManager {
 
     private let channel: FlutterMethodChannel
     private var manager: NETunnelProviderManager?
+
+    #if os(macOS)
+    private let installer = SystemExtensionInstaller()
+    #endif
 
     init(messenger: FlutterBinaryMessenger) {
         channel = FlutterMethodChannel(name: Self.channelName, binaryMessenger: messenger)
@@ -52,7 +62,26 @@ final class VpnManager {
                 result(FlutterError(code: "connect", message: "no configuration", details: nil))
                 return
             }
+            #if os(macOS)
+            // The extension has to be installed before there is anything to
+            // describe a tunnel to. On iOS it ships inside the app and is
+            // simply there; here the system installs it, and asks the user
+            // first. Doing this on every connect is deliberate: it returns
+            // immediately when the extension is already installed, and it is
+            // the only moment we know the user wants the tunnel enough to be
+            // interrupted for.
+            installer.activate { installed in
+                guard installed else {
+                    result(FlutterError(code: "extension",
+                                        message: "the tunnel extension was not approved",
+                                        details: nil))
+                    return
+                }
+                self.connect(config, result)
+            }
+            #else
             connect(config, result)
+            #endif
 
         case "disconnect":
             load { manager in
@@ -199,3 +228,65 @@ final class VpnManager {
             .map { $0.trimmingCharacters(in: .whitespaces) }
     }
 }
+
+#if os(macOS)
+
+/// Asks the system to install the tunnel extension.
+///
+/// macOS does not run an extension because it is inside an app bundle. It has
+/// to be handed to the system, which puts it somewhere of its own choosing and
+/// asks the user to approve it in System Settings — and will refuse outright
+/// unless the app is in /Applications and the extension is notarised.
+final class SystemExtensionInstaller: NSObject, OSSystemExtensionRequestDelegate {
+
+    private static let identifier = "team.gdb.caelo.SystemExtension"
+
+    private var pending: ((Bool) -> Void)?
+
+    func activate(_ done: @escaping (Bool) -> Void) {
+        pending = done
+
+        let request = OSSystemExtensionRequest.activationRequest(
+            forExtensionWithIdentifier: Self.identifier,
+            queue: .main
+        )
+        request.delegate = self
+        OSSystemExtensionManager.shared.submitRequest(request)
+    }
+
+    private func finish(_ installed: Bool) {
+        let done = pending
+        pending = nil
+        DispatchQueue.main.async { done?(installed) }
+    }
+
+    // MARK: - OSSystemExtensionRequestDelegate
+
+    func request(_ request: OSSystemExtensionRequest,
+                 actionForReplacingExtension existing: OSSystemExtensionProperties,
+                 withExtension replacement: OSSystemExtensionProperties) -> OSSystemExtensionRequest.ReplacementAction {
+        // Always replace. The one in the bundle is the one this build was
+        // tested with, and leaving an older extension running against a newer
+        // app is how two versions of the same tunnel end up disagreeing.
+        .replace
+    }
+
+    func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
+        // The user is now looking at System Settings. Nothing to do but wait:
+        // the result arrives through one of the two methods below.
+    }
+
+    func request(_ request: OSSystemExtensionRequest,
+                 didFinishWithResult result: OSSystemExtensionRequest.Result) {
+        // willCompleteAfterReboot is not success. Reporting it as such would
+        // have the app try to start a tunnel that cannot exist until a restart.
+        finish(result == .completed)
+    }
+
+    func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
+        NSLog("Caelo: the system refused to install the extension: \(error)")
+        finish(false)
+    }
+}
+
+#endif
