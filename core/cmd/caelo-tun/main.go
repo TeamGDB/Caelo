@@ -1,9 +1,9 @@
-//go:build darwin
+//go:build darwin || linux
 
 // Command caelo-tun routes the whole machine through an AmneziaWG tunnel.
 //
 // Unlike caelo-probe, which keeps its tunnel inside its own process, this
-// creates a real utun interface and takes over the default route, so every
+// creates a real interface and takes over the default route, so every
 // application's traffic goes through it. That needs root.
 //
 //	sudo caelo-tun -config tunnel.conf

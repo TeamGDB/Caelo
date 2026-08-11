@@ -1,11 +1,11 @@
-//go:build darwin
+//go:build darwin || linux
 
 // Package systunnel owns a tunnel that carries the whole machine's traffic.
 //
-// Unlike the in-process tunnel in package tunnel, this creates a real utun
-// interface and takes over routing, so every application goes through it. That
-// needs root, which is why the only thing that uses it is caelo-tun, run under
-// sudo by hand. Nothing shipped to anyone goes through here.
+// Unlike the in-process tunnel in package tunnel, this creates a real interface
+// and takes over routing, so every application goes through it. That needs
+// root, which is why the callers are caelo-tun, run under sudo by hand, and the
+// privileged service the desktop app talks to.
 package systunnel
 
 import (
@@ -81,14 +81,16 @@ func (c *Controller) Start(configText string) (*Status, error) {
 		return nil, err
 	}
 
-	tunDevice, err := tun.CreateTUN("utun", cfg.MTU)
+	tunDevice, err := tun.CreateTUN(deviceName, cfg.MTU)
 	if err != nil {
-		return nil, fmt.Errorf("creating a utun interface: %w", err)
+		return nil, fmt.Errorf("creating the tunnel interface: %w", err)
 	}
+	// Asked rather than assumed: on macOS the name above is a prefix and the
+	// kernel picks the number.
 	name, err := tunDevice.Name()
 	if err != nil {
 		tunDevice.Close()
-		return nil, fmt.Errorf("naming the utun interface: %w", err)
+		return nil, fmt.Errorf("naming the tunnel interface: %w", err)
 	}
 
 	dev := device.NewDevice(tunDevice, conn.NewDefaultBind(), diag.DeviceLogger())
