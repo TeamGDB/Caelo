@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'service_pipe.dart';
+
 /// Raised when the privileged service is not installed, or could not be
 /// reached.
 class ServiceUnavailable implements Exception {
@@ -41,22 +43,52 @@ abstract final class ServiceClient {
 
   /// Whether this machine has the service installed.
   ///
-  /// Deliberately not "is it running". Under socket activation the answer to
-  /// that is almost always no, and it does not matter: the socket is there, and
-  /// opening it brings the service into existence. A `File.exists` would not
-  /// do — this is a socket, not a file.
-  static bool get isInstalled =>
-      Platform.isLinux &&
-      FileSystemEntity.typeSync(socketPath) != FileSystemEntityType.notFound;
+  /// Deliberately not "is it running". Both platforms start it on demand — the
+  /// socket on Linux, a named-pipe trigger on Windows — so the answer to "is it
+  /// running" is almost always no and never useful. What is asked instead is
+  /// whether the thing that starts it is present.
+  static bool get isInstalled {
+    if (Platform.isWindows) return ServicePipe.isInstalled;
+    if (!Platform.isLinux) return false;
+    // A socket, not a file, so File.exists would not do.
+    return FileSystemEntity.typeSync(socketPath) !=
+        FileSystemEntityType.notFound;
+  }
 
   static Future<Map<String, dynamic>> _send(
     Map<String, dynamic> request, {
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    if (!Platform.isLinux) {
-      throw const ServiceUnavailable('no service transport on this platform');
-    }
+    if (Platform.isWindows) return _decode(await _overPipe(request, timeout));
+    if (Platform.isLinux) return _decode(await _overSocket(request, timeout));
+    throw const ServiceUnavailable('no service transport on this platform');
+  }
 
+  static Map<String, dynamic> _decode(String line) {
+    final response = jsonDecode(line) as Map<String, dynamic>;
+    if (response['ok'] != true) {
+      throw ServiceRefused(
+        response['error'] as String? ?? 'the service did not say why',
+      );
+    }
+    return response;
+  }
+
+  static Future<String> _overPipe(
+    Map<String, dynamic> request,
+    Duration timeout,
+  ) async {
+    try {
+      return await ServicePipe.exchange(jsonEncode(request), timeout);
+    } on ServicePipeUnavailable catch (error) {
+      throw ServiceUnavailable(error);
+    }
+  }
+
+  static Future<String> _overSocket(
+    Map<String, dynamic> request,
+    Duration timeout,
+  ) async {
     Socket socket;
     try {
       socket = await Socket.connect(
@@ -73,20 +105,12 @@ abstract final class ServiceClient {
 
       // One line, then the service closes. A reply that never arrives is the
       // same problem as a service that is not there, and is reported as one.
-      final line = await socket
+      return await socket
           .cast<List<int>>()
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .first
           .timeout(timeout);
-
-      final response = jsonDecode(line) as Map<String, dynamic>;
-      if (response['ok'] != true) {
-        throw ServiceRefused(
-          response['error'] as String? ?? 'the service did not say why',
-        );
-      }
-      return response;
     } on TimeoutException catch (error) {
       throw ServiceUnavailable(error);
     } finally {

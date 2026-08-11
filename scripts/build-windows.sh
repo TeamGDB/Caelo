@@ -26,6 +26,13 @@ CGO_ENABLED=1 go build -buildmode=c-shared \
   -ldflags "-X github.com/TeamGDB/Caelo/core/internal/version.Version=$VERSION" \
   -o build/caelo.dll ./libcaelo
 
+# The privileged half. A separate executable because it runs as LocalSystem,
+# and built here so that a failure stops the build rather than quietly
+# producing an installer that routes only the application.
+echo "==> Building the service"
+go build -ldflags "-X github.com/TeamGDB/Caelo/core/internal/version.Version=$VERSION" \
+  -o build/caelo-service.exe ./cmd/caelo-service
+
 echo "==> Building the app ($MODE)"
 cd "$APP_ROOT"
 flutter build windows "--$MODE"
