@@ -118,4 +118,50 @@ json.dump(document["endpoints"][int(sys.argv[2])], open(sys.argv[3], "w"))
   (cd "$ROOT/core" && go run ./cmd/caelo-probe -check -config "$WORK/endpoint.json") | sed 's/^/    /'
 done
 
+# The app has a reader of its own, and it reads a different thing: the list,
+# its order and the names, never what is inside an endpoint. Both halves of the
+# client are checked here because a document the core can dial through is no
+# use if the app cannot find it in the list.
+if command -v dart >/dev/null; then
+  echo "==> and the app's reader"
+  cat > "$WORK/read.dart" <<'DART'
+import 'dart:convert';
+import 'dart:io';
+
+import 'subscription.dart';
+
+Future<void> main(List<String> arguments) async {
+  final client = HttpClient();
+  final request = await client.getUrl(Uri.parse(arguments.first));
+  final response = await request.close();
+  final body = await response.transform(utf8.decoder).join();
+
+  final usage = SubscriptionUsage.parse(
+    response.headers.value('subscription-userinfo'),
+  );
+  final interval = response.headers.value('profile-update-interval');
+  final nodes = readNodes(body);
+
+  stdout.writeln('nodes    ${nodes.map((n) => "${n.position}:${n.tag}").join(", ")}');
+  stdout.writeln('used     ${usage.usedBytes} of ${usage.totalBytes}');
+  stdout.writeln('left     ${usage.remainingBytes}');
+  stdout.writeln('expires  ${usage.expires}');
+  stdout.writeln('interval ${interval}h');
+
+  // The endpoint has to survive the app untouched: it is what reaches the core,
+  // and eventually a process running as root.
+  final carried = jsonDecode(nodes.first.endpoint) as Map<String, dynamic>;
+  if (carried['private_key'] == null) {
+    stderr.writeln('the app lost a field it was carrying');
+    exit(1);
+  }
+  client.close();
+}
+DART
+  cp "$ROOT/lib/core/subscription.dart" "$WORK/subscription.dart"
+  dart run "$WORK/read.dart" "http://127.0.0.1:$PORT/sub/$TOKEN" | sed 's/^/    /'
+else
+  echo "!! no dart on PATH; skipped the app's half" >&2
+fi
+
 echo "==> the client understood everything the server served"
