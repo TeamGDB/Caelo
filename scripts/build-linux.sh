@@ -18,6 +18,13 @@ fi
 echo "==> Building the core"
 make -C "$CORE_ROOT" linux
 
+# The privileged half. Built here rather than by the packaging script so that
+# a plain `build-linux.sh` produces everything an installable package needs,
+# and so a failure to build it stops the build rather than quietly producing
+# packages that route only the application.
+echo "==> Building the service"
+make -C "$CORE_ROOT" service
+
 echo "==> Building the app ($MODE)"
 cd "$APP_ROOT"
 flutter build linux "--$MODE"

@@ -15,6 +15,12 @@ VERSION="${2:?}"
 BUNDLE="${3:-build/linux/${ARCH}/release/bundle}"
 OUT="${4:-dist}"
 
+# The privileged service, if it has been built. Only the installable formats
+# can carry it: it has to be somewhere root owns, with a systemd unit beside
+# it, and neither a tarball nor an AppImage can put a file there. Those two
+# give the in-process tunnel, and the application says so on its own screen.
+SERVICE="${CAELO_SERVICE:-core/build/caelo-service}"
+
 APP=caelo
 NAME=Caelo
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -31,7 +37,6 @@ mkdir -p "$OUT"
 # The tree every format is built from: the bundle under /opt, a launcher on
 # PATH, and a desktop entry so it appears in menus like anything else.
 STAGE="$(mktemp -d)"
-trap 'rm -rf "$STAGE"' EXIT
 
 install -d "$STAGE/opt/$APP" "$STAGE/usr/bin" "$STAGE/usr/share/applications" \
            "$STAGE/usr/share/icons/hicolor/512x512/apps"
@@ -53,6 +58,25 @@ if [[ -f "$ROOT/packaging/linux/$APP.png" ]]; then
   cp "$ROOT/packaging/linux/$APP.png" "$STAGE/usr/share/icons/hicolor/512x512/apps/$APP.png"
 fi
 
+trap 'rm -rf "$STAGE"' EXIT
+
+# The privileged half goes into the same tree, outside /opt. The tarball is
+# made from the bundle and the AppImage copies only /opt/caelo out of here, so
+# neither picks these up — which is correct rather than unfortunate: an
+# unpacked archive cannot install a systemd unit, and a service left in one
+# would be a file nobody ever runs.
+have_service=no
+if [[ -f "$SERVICE" ]]; then
+  install -D -m 0755 "$SERVICE" "$STAGE/usr/lib/$APP/$APP-service"
+  install -D -m 0644 "$ROOT/packaging/linux/systemd/$APP.socket" \
+    "$STAGE/lib/systemd/system/$APP.socket"
+  install -D -m 0644 "$ROOT/packaging/linux/systemd/$APP.service" \
+    "$STAGE/lib/systemd/system/$APP.service"
+  have_service=yes
+else
+  echo "!! no service at $SERVICE; the packages will route only the app itself" >&2
+fi
+
 echo "==> tarball"
 tar -C "$BUNDLE" -czf "$OUT/$NAME-$VERSION-linux-$ARCH.tar.gz" .
 
@@ -64,6 +88,15 @@ if command -v fpm >/dev/null; then
     --description "A VPN client for subscription links"
     --url https://github.com/TeamGDB/Caelo
     --maintainer "TeamGDB" --vendor "TeamGDB")
+
+  if [[ "$have_service" == yes ]]; then
+    # The scripts create the caelo group, put the installing user in it and arm
+    # the socket. Without them the package would install a service nobody is
+    # allowed to talk to.
+    common+=(--after-install "$ROOT/packaging/linux/postinst.sh"
+             --before-remove "$ROOT/packaging/linux/prerm.sh"
+             --after-remove "$ROOT/packaging/linux/postrm.sh")
+  fi
 
   echo "==> deb"
   fpm "${common[@]}" -t deb -a "$DEB_ARCH" \

@@ -52,7 +52,7 @@ to open them.
 | **macOS** | NetworkExtension system extension | the whole machine |
 | **Android** | `VpnService` | the whole device |
 | **iOS** | NetworkExtension packet tunnel | the whole device |
-| **Linux** | — | interface only |
+| **Linux** | privileged service from the deb or rpm; in-process otherwise | the whole machine, or this process |
 | **Windows** | — | interface only |
 
 ## Architecture

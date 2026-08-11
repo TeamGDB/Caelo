@@ -53,6 +53,9 @@ use would only record an intention that nothing verifies.
 | `internal/tunnel` | A tunnel that stays up, for the app to drive |
 | `internal/probe` | One tunnel on a userspace stack, one request through it, nothing on the host |
 | `internal/system` | Taking over the machine's routing and DNS, and putting them back |
+| `internal/systunnel` | A tunnel that carries the whole machine, for whoever holds the privilege |
+| `internal/ipc` | The four commands the app may ask the privileged service for |
+| `cmd/caelo-service` | The privileged half on Linux. Started by its socket, gone when idle |
 | `cmd/caelo-probe` | Brings up one tunnel and makes one request through it |
 | `cmd/caelo-tun` | Routes the whole machine through a tunnel. Needs root |
 | `libcaelo` | The core as a C shared library, for the desktop apps |
