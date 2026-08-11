@@ -84,7 +84,9 @@ void main() {
     expect(granted, isTrue);
   });
 
-  testWidgets('labels QR as a temporary local demo', (tester) async {
+  testWidgets('uses the account gateway for QR when it becomes available', (
+    tester,
+  ) async {
     final gateway = _Gateway();
     var granted = false;
     await _pumpWelcome(
@@ -95,14 +97,24 @@ void main() {
 
     await tester.tap(find.text('Sign in with QR'));
     await tester.pumpAndSettle();
-    expect(
-      find.textContaining('camera and account backend are not connected'),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.text('Continue').last);
-    await tester.pumpAndSettle();
     expect(gateway.qrCalls, 1);
     expect(granted, isTrue);
+  });
+
+  testWidgets('does not create a demo account when QR is unavailable', (
+    tester,
+  ) async {
+    var granted = false;
+    await _pumpWelcome(
+      tester,
+      gateway: const SubscriptionAccountGateway(),
+      onGranted: () async => granted = true,
+    );
+
+    await tester.tap(find.text('Sign in with QR'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('QR sign-in is not available'), findsOneWidget);
+    expect(granted, isFalse);
   });
 }

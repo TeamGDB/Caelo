@@ -57,27 +57,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   Future<void> _signInWithQr() async {
     final l10n = AppLocalizations.of(context);
-    final proceed = await showCupertinoDialog<bool>(
-      context: context,
-      builder: (context) => CupertinoAlertDialog(
-        title: Text(l10n.qrLogin),
-        content: Text(l10n.qrMockExplanation),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.cancel),
-          ),
-          CupertinoDialogAction(
-            isDefaultAction: true,
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.continueAction),
-          ),
-        ],
-      ),
-    );
-    if (proceed != true) return;
-    await widget.gateway.signInWithQr();
-    await widget.onGranted();
+    try {
+      await widget.gateway.signInWithQr();
+      await widget.onGranted();
+    } on QrSignInUnavailable {
+      if (!mounted) return;
+      await showCupertinoDialog<void>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: Text(l10n.qrLogin),
+          content: Text(l10n.qrUnavailableExplanation),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.pop(context),
+              child: Text(l10n.done),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _importConfiguration() async {
@@ -206,13 +205,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         ),
                       ),
                       const SizedBox(height: CaeloSpace.lg),
-                      Text(
-                        l10n.mockBackendNotice,
-                        textAlign: TextAlign.center,
-                        style: CaeloTheme.caption(
-                          palette,
-                        ).copyWith(color: palette.dim),
-                      ),
                       CupertinoButton(
                         padding: const EdgeInsets.symmetric(
                           horizontal: CaeloSpace.sm,

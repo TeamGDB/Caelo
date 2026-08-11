@@ -13,14 +13,12 @@
   "continueAction": "Continue",
   "cancel": "Cancel",
   "qrLogin": "Sign in with QR",
-  "qrMockExplanation": "The camera and account backend are not connected yet. Continue with a temporary local demo session?",
-  "mockBackendNotice": "Temporary preview: invitation and QR verification are local until the backend is ready.",
+  "qrUnavailableExplanation": "QR sign-in is not available yet. Use an invitation link.",
   "importOwnConfiguration": "Import your own configuration file",
   "configurationFileInvalid": "Choose a valid WireGuard .conf file",
   "forgetAccount": "Disconnect account",
   "selectedServer": "Current server",
   "chooseServer": "Choose server",
-  "serverListMockNotice": "Preview servers until your account backend is connected",
   "statusDisconnected": "Not connected",
   "@statusDisconnected": {
     "description": "Main screen status, tunnel is down and idle."

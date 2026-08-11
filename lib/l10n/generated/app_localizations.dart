@@ -158,17 +158,11 @@ abstract class AppLocalizations {
   /// **'Sign in with QR'**
   String get qrLogin;
 
-  /// No description provided for @qrMockExplanation.
+  /// No description provided for @qrUnavailableExplanation.
   ///
   /// In en, this message translates to:
-  /// **'The camera and account backend are not connected yet. Continue with a temporary local demo session?'**
-  String get qrMockExplanation;
-
-  /// No description provided for @mockBackendNotice.
-  ///
-  /// In en, this message translates to:
-  /// **'Temporary preview: invitation and QR verification are local until the backend is ready.'**
-  String get mockBackendNotice;
+  /// **'QR sign-in is not available yet. Use an invitation link.'**
+  String get qrUnavailableExplanation;
 
   /// No description provided for @importOwnConfiguration.
   ///
@@ -199,12 +193,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose server'**
   String get chooseServer;
-
-  /// No description provided for @serverListMockNotice.
-  ///
-  /// In en, this message translates to:
-  /// **'Preview servers until your account backend is connected'**
-  String get serverListMockNotice;
 
   /// Main screen status, tunnel is down and idle.
   ///

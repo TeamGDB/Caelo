@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
@@ -12,6 +13,7 @@ import 'core/diagnostics.dart';
 import 'core/apple_tunnel_client.dart';
 import 'core/settings_store.dart';
 import 'core/server_catalog.dart';
+import 'core/subscription_fetcher.dart';
 import 'core/tunnel.dart';
 import 'core/tunnel_controller.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -64,7 +66,7 @@ class CaeloApp extends StatefulWidget {
     this.themeMode = CaeloThemeMode.system,
     this.localeMode = CaeloLocaleMode.system,
     this.accessGranted = false,
-    this.accountGateway = const MockAccountGateway(),
+    this.accountGateway = const SubscriptionAccountGateway(),
     super.key,
   });
 
@@ -115,7 +117,25 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     // The system scheme can change while the app is open, and the palette is
     // resolved from it.
     WidgetsBinding.instance.addObserver(this);
-    _servers.load();
+    unawaited(_loadServers());
+  }
+
+  Future<void> _loadServers() async {
+    // Cached nodes make Home useful immediately, including while offline.
+    await _servers.load();
+    try {
+      await SubscriptionFetcher.refreshDue();
+      await _servers.load();
+    } on Object catch (error) {
+      Diagnostics.record('subscription startup refresh failed', error: error);
+    }
+  }
+
+  Future<void> _completeOnboarding() async {
+    // The gateway has stored the freshly fetched subscription. Reload before
+    // exposing Home so its first frame already contains the real node list.
+    await _servers.load();
+    await setAccessGranted(true);
   }
 
   Future<void> setThemeMode(CaeloThemeMode mode) async {
@@ -181,7 +201,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
                       ? const HomeScreen()
                       : WelcomeScreen(
                           gateway: widget.accountGateway,
-                          onGranted: () => setAccessGranted(true),
+                          onGranted: _completeOnboarding,
                         ),
                 ),
               ),

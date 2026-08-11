@@ -40,12 +40,8 @@ class AppLocalizationsRu extends AppLocalizations {
   String get qrLogin => 'Войти по QR';
 
   @override
-  String get qrMockExplanation =>
-      'Камера и backend аккаунтов пока не подключены. Продолжить с временной локальной демо-сессией?';
-
-  @override
-  String get mockBackendNotice =>
-      'Временный режим: приглашения и QR проверяются локально до готовности backend.';
+  String get qrUnavailableExplanation =>
+      'Вход по QR пока недоступен. Используйте ссылку приглашения.';
 
   @override
   String get importOwnConfiguration => 'Добавить свой файл конфигурации';
@@ -62,10 +58,6 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get chooseServer => 'Выберите сервер';
-
-  @override
-  String get serverListMockNotice =>
-      'Тестовые серверы до подключения backend аккаунта';
 
   @override
   String get statusDisconnected => 'Отключено';

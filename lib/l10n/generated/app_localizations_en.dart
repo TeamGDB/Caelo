@@ -41,12 +41,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get qrLogin => 'Sign in with QR';
 
   @override
-  String get qrMockExplanation =>
-      'The camera and account backend are not connected yet. Continue with a temporary local demo session?';
-
-  @override
-  String get mockBackendNotice =>
-      'Temporary preview: invitation and QR verification are local until the backend is ready.';
+  String get qrUnavailableExplanation =>
+      'QR sign-in is not available yet. Use an invitation link.';
 
   @override
   String get importOwnConfiguration => 'Import your own configuration file';
@@ -62,10 +58,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chooseServer => 'Choose server';
-
-  @override
-  String get serverListMockNotice =>
-      'Preview servers until your account backend is connected';
 
   @override
   String get statusDisconnected => 'Not connected';
