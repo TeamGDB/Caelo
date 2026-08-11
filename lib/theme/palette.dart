@@ -1,51 +1,147 @@
 import 'package:flutter/widgets.dart';
 
-/// Caelo's colour tokens.
+/// Caelo's colour tokens, in both schemes.
 ///
-/// The palette is dark only, and deliberately so: the app is a single screen
-/// that is mostly black with one thing glowing on it. A light variant would
-/// dilute that without making anything easier to use.
+/// Surfaces are numbered by distance from the page rather than by darkness:
+/// [surface1] is what sits directly on the background, [surface2] is what sits
+/// on that. In the dark scheme the ramp climbs; in the light one it descends
+/// towards white. Naming it after the position rather than the value is what
+/// lets one set of widgets serve both.
 ///
-/// The neutrals are a near-black ramp rather than greys — surfaces separate by
-/// a few points of luminance, not by outlines. Only one hue carries meaning:
-/// [accent] means the tunnel is up. Nothing else in the interface is allowed
-/// to be that colour.
-abstract final class CaeloColors {
-  /// The page itself. Not a dark grey — actual black.
-  static const background = Color(0xFF000000);
+/// Only one hue carries meaning: [accent] means the tunnel is up. Nothing else
+/// in the interface is allowed to be that colour.
+@immutable
+class CaeloPalette {
+  const CaeloPalette({
+    required this.brightness,
+    required this.background,
+    required this.surface1,
+    required this.surface2,
+    required this.surface3,
+    required this.surface4,
+    required this.border,
+    required this.foreground,
+    required this.muted,
+    required this.dim,
+    required this.accent,
+    required this.accentSurface,
+    required this.accentBorder,
+    required this.danger,
+    required this.dangerSurface,
+    required this.dangerBorder,
+  });
 
-  /// Raised surfaces, darkest to lightest. Cards sit on [ink900]; a control
-  /// resting on a card sits on [ink800]; [ink500] is a hairline border, never
-  /// a fill.
-  static const ink900 = Color(0xFF0B0B0B);
-  static const ink850 = Color(0xFF0E0E0E);
-  static const ink800 = Color(0xFF141414);
-  static const ink700 = Color(0xFF1C1C1C);
-  static const ink600 = Color(0xFF242424);
-  static const ink500 = Color(0xFF2E2E2E);
+  final Brightness brightness;
+
+  /// The page itself.
+  final Color background;
+
+  /// Raised surfaces, nearest the page first. A card sits on [surface1]; a
+  /// control resting on that card sits on [surface2].
+  final Color surface1;
+  final Color surface2;
+  final Color surface3;
+  final Color surface4;
+
+  /// Hairlines. Never a fill.
+  final Color border;
 
   /// Primary text.
-  static const foreground = Color(0xFFFAFAFA);
+  final Color foreground;
 
   /// Secondary text — labels, captions, the line under the status.
-  static const muted = Color(0xFF7C7C7C);
+  final Color muted;
 
-  /// Tertiary text — present but not asking to be read.
-  static const dim = Color(0xFF5A5A5A);
+  /// Tertiary text — present, but not asking to be read.
+  final Color dim;
 
-  /// Connected. The only saturated colour in the app.
-  static const accent = Color(0xFF5DCAA5);
+  /// Connected.
+  final Color accent;
 
-  /// A wash of [accent] dark enough to carry [foreground] text.
-  static const accentSurface = Color(0xFF0F2018);
-
-  /// Border for surfaces filled with [accentSurface].
-  static const accentBorder = Color(0xFF1F4438);
+  /// A wash of [accent] quiet enough to carry [foreground] text.
+  final Color accentSurface;
+  final Color accentBorder;
 
   /// Failure. Used for the status line and nothing decorative.
-  static const danger = Color(0xFFE0605C);
-  static const dangerSurface = Color(0xFF200F0F);
-  static const dangerBorder = Color(0xFF4A2020);
+  final Color danger;
+  final Color dangerSurface;
+  final Color dangerBorder;
+
+  /// The dark scheme.
+  static const dark = CaeloPalette(
+    brightness: Brightness.dark,
+    background: Color(0xFF090B0E),
+    surface1: Color(0xFF13161B),
+    surface2: Color(0xFF1C2026),
+    surface3: Color(0xFF232830),
+    surface4: Color(0xFF2C323B),
+    border: Color(0xFF3D434D),
+    foreground: Color(0xFFF0F2F4),
+    muted: Color(0xFFAEB4BD),
+    dim: Color(0xFF6E757F),
+    accent: Color(0xFF54C69A),
+    accentSurface: Color(0xFF0E211B),
+    accentBorder: Color(0xFF235141),
+    danger: Color(0xFFFFB4AB),
+    dangerSurface: Color(0xFF2A1512),
+    dangerBorder: Color(0xFF5C2A24),
+  );
+
+  /// The light scheme.
+  ///
+  /// The page is tinted and the cards are near-white, which is the opposite of
+  /// the dark scheme's arrangement and deliberate: on a light background,
+  /// raising a surface means moving it towards white, not away from it.
+  static const light = CaeloPalette(
+    brightness: Brightness.light,
+    background: Color(0xFFD7E7E1),
+    surface1: Color(0xFFF7F8F6),
+    surface2: Color(0xFFE3EFEB),
+    surface3: Color(0xFFD2E0DB),
+    surface4: Color(0xFFC2D3CD),
+    border: Color(0xFFB3C7C1),
+    foreground: Color(0xFF0A3735),
+    muted: Color(0xFF496964),
+    dim: Color(0xFF6B8781),
+    accent: Color(0xFF2FA982),
+    accentSurface: Color(0xFFDCF0E7),
+    accentBorder: Color(0xFFA9D9C6),
+    danger: Color(0xFFB3261E),
+    dangerSurface: Color(0xFFF9DEDC),
+    dangerBorder: Color(0xFFE6B4B0),
+  );
+}
+
+/// Which scheme to use.
+enum CaeloThemeMode {
+  system,
+  light,
+  dark;
+
+  CaeloPalette resolve(Brightness platform) => switch (this) {
+    CaeloThemeMode.light => CaeloPalette.light,
+    CaeloThemeMode.dark => CaeloPalette.dark,
+    CaeloThemeMode.system =>
+      platform == Brightness.light ? CaeloPalette.light : CaeloPalette.dark,
+  };
+}
+
+/// Makes the resolved palette available to the widgets below it.
+class CaeloColors extends InheritedWidget {
+  const CaeloColors({required this.palette, required super.child, super.key});
+
+  final CaeloPalette palette;
+
+  static CaeloPalette of(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<CaeloColors>();
+    // Falling back to dark rather than throwing: a widget rendered outside the
+    // app shell — a test, a preview — should still draw.
+    return scope?.palette ?? CaeloPalette.dark;
+  }
+
+  @override
+  bool updateShouldNotify(CaeloColors oldWidget) =>
+      palette.brightness != oldWidget.palette.brightness;
 }
 
 /// Corner radii. Three values, and there is no fourth.

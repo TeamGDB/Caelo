@@ -56,7 +56,11 @@ class CoreFailure implements Exception {
 /// core push state instead of being asked for it — a tunnel that drops on its
 /// own cannot announce itself through a function that returns once.
 abstract final class CoreLibrary {
-  static const _libraryName = 'libcaelo.dylib';
+  /// Apple platforms want a dylib; everywhere else it is a plain shared
+  /// object. On Android the loader finds it by name inside the APK's lib
+  /// directory, which is why nothing here builds a path.
+  static String get _libraryName =>
+      Platform.isMacOS || Platform.isIOS ? 'libcaelo.dylib' : 'libcaelo.so';
 
   /// Set `CAELO_CORE_DYLIB` to load a specific build — how you point a running
   /// app at a core you just rebuilt without reinstalling it.

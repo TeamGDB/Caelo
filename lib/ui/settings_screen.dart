@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import '../core/config_store.dart';
 import '../core/ffi/core_library.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../main.dart' show ThemeModeScope;
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
 import 'config_screen.dart';
@@ -53,17 +54,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) setState(() => hasConfig = config != null);
   }
 
+  String _themeLabel(AppLocalizations l10n, CaeloThemeMode? mode) =>
+      switch (mode) {
+        CaeloThemeMode.light => l10n.themeLight,
+        CaeloThemeMode.dark => l10n.themeDark,
+        _ => l10n.themeSystem,
+      };
+
+  Future<void> _pickTheme(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    final scope = ThemeModeScope.maybeOf(context);
+    if (scope == null) return;
+
+    final chosen = await showCupertinoModalPopup<CaeloThemeMode>(
+      context: context,
+      builder: (sheetContext) => CupertinoActionSheet(
+        title: Text(l10n.theme),
+        actions: [
+          for (final mode in CaeloThemeMode.values)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.of(sheetContext).pop(mode),
+              isDefaultAction: mode == scope.mode,
+              child: Text(_themeLabel(l10n, mode)),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(sheetContext).pop(),
+          child: Text(l10n.done),
+        ),
+      ),
+    );
+
+    if (chosen != null) await scope.onChanged(chosen);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
     final l10n = AppLocalizations.of(context);
+    final themeScope = ThemeModeScope.maybeOf(context);
 
     return CupertinoPageScaffold(
-      backgroundColor: CaeloColors.background,
+      backgroundColor: palette.background,
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: CaeloColors.ink900,
-        border: const Border(
-          bottom: BorderSide(color: CaeloColors.ink700, width: 0),
-        ),
+        backgroundColor: palette.surface1,
+        border: Border(bottom: BorderSide(color: palette.border, width: 0)),
         middle: Text(l10n.settings),
       ),
       child: SafeArea(
@@ -89,16 +124,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 _Row(
                   label: l10n.addSubscription,
-                  labelColour: CaeloColors.accent,
+                  labelColour: palette.accent,
                   // Lands with the subscription parser in the core.
                   onTap: null,
                 ),
               ],
             ),
             _Section(
-              header: l10n.appearanceLanguage,
+              header: l10n.appearance,
               children: [
-                _Row(label: l10n.appearanceLanguage, value: l10n.languageSystem),
+                _Row(
+                  label: l10n.theme,
+                  value: _themeLabel(l10n, themeScope?.mode),
+                  onTap: themeScope == null ? null : () => _pickTheme(context),
+                ),
+                _Row(
+                  label: l10n.appearanceLanguage,
+                  value: l10n.languageSystem,
+                ),
               ],
             ),
             _Section(
@@ -125,6 +168,7 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: CaeloSpace.lg),
       child: Column(
@@ -137,31 +181,34 @@ class _Section extends StatelessWidget {
               CaeloSpace.md,
               CaeloSpace.sm,
             ),
-            child: Text(header.toUpperCase(), style: CaeloTheme.sectionHeader),
+            child: Text(
+              header.toUpperCase(),
+              style: CaeloTheme.sectionHeader(palette),
+            ),
           ),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: CaeloSpace.md),
             decoration: BoxDecoration(
-              color: CaeloColors.ink900,
+              color: palette.surface1,
               borderRadius: CaeloRadius.mediumAll,
-              border: Border.all(color: CaeloColors.ink700, width: 1),
+              border: Border.all(color: palette.border, width: 1),
             ),
-            child: Column(children: _separated(children)),
+            child: Column(children: _separated(children, palette)),
           ),
         ],
       ),
     );
   }
 
-  static List<Widget> _separated(List<Widget> rows) {
+  static List<Widget> _separated(List<Widget> rows, CaeloPalette palette) {
     return [
       for (var i = 0; i < rows.length; i++) ...[
         if (i > 0)
-          const Padding(
-            padding: EdgeInsets.only(left: CaeloSpace.md),
+          Padding(
+            padding: const EdgeInsets.only(left: CaeloSpace.md),
             child: ColoredBox(
-              color: CaeloColors.ink700,
-              child: SizedBox(height: 1, width: double.infinity),
+              color: palette.border,
+              child: const SizedBox(height: 1, width: double.infinity),
             ),
           ),
         rows[i],
@@ -171,12 +218,7 @@ class _Section extends StatelessWidget {
 }
 
 class _Row extends StatelessWidget {
-  const _Row({
-    required this.label,
-    this.value,
-    this.labelColour,
-    this.onTap,
-  });
+  const _Row({required this.label, this.value, this.labelColour, this.onTap});
 
   final String label;
   final String? value;
@@ -185,6 +227,7 @@ class _Row extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
     // Rows with no action yet are shown dimmed rather than hidden, so the shape
     // of the screen does not change once the core wires them up.
     final enabled = onTap != null || value != null;
@@ -205,7 +248,7 @@ class _Row extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 15,
                   color: labelColour == null
-                      ? CaeloColors.foreground
+                      ? palette.foreground
                       : labelColour!.withValues(alpha: enabled ? 1 : 0.4),
                 ),
               ),
@@ -213,7 +256,7 @@ class _Row extends StatelessWidget {
             if (value != null)
               Text(
                 value!,
-                style: CaeloTheme.rowValue,
+                style: CaeloTheme.rowValue(palette),
                 overflow: TextOverflow.ellipsis,
               ),
           ],

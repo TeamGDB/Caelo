@@ -1,17 +1,13 @@
 {
   "@@locale": "ru",
-
   "appTitle": "Caelo",
-
   "statusDisconnected": "Отключено",
   "statusConnecting": "Подключение",
   "statusConnected": "Подключено",
   "statusDisconnecting": "Отключение",
   "statusFailed": "Не удалось подключиться",
-
   "connect": "Подключить",
   "disconnect": "Отключить",
-
   "viaNode": "через {node}",
   "@viaNode": {
     "placeholders": {
@@ -31,7 +27,6 @@
       }
     }
   },
-
   "noSubscription": "Подписки пока нет",
   "addSubscription": "Добавить подписку",
   "noConfig": "Конфиг не добавлен",
@@ -44,7 +39,6 @@
   "remove": "Удалить",
   "localTunnelOnly": "Только этот процесс — трафик других приложений пока не идёт",
   "reconnectDifferently": "Переподключиться иначе",
-
   "settings": "Настройки",
   "subscriptions": "Подписки",
   "appearanceLanguage": "Язык",
@@ -53,9 +47,12 @@
   "version": "Версия",
   "core": "Ядро",
   "coreUnavailable": "не загружено",
-
   "licence": "Лицензия",
   "sourceCode": "Исходный код",
-
-  "done": "Готово"
+  "done": "Готово",
+  "theme": "Тема",
+  "themeSystem": "Системная",
+  "themeLight": "Светлая",
+  "themeDark": "Тёмная",
+  "appearance": "Оформление"
 }

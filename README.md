@@ -56,23 +56,22 @@ macOS first, iOS second (sharing the same NetworkExtension), then Windows, Linux
 Android. Distribution is via GitHub Releases; macOS builds are signed with a Developer ID
 and notarized.
 
-The current native Android/Jetpack Compose visual prototype lives in
-[`apps/android`](apps/android). It is kept as a standalone Gradle project so it can coexist
-with the Flutter application without turning Flutter's reserved `android/` runner directory
-into an unrelated build. See the [Android architecture, testing and security notes](docs/android.md).
-
 ## Building
 
-The Android visual prototype can be built independently:
+macOS, with the core bundled into the app:
 
 ```bash
-cd apps/android
-./gradlew :app:assembleDebug
+./scripts/build-macos.sh debug
 ```
 
-The APK is written to `apps/android/app/build/outputs/apk/debug/app-debug.apk`. Android SDK
-36 and JDK 17 are required. The prototype currently demonstrates UI and local test flows;
-it is not connected to `caelo-core` yet.
+Android, interface only — the tunnel there is a `VpnService` and does not exist yet:
+
+```bash
+flutter build apk --debug
+```
+
+The macOS script expects [`caelo-core`](https://github.com/TeamGDB/caelo-core) checked out
+beside this repository, or `CAELO_CORE_ROOT` pointing at it.
 
 ## License
 

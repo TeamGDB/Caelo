@@ -65,27 +65,28 @@ class _PowerButtonState extends State<PowerButton>
     super.dispose();
   }
 
-  Color get _fill => switch (widget.phase) {
-    TunnelPhase.connected => CaeloColors.accentSurface,
-    TunnelPhase.failed => CaeloColors.dangerSurface,
-    _ => CaeloColors.ink800,
+  Color _fill(CaeloPalette palette) => switch (widget.phase) {
+    TunnelPhase.connected => palette.accentSurface,
+    TunnelPhase.failed => palette.dangerSurface,
+    _ => palette.surface2,
   };
 
-  Color get _border => switch (widget.phase) {
-    TunnelPhase.connected => CaeloColors.accentBorder,
-    TunnelPhase.failed => CaeloColors.dangerBorder,
-    _ => CaeloColors.ink600,
+  Color _border(CaeloPalette palette) => switch (widget.phase) {
+    TunnelPhase.connected => palette.accentBorder,
+    TunnelPhase.failed => palette.dangerBorder,
+    _ => palette.surface3,
   };
 
-  Color get _glyph => switch (widget.phase) {
-    TunnelPhase.connected => CaeloColors.accent,
-    TunnelPhase.failed => CaeloColors.danger,
-    TunnelPhase.connecting || TunnelPhase.disconnecting => CaeloColors.muted,
-    TunnelPhase.disconnected => CaeloColors.dim,
+  Color _glyph(CaeloPalette palette) => switch (widget.phase) {
+    TunnelPhase.connected => palette.accent,
+    TunnelPhase.failed => palette.danger,
+    TunnelPhase.connecting || TunnelPhase.disconnecting => palette.muted,
+    TunnelPhase.disconnected => palette.dim,
   };
 
   @override
   Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
     return Semantics(
       button: true,
       label: widget.semanticLabel,
@@ -114,15 +115,13 @@ class _PowerButtonState extends State<PowerButton>
                 height: PowerButton._diameter,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _fill,
-                  border: Border.all(color: _border, width: 1),
+                  color: _fill(palette),
+                  border: Border.all(color: _border(palette), width: 1),
                   boxShadow: glowAlpha == 0
                       ? null
                       : [
                           BoxShadow(
-                            color: CaeloColors.accent.withValues(
-                              alpha: glowAlpha,
-                            ),
+                            color: palette.accent.withValues(alpha: glowAlpha),
                             blurRadius: 44,
                             spreadRadius: 2,
                           ),
@@ -136,9 +135,9 @@ class _PowerButtonState extends State<PowerButton>
                 duration: const Duration(milliseconds: 200),
                 child: Icon(
                   CupertinoIcons.power,
-                  key: ValueKey(_glyph),
+                  key: ValueKey(_glyph(palette)),
                   size: 46,
-                  color: _glyph,
+                  color: _glyph(palette),
                 ),
               ),
             ),

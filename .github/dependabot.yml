@@ -14,9 +14,3 @@ updates:
     commit-message:
       prefix: "deps"
 
-  - package-ecosystem: gradle
-    directory: "/apps/android"
-    schedule:
-      interval: weekly
-    commit-message:
-      prefix: "deps(android)"

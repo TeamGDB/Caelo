@@ -1,11 +1,9 @@
 {
   "@@locale": "en",
-
   "appTitle": "Caelo",
   "@appTitle": {
     "description": "The application name. Not translated."
   },
-
   "statusDisconnected": "Not connected",
   "@statusDisconnected": {
     "description": "Main screen status, tunnel is down and idle."
@@ -26,7 +24,6 @@
   "@statusFailed": {
     "description": "Main screen status, the attempt failed and we gave up."
   },
-
   "connect": "Connect",
   "@connect": {
     "description": "Accessibility label for the main button when disconnected."
@@ -35,7 +32,6 @@
   "@disconnect": {
     "description": "Accessibility label for the main button when connected."
   },
-
   "viaNode": "via {node}",
   "@viaNode": {
     "description": "Small text under the status naming the node in use.",
@@ -60,7 +56,6 @@
       }
     }
   },
-
   "noSubscription": "No subscription yet",
   "@noSubscription": {
     "description": "Shown instead of a node name when nothing is configured."
@@ -109,7 +104,6 @@
   "@reconnectDifferently": {
     "description": "Action that discards the current node and picks another one."
   },
-
   "settings": "Settings",
   "@settings": {
     "description": "Settings screen title and the button that opens it."
@@ -142,7 +136,6 @@
   "@coreUnavailable": {
     "description": "Shown in place of a core version when the library could not be loaded."
   },
-
   "licence": "Licence",
   "@licence": {
     "description": "Settings row showing the licence the app ships under."
@@ -151,9 +144,28 @@
   "@sourceCode": {
     "description": "Settings row linking to the public repository."
   },
-
   "done": "Done",
   "@done": {
     "description": "Closes a sheet or a modal screen."
+  },
+  "theme": "Theme",
+  "@theme": {
+    "description": "Settings row for the light/dark colour scheme."
+  },
+  "themeSystem": "System",
+  "@themeSystem": {
+    "description": "Follow the operating system."
+  },
+  "themeLight": "Light",
+  "@themeLight": {
+    "description": "Always the light scheme."
+  },
+  "themeDark": "Dark",
+  "@themeDark": {
+    "description": "Always the dark scheme."
+  },
+  "appearance": "Appearance",
+  "@appearance": {
+    "description": "Settings section holding the theme and the language."
   }
 }

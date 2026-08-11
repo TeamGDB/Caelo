@@ -16,12 +16,13 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
     final controller = TunnelScope.of(context);
     final status = controller.value;
     final l10n = AppLocalizations.of(context);
 
     return CupertinoPageScaffold(
-      backgroundColor: CaeloColors.background,
+      backgroundColor: palette.background,
       child: Stack(
         children: [
           Center(
@@ -44,7 +45,8 @@ class HomeScreen extends StatelessWidget {
                 // this process. Letting the screen imply the machine is covered
                 // would be the single most harmful thing it could get wrong.
                 _Caveat(
-                  visible: status.phase == TunnelPhase.connected &&
+                  visible:
+                      status.phase == TunnelPhase.connected &&
                       !controller.coversWholeMachine,
                 ),
                 const SizedBox(height: CaeloSpace.lg),
@@ -76,17 +78,15 @@ class _StatusLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
     final l10n = AppLocalizations.of(context);
 
     final (text, colour) = switch (status.phase) {
-      TunnelPhase.disconnected => (l10n.statusDisconnected, CaeloColors.muted),
-      TunnelPhase.connecting => (l10n.statusConnecting, CaeloColors.foreground),
-      TunnelPhase.connected => (l10n.statusConnected, CaeloColors.foreground),
-      TunnelPhase.disconnecting => (
-        l10n.statusDisconnecting,
-        CaeloColors.muted,
-      ),
-      TunnelPhase.failed => (l10n.statusFailed, CaeloColors.danger),
+      TunnelPhase.disconnected => (l10n.statusDisconnected, palette.muted),
+      TunnelPhase.connecting => (l10n.statusConnecting, palette.foreground),
+      TunnelPhase.connected => (l10n.statusConnected, palette.foreground),
+      TunnelPhase.disconnecting => (l10n.statusDisconnecting, palette.muted),
+      TunnelPhase.failed => (l10n.statusFailed, palette.danger),
     };
 
     return AnimatedSwitcher(
@@ -94,7 +94,7 @@ class _StatusLine extends StatelessWidget {
       child: Text(
         text,
         key: ValueKey(text),
-        style: CaeloTheme.status.copyWith(color: colour),
+        style: CaeloTheme.status(palette).copyWith(color: colour),
       ),
     );
   }
@@ -108,6 +108,7 @@ class _DetailLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
     final l10n = AppLocalizations.of(context);
 
     final parts = <String>[
@@ -128,7 +129,11 @@ class _DetailLine extends StatelessWidget {
       height: 18,
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
-        child: Text(text, key: ValueKey(text), style: CaeloTheme.caption),
+        child: Text(
+          text,
+          key: ValueKey(text),
+          style: CaeloTheme.caption(palette),
+        ),
       ),
     );
   }
@@ -143,6 +148,7 @@ class _Caveat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
     return SizedBox(
       height: 16,
       child: AnimatedOpacity(
@@ -150,10 +156,9 @@ class _Caveat extends StatelessWidget {
         duration: const Duration(milliseconds: 220),
         child: Text(
           AppLocalizations.of(context).localTunnelOnly,
-          style: CaeloTheme.caption.copyWith(
-            color: CaeloColors.dim,
-            fontSize: 11,
-          ),
+          style: CaeloTheme.caption(
+            palette,
+          ).copyWith(color: palette.dim, fontSize: 11),
         ),
       ),
     );
@@ -170,6 +175,7 @@ class _ReconnectAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
     return AnimatedOpacity(
       opacity: visible ? 1 : 0,
       duration: const Duration(milliseconds: 220),
@@ -184,7 +190,7 @@ class _ReconnectAction extends StatelessWidget {
           onPressed: onPressed,
           child: Text(
             AppLocalizations.of(context).reconnectDifferently,
-            style: CaeloTheme.caption.copyWith(color: CaeloColors.dim),
+            style: CaeloTheme.caption(palette).copyWith(color: palette.dim),
           ),
         ),
       ),
@@ -197,16 +203,17 @@ class _SettingsButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
     return CupertinoButton(
       padding: const EdgeInsets.all(CaeloSpace.sm),
       minimumSize: Size.zero,
-      onPressed: () => Navigator.of(context).push(
-        CupertinoPageRoute<void>(builder: (_) => const SettingsScreen()),
-      ),
+      onPressed: () => Navigator.of(
+        context,
+      ).push(CupertinoPageRoute<void>(builder: (_) => const SettingsScreen())),
       child: Icon(
         CupertinoIcons.gear_alt,
         size: 20,
-        color: CaeloColors.dim,
+        color: palette.dim,
         semanticLabel: AppLocalizations.of(context).settings,
       ),
     );

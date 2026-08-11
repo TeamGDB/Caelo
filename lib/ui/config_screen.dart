@@ -68,24 +68,25 @@ class _ConfigScreenState extends State<ConfigScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
     final l10n = AppLocalizations.of(context);
 
     return CupertinoPageScaffold(
-      backgroundColor: CaeloColors.background,
+      backgroundColor: palette.background,
       navigationBar: CupertinoNavigationBar(
-        backgroundColor: CaeloColors.ink900,
-        border: const Border(
-          bottom: BorderSide(color: CaeloColors.ink700, width: 0),
-        ),
+        backgroundColor: palette.surface1,
+        border: Border(bottom: BorderSide(color: palette.border, width: 0)),
         middle: Text(l10n.configuration),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           minimumSize: Size.zero,
           onPressed: _loaded ? _save : null,
-          child: Text(l10n.save, style: CaeloTheme.caption.copyWith(
-            color: CaeloColors.accent,
-            fontSize: 15,
-          )),
+          child: Text(
+            l10n.save,
+            style: CaeloTheme.caption(
+              palette,
+            ).copyWith(color: palette.accent, fontSize: 15),
+          ),
         ),
       ),
       child: SafeArea(
@@ -97,9 +98,9 @@ class _ConfigScreenState extends State<ConfigScreen> {
               Expanded(
                 child: Container(
                   decoration: BoxDecoration(
-                    color: CaeloColors.ink900,
+                    color: palette.surface1,
                     borderRadius: CaeloRadius.mediumAll,
-                    border: Border.all(color: CaeloColors.ink700, width: 1),
+                    border: Border.all(color: palette.border, width: 1),
                   ),
                   padding: const EdgeInsets.all(CaeloSpace.sm),
                   child: CupertinoTextField.borderless(
@@ -108,11 +109,11 @@ class _ConfigScreenState extends State<ConfigScreen> {
                     expands: true,
                     textAlignVertical: TextAlignVertical.top,
                     placeholder: l10n.configurationPlaceholder,
-                    placeholderStyle: CaeloTheme.caption.copyWith(
-                      color: CaeloColors.dim,
-                    ),
-                    style: const TextStyle(
-                      color: CaeloColors.foreground,
+                    placeholderStyle: CaeloTheme.caption(
+                      palette,
+                    ).copyWith(color: palette.dim),
+                    style: TextStyle(
+                      color: palette.foreground,
                       fontSize: 12,
                       fontFamily: 'Menlo',
                       height: 1.45,
@@ -123,8 +124,8 @@ class _ConfigScreenState extends State<ConfigScreen> {
               const SizedBox(height: CaeloSpace.md),
               Text(
                 _error ?? l10n.configurationWarning,
-                style: CaeloTheme.caption.copyWith(
-                  color: _error == null ? CaeloColors.dim : CaeloColors.danger,
+                style: CaeloTheme.caption(palette).copyWith(
+                  color: _error == null ? palette.dim : palette.danger,
                 ),
               ),
               const SizedBox(height: CaeloSpace.sm),
@@ -134,7 +135,9 @@ class _ConfigScreenState extends State<ConfigScreen> {
                 onPressed: _remove,
                 child: Text(
                   l10n.remove,
-                  style: CaeloTheme.caption.copyWith(color: CaeloColors.danger),
+                  style: CaeloTheme.caption(
+                    palette,
+                  ).copyWith(color: palette.danger),
                 ),
               ),
             ],

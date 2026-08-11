@@ -2,6 +2,7 @@ import 'package:caelo/core/tunnel.dart';
 import 'package:caelo/core/tunnel_controller.dart';
 import 'package:caelo/l10n/generated/app_localizations.dart';
 import 'package:caelo/theme/app_theme.dart';
+import 'package:caelo/theme/palette.dart';
 import 'package:caelo/ui/home_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,23 +22,24 @@ void main() {
 
   Future<void> pumpHome(WidgetTester tester, {Locale? locale}) async {
     await tester.pumpWidget(
-      TunnelScope(
-        notifier: controller,
-        child: CupertinoApp(
-          locale: locale,
-          theme: CaeloTheme.data,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const HomeScreen(),
+      CaeloColors(
+        palette: CaeloPalette.dark,
+        child: TunnelScope(
+          notifier: controller,
+          child: CupertinoApp(
+            locale: locale,
+            theme: CaeloTheme.data(CaeloPalette.dark),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const HomeScreen(),
+          ),
         ),
       ),
     );
     await tester.pump();
   }
 
-  testWidgets('says so when nothing is configured', (
-    tester,
-  ) async {
+  testWidgets('says so when nothing is configured', (tester) async {
     await pumpHome(tester, locale: const Locale('en'));
 
     expect(find.text('Not connected'), findsOneWidget);
@@ -111,12 +113,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        tester.widget<AnimatedOpacity>(
-          find.ancestor(
-            of: caveat,
-            matching: find.byType(AnimatedOpacity),
-          ),
-        ).opacity,
+        tester
+            .widget<AnimatedOpacity>(
+              find.ancestor(of: caveat, matching: find.byType(AnimatedOpacity)),
+            )
+            .opacity,
         0,
       );
     });
