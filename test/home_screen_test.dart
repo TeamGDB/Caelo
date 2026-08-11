@@ -12,10 +12,12 @@ import 'fake_tunnel_client.dart';
 void main() {
   late FakeTunnelClient client;
   late TunnelController controller;
+  late bool configured;
 
   setUp(() {
+    configured = false;
     client = FakeTunnelClient();
-    controller = TunnelController(client);
+    controller = TunnelController(client, isConfigured: () async => configured);
   });
 
   tearDown(() => controller.dispose());
@@ -44,6 +46,22 @@ void main() {
 
     expect(find.text('Not connected'), findsOneWidget);
     expect(find.text('No configuration yet'), findsOneWidget);
+  });
+
+  // Being idle is not the same as having nothing to dial. Saying the second
+  // when only the first is true sends someone looking for a configuration they
+  // have already added.
+  testWidgets('stays quiet when idle with a configuration', (tester) async {
+    configured = true;
+    // The controller read this once while being built, before the test set it.
+    // Re-reading is what the main screen does on the way back from settings.
+    await controller.refreshConfiguration();
+
+    await pumpHome(tester, locale: const Locale('en'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Not connected'), findsOneWidget);
+    expect(find.text('No configuration yet'), findsNothing);
   });
 
   testWidgets('names the node and protocol once connected', (tester) async {

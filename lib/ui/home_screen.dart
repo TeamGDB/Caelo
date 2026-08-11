@@ -39,7 +39,10 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: CaeloSpace.lg),
                 _StatusLine(status: status),
                 const SizedBox(height: CaeloSpace.xs + 2),
-                _DetailLine(status: status),
+                _DetailLine(
+                  status: status,
+                  hasConfiguration: controller.hasConfiguration,
+                ),
                 const SizedBox(height: CaeloSpace.sm),
                 // The tunnel is real but it lives on a userspace stack inside
                 // this process. Letting the screen imply the machine is covered
@@ -102,9 +105,10 @@ class _StatusLine extends StatelessWidget {
 
 /// The line that answers "what am I actually on?" without being asked.
 class _DetailLine extends StatelessWidget {
-  const _DetailLine({required this.status});
+  const _DetailLine({required this.status, required this.hasConfiguration});
 
   final TunnelStatus status;
+  final bool hasConfiguration;
 
   @override
   Widget build(BuildContext context) {
@@ -117,10 +121,12 @@ class _DetailLine extends StatelessWidget {
         l10n.protocolAndPing(status.protocol!.label, status.pingMs!),
     ];
 
-    // Nothing configured yet is worth saying out loud; a tunnel that is simply
-    // down is not, so the line stays empty rather than repeating the status.
+    // Having nothing to connect with is worth saying out loud, because it is
+    // the one case where pressing the button cannot work and the reason is not
+    // on screen. A tunnel that is merely down is not: repeating the status in
+    // smaller type underneath it tells nobody anything.
     final text = switch (parts.isEmpty) {
-      true when status.phase == TunnelPhase.disconnected => l10n.noConfig,
+      true when !hasConfiguration => l10n.noConfig,
       true => '',
       false => parts.join('  ·  '),
     };
