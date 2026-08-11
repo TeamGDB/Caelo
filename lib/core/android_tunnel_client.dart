@@ -108,13 +108,18 @@ class AndroidTunnelClient implements TunnelClient {
 
       await CoreLibrary.connectFd(fd, configText);
 
-      // The tunnel's own packets must not be routed into the tunnel. Skipping
-      // this produces a connection that looks established and reaches nothing,
-      // which is the hardest kind of failure to read.
-      await _channel.invokeMethod<bool>(
-        'protect',
-        await CoreLibrary.socketFds(),
-      );
+      // Belt to the braces of excluding this app from its own routes, and
+      // advisory for the same reason: a device that refuses it still has a
+      // working tunnel. Letting it fail the connection is what made every
+      // failure here look identical.
+      try {
+        await _channel.invokeMethod<int>(
+          'protect',
+          await CoreLibrary.socketFds(),
+        );
+      } on Object catch (error) {
+        debugPrint('Caelo: could not protect the tunnel sockets: $error');
+      }
 
       _emit(
         TunnelStatus(

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
 import android.os.Build
+import android.util.Log
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
@@ -24,6 +25,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
 
     companion object {
+        private const val TAG = "CaeloVpn"
         private const val CHANNEL = "team.gdb.caelo/vpn"
         private const val REQUEST_PREPARE = 8801
 
@@ -97,21 +99,23 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
-            // Both descriptors are offered; either may be absent on a device
-            // without that address family, and that is not a failure.
+            // Advisory, and never fatal. Either descriptor may be absent on a
+            // device without that address family, and protect can refuse for
+            // reasons that do not stop the tunnel working -- the app already
+            // excludes itself from its own routes, which is what actually
+            // keeps the encrypted packets out of the tunnel they belong to.
+            // The reference Android client ignores this result entirely.
             "protect" -> {
                 val service = CaeloVpnService.current()
-                    ?: return result.error("unavailable", "no tunnel service is running", null)
-
-                val fds = call.arguments as? List<*> ?: emptyList<Any>()
-                val protectedAny = fds
+                val protectedCount = (call.arguments as? List<*> ?: emptyList<Any>())
                     .mapNotNull { it as? Int }
                     .filter { it >= 0 }
-                    .map { service.protectSocket(it) }
-                    .any { it }
+                    .count { service?.protectSocket(it) == true }
 
-                if (protectedAny) result.success(true)
-                else result.error("protect", "no socket could be excluded from the tunnel", null)
+                if (service == null || protectedCount == 0) {
+                    Log.w(TAG, "no tunnel socket was excluded from the tunnel's own routes")
+                }
+                result.success(protectedCount)
             }
 
             "stop" -> {

@@ -84,6 +84,12 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 		return nil, fmt.Errorf("bringing the device up: %w", err)
 	}
 
+	// Mobile networks change the source address under a live connection often
+	// enough that WireGuard's roaming behaviour, which trusts the address a
+	// packet arrived from, works against us here. The reference Android client
+	// disables it for the same reason.
+	dev.DisableSomeRoamingForBrokenMobileSemantics()
+
 	protocol := "AmneziaWG"
 	if len(cfg.Obfuscation) == 0 {
 		protocol = "WireGuard"
@@ -106,41 +112,38 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 // SocketFds returns the descriptors of the sockets carrying tunnel traffic, so
 // the host can exclude them from its own routing.
 //
-// On Android that means VpnService.protect. Without it the encrypted packets
-// would be routed back into the tunnel they belong to, and nothing would ever
-// reach the server.
+// On Android that means VpnService.protect. It never reports failure: a
+// descriptor that cannot be found comes back as -1 and the caller skips it.
+// The reference Android client does the same, and for good reason — a device
+// with no IPv6 has no v6 socket, and treating that as a broken tunnel would
+// refuse to connect on a working network.
 //
-// The sockets only exist once the device is up, so this cannot be done before
+// The tunnel survives without it in the usual case anyway, because the app
+// excludes itself from its own routes. Protecting the sockets is the belt to
+// that pair of braces.
+//
+// The sockets only exist once the device is up, so this cannot happen before
 // Start. The handshake is retried, so protecting immediately afterwards is in
-// time — the first attempt may be lost, and the second will not be.
-func (s *Session) SocketFds() (v4 int, v6 int, err error) {
+// time: the first attempt may be lost, and the second will not be.
+func (s *Session) SocketFds() (v4 int, v6 int) {
 	s.mu.Lock()
 	bind := s.bind
 	s.mu.Unlock()
 
-	if bind == nil {
-		return -1, -1, fmt.Errorf("no tunnel is up")
-	}
-
 	peeker, ok := bind.(conn.PeekLookAtSocketFd)
 	if !ok {
-		return -1, -1, fmt.Errorf("this bind does not expose its sockets")
+		return -1, -1
 	}
 
-	// A machine with no IPv6 has no v6 socket, and that is not a failure.
-	// Reporting -1 lets the caller skip it rather than abandon the tunnel.
-	v4, errV4 := peeker.PeekLookAtSocketFd4()
-	if errV4 != nil {
+	v4, err := peeker.PeekLookAtSocketFd4()
+	if err != nil {
 		v4 = -1
 	}
-	v6, errV6 := peeker.PeekLookAtSocketFd6()
-	if errV6 != nil {
+	v6, err = peeker.PeekLookAtSocketFd6()
+	if err != nil {
 		v6 = -1
 	}
-	if v4 < 0 && v6 < 0 {
-		return -1, -1, fmt.Errorf("neither socket could be found: %v, %v", errV4, errV6)
-	}
-	return v4, v6, nil
+	return v4, v6
 }
 
 // Stop tears the tunnel down and closes the descriptor it was given.

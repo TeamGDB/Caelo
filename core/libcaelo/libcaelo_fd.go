@@ -34,19 +34,14 @@ func caelo_connect_fd(tunFd C.int, configText *C.char) *C.char {
 // caelo_socket_fds reports the sockets carrying tunnel traffic, so the host can
 // exclude them from its own routing.
 //
-// On Android that is VpnService.protect. Skipped, the encrypted packets are
-// routed back into the tunnel they belong to and nothing reaches the server —
-// a failure that looks exactly like the server being unreachable.
-//
-// Either descriptor may come back as -1 on a device without that address
-// family. That is not an error, and the caller should protect the other one.
+// On Android that is VpnService.protect. This never fails: either descriptor
+// may come back as -1, on a device without that address family or before the
+// bind has opened, and the caller simply skips it. Treating that as an error
+// would refuse to connect on a working network.
 //
 //export caelo_socket_fds
 func caelo_socket_fds() *C.char {
-	v4, v6, err := hosted.SocketFds()
-	if err != nil {
-		return failure(err)
-	}
+	v4, v6 := hosted.SocketFds()
 	return marshal(map[string]any{"ok": true, "v4": v4, "v6": v6})
 }
 
