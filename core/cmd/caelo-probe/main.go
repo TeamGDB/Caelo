@@ -21,6 +21,7 @@ func main() {
 	target := flag.String("url", "https://ifconfig.me/ip", "URL to fetch through the tunnel")
 	timeout := flag.Duration("timeout", 30*time.Second, "how long to wait before giving up")
 	verbose := flag.Bool("v", false, "log device internals, including handshake progress")
+	check := flag.Bool("check", false, "read the configuration and describe it, without dialling")
 	flag.Parse()
 
 	if *configPath == "" {
@@ -29,13 +30,13 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := run(*configPath, *target, *timeout, *verbose); err != nil {
+	if err := run(*configPath, *target, *timeout, *verbose, *check); err != nil {
 		fmt.Fprintf(os.Stderr, "caelo-probe: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(configPath, target string, timeout time.Duration, verbose bool) error {
+func run(configPath, target string, timeout time.Duration, verbose bool, check bool) error {
 	raw, err := os.ReadFile(configPath)
 	if err != nil {
 		return err
@@ -49,6 +50,14 @@ func run(configPath, target string, timeout time.Duration, verbose bool) error {
 		return fmt.Errorf("reading %s: %w", configPath, err)
 	}
 	describe(cfg)
+
+	// Reading a configuration and dialling through it are separate questions,
+	// and a server operator checking that what they emit is understood should
+	// not have to bring a tunnel up to find out. It is also what makes the
+	// example server's conformance check possible without a live endpoint.
+	if check {
+		return nil
+	}
 
 	result, err := probe.Run(string(raw), probe.Options{
 		URL:     target,
@@ -84,6 +93,20 @@ func describe(cfg *awg.Config) {
 		}
 	}
 	fmt.Printf("obfuscation %s\n", shaping)
+
+	// Header magic is described rather than left implied. It is parsed and
+	// carried to the device like everything else, and a description that
+	// silently omits part of what was configured is worse than none: -check
+	// exists to tell an operator what was understood.
+	header := ""
+	for _, key := range []string{"h1", "h2", "h3", "h4"} {
+		if value, ok := cfg.Obfuscation[key]; ok {
+			header += fmt.Sprintf("%s=%s ", key, value)
+		}
+	}
+	if header != "" {
+		fmt.Printf("header      %s\n", header)
+	}
 
 	for _, key := range []string{"i1", "i2", "i3", "i4", "i5"} {
 		if value, ok := cfg.Obfuscation[key]; ok {

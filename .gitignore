@@ -60,3 +60,7 @@ core/vendor/
 *.pem
 secrets/
 local/
+
+# Built by hand while testing the example server.
+examples/subscription-server/subscription-server
+examples/subscription-server/nodes.json
