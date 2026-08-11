@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_tunnel_client.dart';
+import 'fake_server_catalog.dart';
 
 void main() {
   late FakeTunnelClient client;
@@ -24,8 +25,14 @@ void main() {
     configured = false;
     client = FakeTunnelClient();
     controller = TunnelController(client, isConfigured: () async => configured);
-    serverController = ServerSelectionController(const MockServerCatalog());
-    serverController.servers = MockServerCatalog.servers;
+    serverController = ServerSelectionController(
+      const FakeServerCatalog(),
+      readSelected: () async => null,
+      writeSelected: (_) async {},
+      activateConfiguration: (_) async {},
+      activateNode: (_, _) async {},
+    );
+    serverController.servers = FakeServerCatalog.servers;
     serverController.selected = serverController.servers.first;
   });
 
@@ -199,13 +206,66 @@ void main() {
     expect(find.text('Stable'), findsNothing);
     expect(find.text('Testing'), findsNothing);
     expect(find.byType(CupertinoScrollbar), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byType(CupertinoScrollbar)).dy,
+      tester.getTopLeft(find.byKey(const ValueKey('server-list-scroll'))).dy,
+    );
+    expect(
+      tester.getTopLeft(find.byType(CupertinoScrollbar)).dy,
+      greaterThan(tester.getBottomLeft(find.text('Choose server')).dy),
+    );
 
     final unselected = tester.widget<Container>(
-      find.byKey(const ValueKey('server-row-demo-stockholm')),
+      find.byKey(const ValueKey('server-row-test-stockholm')),
     );
     final decoration = unselected.decoration! as BoxDecoration;
     expect(decoration.color, const Color(0x00000000));
     expect(decoration.border, isNull);
+  });
+
+  testWidgets('tapping the current server toggles the section closed', (
+    tester,
+  ) async {
+    await pumpHome(tester, locale: const Locale('en'));
+    final surface = find.byKey(const ValueKey('server-sheet-surface'));
+    final collapsedTop = tester.getTopLeft(surface).dy;
+
+    await tester.tap(find.text('Helsinki'));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(surface).dy, lessThan(collapsedTop - 200));
+
+    await tester.tap(find.text('Helsinki').first);
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(surface).dy, collapsedTop);
+  });
+
+  testWidgets('selecting a row closes the server section', (tester) async {
+    await pumpHome(tester, locale: const Locale('en'));
+    final surface = find.byKey(const ValueKey('server-sheet-surface'));
+    final collapsedTop = tester.getTopLeft(surface).dy;
+
+    await tester.tap(find.text('Helsinki'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('server-row-test-stockholm')),
+        matching: find.text('Stockholm'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(serverController.selected?.name, 'Stockholm');
+    expect(tester.getTopLeft(surface).dy, collapsedTop);
+  });
+
+  testWidgets('keeps every list latency in the same column', (tester) async {
+    await pumpHome(tester, locale: const Locale('en'));
+    await tester.tap(find.text('Helsinki'));
+    await tester.pumpAndSettle();
+
+    final first = find.byKey(const ValueKey('server-latency-test-helsinki'));
+    final second = find.byKey(const ValueKey('server-latency-test-stockholm'));
+    expect(tester.getTopRight(first).dx, tester.getTopRight(second).dx);
   });
 
   testWidgets('scrolling the server list cannot close the section', (
@@ -243,8 +303,11 @@ void main() {
     await pumpHome(tester, locale: const Locale('en'));
 
     expect(tester.getSize(find.byType(PowerButton)).width, greaterThan(280));
-    expect(tester.getCenter(find.byType(PowerButton)).dy, greaterThan(300));
-    expect(tester.getCenter(find.byType(PowerButton)).dy, lessThan(335));
+    expect(
+      tester.getCenter(find.byType(PowerButton)).dy,
+      greaterThanOrEqualTo(290),
+    );
+    expect(tester.getCenter(find.byType(PowerButton)).dy, lessThan(315));
   });
 
   testWidgets('uses a dark idle label in the light theme', (tester) async {

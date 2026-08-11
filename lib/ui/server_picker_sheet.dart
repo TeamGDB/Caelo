@@ -77,12 +77,25 @@ class _ServerDrawerState extends State<ServerDrawer> {
           }
         }
 
-        void expandFromTap() {
-          if (widget.locked || (_extent ?? peek) >= expanded) return;
+        void collapse() {
+          if (widget.locked) return;
           setState(() {
             _dragging = false;
-            _extent = expanded;
+            _extent = peek;
           });
+          if (_listController.hasClients) _listController.jumpTo(0);
+        }
+
+        void toggleFromTap() {
+          if (widget.locked) return;
+          if ((_extent ?? peek) >= expanded) {
+            collapse();
+          } else {
+            setState(() {
+              _dragging = false;
+              _extent = expanded;
+            });
+          }
         }
 
         return Align(
@@ -123,7 +136,8 @@ class _ServerDrawerState extends State<ServerDrawer> {
                           limitedScope: widget.limitedScope,
                           onDragUpdate: updateExtent,
                           onDragEnd: settleExtent,
-                          onTap: expandFromTap,
+                          onTap: toggleFromTap,
+                          expanded: extent >= expanded,
                         ),
                         if (showsServerList) ...[
                           Padding(
@@ -147,6 +161,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
                             child: CupertinoScrollbar(
                               controller: _listController,
                               thumbVisibility: true,
+                              mainAxisMargin: 0,
                               child: CustomScrollView(
                                 key: const ValueKey('server-list-scroll'),
                                 controller: _listController,
@@ -159,7 +174,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                       CaeloSpace.sm,
                                       CaeloSpace.xs,
                                       CaeloSpace.sm,
-                                      CaeloSpace.xl +
+                                      CaeloSpace.sm +
                                           MediaQuery.paddingOf(context).bottom,
                                     ),
                                     sliver: SliverList.separated(
@@ -175,11 +190,14 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                           selected:
                                               server ==
                                               widget.controller.selected,
-                                          onPressed: widget.locked
+                                          onPressed:
+                                              widget.locked || !server.available
                                               ? null
-                                              : () => widget.controller.select(
-                                                  server,
-                                                ),
+                                              : () async {
+                                                  collapse();
+                                                  await widget.controller
+                                                      .select(server);
+                                                },
                                         );
                                       },
                                     ),
@@ -210,6 +228,7 @@ class _PeekHeader extends StatelessWidget {
     required this.onDragUpdate,
     required this.onDragEnd,
     required this.onTap,
+    required this.expanded,
   });
 
   final ServerOption? selected;
@@ -218,6 +237,7 @@ class _PeekHeader extends StatelessWidget {
   final ValueChanged<double> onDragUpdate;
   final ValueChanged<double> onDragEnd;
   final VoidCallback onTap;
+  final bool expanded;
 
   @override
   Widget build(BuildContext context) {
@@ -315,6 +335,8 @@ class _PeekHeader extends StatelessWidget {
                           Icon(
                             locked
                                 ? CupertinoIcons.lock
+                                : expanded
+                                ? CupertinoIcons.chevron_down
                                 : CupertinoIcons.chevron_up,
                             size: 22,
                             color: palette.muted,
@@ -352,6 +374,7 @@ class _ServerRow extends StatelessWidget {
       onPressed: onPressed,
       child: Container(
         key: ValueKey('server-row-${server.id}'),
+        width: double.infinity,
         padding: const EdgeInsets.symmetric(
           horizontal: CaeloSpace.md,
           vertical: 18,
@@ -359,10 +382,16 @@ class _ServerRow extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? palette.accentSurface : const Color(0x00000000),
           borderRadius: BorderRadius.circular(18),
-          border: selected
-              ? Border.all(color: palette.accent, width: CaeloStroke.emphasis)
-              : null,
         ),
+        foregroundDecoration: selected
+            ? BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: palette.accent,
+                  width: CaeloStroke.emphasis,
+                ),
+              )
+            : null,
         child: Row(
           children: [
             SizedBox(
@@ -388,6 +417,8 @@ class _ServerRow extends StatelessWidget {
                   ),
                   Text(
                     _description(server, AppLocalizations.of(context)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: CaeloTheme.body(
                       palette,
                     ).copyWith(color: palette.muted, fontSize: 17),
@@ -395,21 +426,39 @@ class _ServerRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (server.latencyMs case final latency?)
-              Text(
-                AppLocalizations.of(context).latency(latency),
-                style: CaeloTheme.body(
-                  palette,
-                ).copyWith(color: palette.muted, fontSize: 18),
+            SizedBox(
+              width: 120,
+              child: Row(
+                children: [
+                  SizedBox(
+                    key: ValueKey('server-latency-${server.id}'),
+                    width: 76,
+                    child: Text(
+                      server.latencyMs != null
+                          ? AppLocalizations.of(
+                              context,
+                            ).latency(server.latencyMs!)
+                          : '',
+                      textAlign: TextAlign.right,
+                      style: CaeloTheme.body(
+                        palette,
+                      ).copyWith(color: palette.muted, fontSize: 18),
+                    ),
+                  ),
+                  const SizedBox(width: CaeloSpace.md),
+                  SizedBox(
+                    width: 28,
+                    child: selected
+                        ? Icon(
+                            CupertinoIcons.check_mark_circled_solid,
+                            color: palette.accent,
+                            size: 28,
+                          )
+                        : null,
+                  ),
+                ],
               ),
-            if (selected) ...[
-              const SizedBox(width: CaeloSpace.control),
-              Icon(
-                CupertinoIcons.check_mark_circled_solid,
-                color: palette.accent,
-                size: 28,
-              ),
-            ],
+            ),
           ],
         ),
       ),
@@ -419,5 +468,6 @@ class _ServerRow extends StatelessWidget {
 
 String _description(ServerOption? server, AppLocalizations l10n) {
   final value = server?.description.trim() ?? '';
-  return value.isEmpty ? l10n.customServerDescription : value;
+  if (value.isNotEmpty) return value;
+  return server?.configId == null ? '' : l10n.customServerDescription;
 }

@@ -40,6 +40,8 @@ abstract final class ConfigStore {
   static const _legacyFileName = 'tunnel.conf';
   static const _indexFileName = 'configs.json';
   static const _filePrefix = 'config-';
+  static const _subscriptionId = '@subscription';
+  static const _subscriptionFileName = 'subscription-node.conf';
 
   @visibleForTesting
   static Future<Directory> Function() directory = AppStorage.directory;
@@ -110,7 +112,9 @@ abstract final class ConfigStore {
     final index = await _loadIndex();
     final selectedId = index.selectedId;
     if (selectedId == null) return null;
-    final file = await _configFile(selectedId);
+    final file = selectedId == _subscriptionId
+        ? await _file(_subscriptionFileName)
+        : await _configFile(selectedId);
     if (!await file.exists()) return null;
     final text = await file.readAsString();
     return text.trim().isEmpty ? null : text;
@@ -171,6 +175,26 @@ abstract final class ConfigStore {
     final index = await _loadIndex();
     if (!index.configs.any((config) => config.id == id)) return;
     await _saveIndex(index.configs, id);
+  }
+
+  /// Makes a node selected from a subscription the active tunnel endpoint.
+  ///
+  /// It deliberately stays outside [list]: a server-owned node is not a custom
+  /// configuration and must not appear in Settings as if the user created it.
+  static Future<void> activateSubscriptionNode(String endpoint) async {
+    if (endpoint.trim().isEmpty) {
+      throw ArgumentError('a subscription node needs an endpoint');
+    }
+    final index = await _loadIndex();
+    final file = await _file(_subscriptionFileName);
+    await file.writeAsString(endpoint, flush: true);
+    try {
+      await AppStorage.restrict(file);
+      await _saveIndex(index.configs, _subscriptionId);
+    } on Object {
+      if (await file.exists()) await file.delete();
+      rethrow;
+    }
   }
 
   static Future<void> delete(String id) async {

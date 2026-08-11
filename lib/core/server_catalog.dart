@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 
-import 'settings_store.dart';
 import 'config_store.dart';
+import 'settings_store.dart';
+import 'subscription.dart';
+import 'subscription_store.dart';
 
 @immutable
 class ServerOption {
@@ -10,77 +12,63 @@ class ServerOption {
     required this.name,
     required this.description,
     required this.flag,
-    required this.badge,
     this.latencyMs,
     this.configId,
+    this.subscriptionId,
+    this.nodeId,
+    this.available = true,
   });
 
   final String id;
   final String name;
   final String description;
   final String flag;
-  final String badge;
   final int? latencyMs;
   final String? configId;
+  final String? subscriptionId;
+  final String? nodeId;
+  final bool available;
 }
 
-/// Subscription-owned server source. The backend implementation will replace
-/// the mock without changing Home or its selection state.
+/// The server list Home consumes, independent of where its nodes are stored.
 abstract interface class ServerCatalog {
   Future<List<ServerOption>> load();
 }
 
-/// Temporary presentation data only. It contains no routable addresses,
-/// credentials or tunnel configurations and never changes core tunnel state.
-class MockServerCatalog implements ServerCatalog {
-  const MockServerCatalog();
+class SubscriptionServerCatalog implements ServerCatalog {
+  SubscriptionServerCatalog({
+    Future<List<Subscription>> Function()? loadSubscriptions,
+    Future<List<StoredConfig>> Function()? loadConfigurations,
+  }) : _loadSubscriptions = loadSubscriptions ?? SubscriptionStore.all,
+       _loadConfigurations = loadConfigurations ?? ConfigStore.list;
 
-  static const servers = [
-    ServerOption(
-      id: 'demo-helsinki',
-      name: 'Helsinki',
-      description: 'Primary preview server',
-      flag: '🇫🇮',
-      badge: 'Main',
-      latencyMs: 28,
-    ),
-    ServerOption(
-      id: 'demo-stockholm',
-      name: 'Stockholm',
-      description: 'Stable preview server',
-      flag: '🇸🇪',
-      badge: 'Stable',
-      latencyMs: 41,
-    ),
-    ServerOption(
-      id: 'demo-frankfurt',
-      name: 'Frankfurt',
-      description: 'Testing preview server',
-      flag: '🇩🇪',
-      badge: 'Testing',
-      latencyMs: 67,
-    ),
-  ];
-
-  @override
-  Future<List<ServerOption>> load() async => servers;
-}
-
-class DevelopmentServerCatalog implements ServerCatalog {
-  const DevelopmentServerCatalog();
+  final Future<List<Subscription>> Function() _loadSubscriptions;
+  final Future<List<StoredConfig>> Function() _loadConfigurations;
 
   @override
   Future<List<ServerOption>> load() async {
-    final configs = await ConfigStore.list();
+    final configs = await _loadConfigurations();
+    final subscriptions = await _loadSubscriptions();
     return [
-      ...MockServerCatalog.servers,
+      for (final subscription in subscriptions)
+        for (final node in subscription.nodes)
+          ServerOption(
+            id: 'node:${subscription.id}:${node.id}',
+            name: node.tag.trim().isEmpty
+                ? 'Server ${node.position + 1}'
+                : node.tag.trim(),
+            description: node.description,
+            flag: node.flag.isEmpty ? '🌐' : node.flag,
+            subscriptionId: subscription.id,
+            nodeId: node.id,
+            available: !node.maintenance,
+          ),
       for (final config in configs)
         ServerOption(
           id: 'user-${config.id}',
           name: config.name,
           description: config.description,
           flag: config.emoji,
-          badge: 'Custom',
           configId: config.id,
         ),
     ];
@@ -93,12 +81,14 @@ class ServerSelectionController extends ChangeNotifier {
     this.readSelected = SettingsStore.selectedServerId,
     this.writeSelected = SettingsStore.setSelectedServerId,
     this.activateConfiguration = ConfigStore.select,
+    this.activateNode = _activateNode,
   });
 
   final ServerCatalog catalog;
   final Future<String?> Function() readSelected;
   final Future<void> Function(String) writeSelected;
   final Future<void> Function(String) activateConfiguration;
+  final Future<void> Function(String, String) activateNode;
   List<ServerOption> servers = const [];
   ServerOption? selected;
 
@@ -112,11 +102,32 @@ class ServerSelectionController extends ChangeNotifier {
   }
 
   Future<void> select(ServerOption server) async {
-    if (!servers.contains(server)) return;
+    if (!servers.contains(server) || !server.available) return;
+    if (server.configId case final id?) {
+      await activateConfiguration(id);
+    } else if ((server.subscriptionId, server.nodeId) case (
+      final subscriptionId?,
+      final nodeId?,
+    )) {
+      await activateNode(subscriptionId, nodeId);
+    }
+    await writeSelected(server.id);
     selected = server;
     notifyListeners();
-    if (server.configId case final id?) await activateConfiguration(id);
-    await writeSelected(server.id);
+  }
+
+  static Future<void> _activateNode(
+    String subscriptionId,
+    String nodeId,
+  ) async {
+    final subscription = await SubscriptionStore.byId(subscriptionId);
+    if (subscription == null) return;
+    final node = subscription.nodes
+        .where((candidate) => candidate.id == nodeId)
+        .firstOrNull;
+    if (node == null || node.maintenance) return;
+    await SubscriptionStore.save(subscription.copyWith(pinnedId: node.id));
+    await ConfigStore.activateSubscriptionNode(node.endpoint);
   }
 }
 

@@ -63,12 +63,13 @@ void main() {
     expect(configs.single.toJson().toString(), isNot(contains('PrivateKey')));
     expect(configs.single.toJson().toString(), isNot(contains('PublicKey')));
 
-    final servers = await const DevelopmentServerCatalog().load();
+    final servers = await SubscriptionServerCatalog(
+      loadSubscriptions: () async => const [],
+    ).load();
     final custom = servers.singleWhere((server) => server.configId != null);
     expect(custom.name, 'My office');
     expect(custom.flag, '🏢');
     expect(custom.description, 'Work network');
-    expect(custom.badge, 'Custom');
     expect(custom.latencyMs, isNull);
   });
 
@@ -78,4 +79,16 @@ void main() {
     expect(config.emoji, '📄');
     expect(config.description, isEmpty);
   });
+
+  test(
+    'subscription endpoint is active but not listed as a custom config',
+    () async {
+      await ConfigStore.create('Personal', _first);
+
+      await ConfigStore.activateSubscriptionNode(_second);
+
+      expect(await ConfigStore.read(), _second);
+      expect((await ConfigStore.list()).single.name, 'Personal');
+    },
+  );
 }

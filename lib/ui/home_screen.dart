@@ -40,7 +40,7 @@ class HomeScreen extends StatelessWidget {
                 child: Align(
                   // Lower than geometric centre: the primary action remains
                   // reachable by a thumb without colliding with the server peek.
-                  alignment: const Alignment(0, 0.08),
+                  alignment: const Alignment(0, 0),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: CaeloSpace.gutter,
