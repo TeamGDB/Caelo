@@ -26,6 +26,7 @@ build/
 *.framework/
 *.xcframework/
 android/app/src/main/jniLibs/
+ios/Frameworks/caelo.xcframework/
 
 # CocoaPods. The lockfile is committed so a checkout resolves to the same
 # pods; the installed copies are not.

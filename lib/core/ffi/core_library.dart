@@ -60,17 +60,26 @@ class CoreFailure implements Exception {
 /// core push state instead of being asked for it — a tunnel that drops on its
 /// own cannot announce itself through a function that returns once.
 abstract final class CoreLibrary {
-  /// Apple platforms want a dylib; everywhere else it is a plain shared
-  /// object. On Android the loader finds it by name inside the APK's lib
-  /// directory, which is why nothing here builds a path.
+  /// macOS wants a dylib; Android and Linux want a plain shared object. On
+  /// Android the loader finds it by name inside the APK's lib directory, which
+  /// is why nothing here builds a path.
+  ///
+  /// iOS has neither: the core is a static archive linked into the executable,
+  /// so there is no file to open at all — see [_open].
   static String get _libraryName =>
-      Platform.isMacOS || Platform.isIOS ? 'libcaelo.dylib' : 'libcaelo.so';
+      Platform.isMacOS ? 'libcaelo.dylib' : 'libcaelo.so';
 
   /// Set `CAELO_CORE_DYLIB` to load a specific build — how you point a running
   /// app at a core you just rebuilt without reinstalling it.
   static const _overrideVariable = 'CAELO_CORE_DYLIB';
 
   static DynamicLibrary _open() {
+    // On iOS the core is linked into the binary rather than loaded from one.
+    // Opening a path would fail even though the symbols are right there, and
+    // the resulting error would send someone looking for a missing file that
+    // was never supposed to exist.
+    if (Platform.isIOS) return DynamicLibrary.process();
+
     final attempted = <String>[];
     Object? lastError;
 

@@ -8,3 +8,25 @@
 
 DEVELOPMENT_TEAM = BM4788UD8M
 BASE_BUNDLE_IDENTIFIER = team.gdb.caelo
+
+// The core, linked straight into the binary.
+//
+// -force_load is not optional. The archive is static and nothing in Swift or
+// Objective-C references these symbols — Dart looks them up at runtime — so
+// without it the linker discards every one of them and the app builds cleanly
+// into something that cannot find its own core.
+//
+// The slice is chosen by SDK because an xcframework is only a directory as far
+// as a static library is concerned.
+CAELO_LIB[sdk=iphoneos*] = $(SRCROOT)/Frameworks/caelo.xcframework/ios-arm64/libcaelo.a
+CAELO_LIB[sdk=iphonesimulator*] = $(SRCROOT)/Frameworks/caelo.xcframework/ios-arm64-simulator/libcaelo.a
+
+// -export_dynamic is the other half of -force_load, and just as necessary.
+// force_load keeps the code; without this the symbols still never reach the
+// dynamic table, and dlsym -- which is what Dart's DynamicLibrary.process()
+// uses -- looks only there. The binary then contains its own core and cannot
+// find it.
+//
+// resolv and the two frameworks are what the Go runtime needs on Apple
+// platforms: DNS, and the system trust store for TLS.
+OTHER_LDFLAGS = $(inherited) -force_load $(CAELO_LIB) -Wl,-export_dynamic -lresolv -framework CoreFoundation -framework Security

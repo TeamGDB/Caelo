@@ -84,6 +84,11 @@ jobs:
       - name: Build the shared library and the commands
         run: make dylib probe tun helper
 
+      # Behind build tags and a different toolchain, so a host build never
+      # compiles it and a mistake would otherwise surface in the app's build.
+      - name: Build the iOS xcframework
+        run: ./deploy/ios/build-xcframework.sh
+
       # Unsigned. macOS builds are signed and notarised at release, not here,
       # and an artifact from this job must never be handed to anyone as one.
       - uses: actions/upload-artifact@v7
@@ -92,4 +97,5 @@ jobs:
           path: |
             core/build/libcaelo.dylib
             core/build/libcaelo.h
+            core/build/ios/caelo.xcframework
           if-no-files-found: error
