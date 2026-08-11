@@ -32,6 +32,10 @@ type Result struct {
 	Body       string        `json:"body"`
 	Elapsed    time.Duration `json:"-"`
 	ElapsedMs  int64         `json:"elapsed_ms"`
+	// LatencyMs is a warm HTTPS round trip through an already proven tunnel.
+	// It is intentionally separate from ElapsedMs, whose first request includes
+	// tunnel establishment and remains the availability metric used by callers.
+	LatencyMs *int64 `json:"latency_ms,omitempty"`
 }
 
 // Options configure a single probe run.
@@ -44,6 +48,11 @@ type Options struct {
 
 	// Verbose logs device internals, including handshake progress, to stderr.
 	Verbose bool
+
+	// MeasureLatency follows the proving request with one more request over the
+	// same tunnel. The second request excludes WireGuard establishment and is
+	// suitable for a periodically refreshed value in the UI.
+	MeasureLatency bool
 }
 
 // Run parses configText, brings the tunnel up, and fetches opts.URL through it.
@@ -91,31 +100,68 @@ func Run(configText string, opts Options) (*Result, error) {
 
 	client := &http.Client{Transport: &http.Transport{DialContext: tnet.DialContext}}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, opts.URL, nil)
+	status, body, elapsed, latencyMs, err := requestMeasurements(
+		ctx,
+		client,
+		opts.URL,
+		opts.MeasureLatency,
+	)
 	if err != nil {
 		return nil, err
 	}
-
-	started := time.Now()
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, fmt.Errorf("fetching %s through the tunnel: %w", opts.URL, err)
-	}
-	defer response.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(response.Body, 4096))
-	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
-	}
-	elapsed := time.Since(started)
 
 	return &Result{
 		Endpoint:   cfg.Peer.Endpoint,
 		MTU:        cfg.MTU,
 		Obfuscated: len(cfg.Obfuscation) > 0,
-		Status:     response.Status,
-		Body:       strings.TrimSpace(string(body)),
+		Status:     status,
+		Body:       body,
 		Elapsed:    elapsed,
 		ElapsedMs:  elapsed.Milliseconds(),
+		LatencyMs:  latencyMs,
 	}, nil
+}
+
+func requestMeasurements(
+	ctx context.Context,
+	client *http.Client,
+	url string,
+	measureLatency bool,
+) (string, string, time.Duration, *int64, error) {
+	status, body, elapsed, err := fetch(ctx, client, url)
+	if err != nil {
+		return "", "", 0, nil, err
+	}
+	if !measureLatency {
+		return status, body, elapsed, nil, nil
+	}
+
+	_, _, latency, err := fetch(ctx, client, url)
+	if err != nil {
+		return "", "", 0, nil, fmt.Errorf("measuring latency: %w", err)
+	}
+	measured := latency.Milliseconds()
+	return status, body, elapsed, &measured, nil
+}
+
+func fetch(ctx context.Context, client *http.Client, url string) (string, string, time.Duration, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	started := time.Now()
+	response, err := client.Do(request)
+	if err != nil {
+		return "", "", 0, fmt.Errorf("fetching %s through the tunnel: %w", url, err)
+	}
+	body, readErr := io.ReadAll(io.LimitReader(response.Body, 4096))
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		return "", "", 0, fmt.Errorf("reading response: %w", readErr)
+	}
+	if closeErr != nil {
+		return "", "", 0, fmt.Errorf("closing response: %w", closeErr)
+	}
+	return response.Status, strings.TrimSpace(string(body)), time.Since(started), nil
 }

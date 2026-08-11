@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:caelo/core/server_catalog.dart';
 import 'package:caelo/core/subscription.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +20,21 @@ class _MeasuringCatalog implements ServerCatalog {
 
   @override
   Future<int?> measureLatency(ServerOption server) async => 73;
+}
+
+class _RefreshingCatalog implements ServerCatalog {
+  int measurements = 0;
+  final secondMeasurement = Completer<void>();
+
+  @override
+  Future<List<ServerOption>> load() async => const [_MeasuringCatalog.server];
+
+  @override
+  Future<int?> measureLatency(ServerOption server) async {
+    measurements++;
+    if (measurements == 2) secondMeasurement.complete();
+    return 72 + measurements;
+  }
 }
 
 void main() {
@@ -59,6 +76,26 @@ void main() {
     expect(controller.selected?.latencyMs, 73);
   });
 
+  test('refreshes latency without overlapping measurement cycles', () async {
+    final catalog = _RefreshingCatalog();
+    final controller = ServerSelectionController(
+      catalog,
+      readSelected: () async => null,
+      writeSelected: (_) async {},
+      activateConfiguration: (_) async {},
+      activateNode: (_, _) async {},
+      latencyRefreshInterval: const Duration(milliseconds: 1),
+    );
+    addTearDown(controller.dispose);
+
+    await controller.load();
+    await catalog.secondMeasurement.future.timeout(const Duration(seconds: 1));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(catalog.measurements, 2);
+    expect(controller.servers.single.latencyMs, 74);
+  });
+
   test('test catalog contains no endpoint or configuration material', () async {
     final servers = await const FakeServerCatalog().load();
 
@@ -92,7 +129,7 @@ void main() {
         loadConfigurations: () async => const [],
         probeConfiguration: (configuration) async {
           expect(configuration, '<redacted>');
-          return {'elapsed_ms': 51};
+          return {'latency_ms': 51};
         },
       );
 

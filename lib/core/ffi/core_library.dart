@@ -235,6 +235,35 @@ abstract final class CoreLibrary {
     });
   }
 
+  /// Measures a warm HTTPS round trip after first proving that the tunnel is
+  /// usable. Unlike [probe]'s elapsed time, `latency_ms` excludes the initial
+  /// WireGuard handshake and is the value intended for the server list.
+  static Future<Map<String, dynamic>> measureLatency(
+    String configText, {
+    String url = 'https://ifconfig.me/ip',
+    Duration timeout = const Duration(seconds: 20),
+  }) {
+    final timeoutMs = timeout.inMilliseconds;
+    return Isolate.run(() {
+      final library = _open();
+      final config = configText.toNativeUtf8();
+      final target = url.toNativeUtf8();
+      try {
+        return _require(
+          _consume(
+            library,
+            library.lookupFunction<_ProbeNative, _Probe>(
+              'caelo_measure_latency',
+            )(config, target, timeoutMs),
+          ),
+        );
+      } finally {
+        malloc.free(config);
+        malloc.free(target);
+      }
+    });
+  }
+
   static Future<void> disconnect() {
     return Isolate.run(() {
       final library = _open();

@@ -117,14 +117,14 @@ class SubscriptionServerCatalog implements ServerCatalog {
     }
     try {
       final result = await _probeConfiguration(endpoint);
-      return (result['elapsed_ms'] as num?)?.round();
+      return (result['latency_ms'] as num?)?.round();
     } on Object {
       return null;
     }
   }
 
   static Future<Map<String, dynamic>> _probe(String configuration) =>
-      CoreLibrary.probe(
+      CoreLibrary.measureLatency(
         configuration,
         url: NodeChooser.probeUrl,
         timeout: NodeChooser.perNode,
@@ -138,6 +138,7 @@ class ServerSelectionController extends ChangeNotifier {
     this.writeSelected = SettingsStore.setSelectedServerId,
     this.activateConfiguration = ConfigStore.select,
     this.activateNode = _activateNode,
+    this.latencyRefreshInterval = const Duration(seconds: 5),
   });
 
   final ServerCatalog catalog;
@@ -145,11 +146,14 @@ class ServerSelectionController extends ChangeNotifier {
   final Future<void> Function(String) writeSelected;
   final Future<void> Function(String) activateConfiguration;
   final Future<void> Function(String, String) activateNode;
+  final Duration? latencyRefreshInterval;
   List<ServerOption> servers = const [];
   ServerOption? selected;
   int _loadGeneration = 0;
+  Timer? _latencyRefreshTimer;
 
   Future<void> load() async {
+    _latencyRefreshTimer?.cancel();
     final generation = ++_loadGeneration;
     final loaded = await catalog.load();
     final savedId = await readSelected();
@@ -163,7 +167,6 @@ class ServerSelectionController extends ChangeNotifier {
   Future<void> _measureLatencies(int generation) async {
     for (final server in [...servers]) {
       if (generation != _loadGeneration) return;
-      if (server.latencyMs != null) continue;
       final latency = await catalog.measureLatency(server);
       if (generation != _loadGeneration || latency == null) continue;
       final measured = server.withLatency(latency);
@@ -173,6 +176,14 @@ class ServerSelectionController extends ChangeNotifier {
       ];
       if (selected?.id == server.id) selected = measured;
       notifyListeners();
+    }
+    if (generation != _loadGeneration) return;
+    final interval = latencyRefreshInterval;
+    if (interval != null) {
+      _latencyRefreshTimer = Timer(
+        interval,
+        () => unawaited(_measureLatencies(generation)),
+      );
     }
   }
 
@@ -208,6 +219,7 @@ class ServerSelectionController extends ChangeNotifier {
   @override
   void dispose() {
     _loadGeneration++;
+    _latencyRefreshTimer?.cancel();
     super.dispose();
   }
 }

@@ -67,7 +67,7 @@ void main() {
       loadSubscriptions: () async => const [],
       probeConfiguration: (configuration) async {
         expect(configuration, _first);
-        return {'elapsed_ms': 64};
+        return {'latency_ms': 64};
       },
     );
     final servers = await catalog.load();
