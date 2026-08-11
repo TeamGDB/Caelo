@@ -74,7 +74,15 @@ jobs:
           ls -1sh dist
 
       - uses: actions/upload-artifact@v7
-        with: { name: package-android, path: dist/*, if-no-files-found: error }
+        with: { name: android-apk-arm64-v8a, path: dist/*arm64-v8a.apk, if-no-files-found: error }
+      - uses: actions/upload-artifact@v7
+        with: { name: android-apk-armeabi-v7a, path: dist/*armeabi-v7a.apk, if-no-files-found: error }
+      - uses: actions/upload-artifact@v7
+        with: { name: android-apk-x86_64, path: dist/*x86_64.apk, if-no-files-found: error }
+      - uses: actions/upload-artifact@v7
+        with: { name: android-apk-universal, path: dist/*universal.apk, if-no-files-found: error }
+      - uses: actions/upload-artifact@v7
+        with: { name: android-aab, path: dist/*.aab, if-no-files-found: error }
 
   linux:
     runs-on: ubuntu-latest
@@ -103,7 +111,13 @@ jobs:
       - run: ./packaging/linux/package.sh x64 "${{ needs.version.outputs.value }}"
 
       - uses: actions/upload-artifact@v7
-        with: { name: package-linux-x64, path: dist/*, if-no-files-found: error }
+        with: { name: linux-x64-deb, path: dist/*.deb, if-no-files-found: error }
+      - uses: actions/upload-artifact@v7
+        with: { name: linux-x64-rpm, path: dist/*.rpm, if-no-files-found: error }
+      - uses: actions/upload-artifact@v7
+        with: { name: linux-x64-appimage, path: dist/*.AppImage, if-no-files-found: error }
+      - uses: actions/upload-artifact@v7
+        with: { name: linux-x64-tarball, path: dist/*.tar.gz, if-no-files-found: error }
 
   macos:
     runs-on: macos-latest
@@ -122,7 +136,9 @@ jobs:
       - run: ./packaging/macos/package.sh "${{ needs.version.outputs.value }}"
 
       - uses: actions/upload-artifact@v7
-        with: { name: package-macos, path: dist/*, if-no-files-found: error }
+        with: { name: macos-dmg, path: dist/*.dmg, if-no-files-found: error }
+      - uses: actions/upload-artifact@v7
+        with: { name: macos-pkg, path: dist/*.pkg, if-no-files-found: error }
 
   windows:
     runs-on: windows-latest
@@ -145,4 +161,45 @@ jobs:
         run: ./packaging/windows/package.sh "${{ needs.version.outputs.value }}"
 
       - uses: actions/upload-artifact@v7
-        with: { name: package-windows, path: dist/*, if-no-files-found: error }
+        with: { name: windows-x64-setup, path: dist/*setup.exe, if-no-files-found: error }
+      - uses: actions/upload-artifact@v7
+        with: { name: windows-x64-portable, path: dist/*portable.zip, if-no-files-found: error }
+
+  publish:
+    # Actions artifacts are always zipped, one archive per artifact. A release
+    # is the only place these appear as the files themselves, downloadable one
+    # at a time by anyone with the link -- which is what every other client in
+    # this space ships and what people expect to find.
+    #
+    # Runs on dispatch as well as on tags, so the release page can be looked at
+    # before there is anything to release. A dispatch run stays a draft.
+    needs: [version, android, linux, macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: incoming
+          merge-multiple: true
+
+      - name: Draft, not published
+        uses: softprops/action-gh-release@v2
+        with:
+          # A draft either way. Nothing here is signed, and a release that
+          # anyone can find is a release someone will install.
+          draft: true
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.version.outputs.value) }}
+          name: Caelo ${{ needs.version.outputs.value }}
+          files: incoming/*
+          body: |
+            Nothing here is signed or notarised yet. macOS will refuse to open
+            the app without a right-click, and Windows will warn. Do not treat
+            these as a release until that changes.
+
+            | Platform | File |
+            | --- | --- |
+            | Android | one APK per architecture, or the universal one if unsure |
+            | Linux | `.deb`, `.rpm`, AppImage, or the tarball |
+            | macOS | `.dmg` to drag, `.pkg` to install |
+            | Windows | installer, or the portable zip to run from a stick |
