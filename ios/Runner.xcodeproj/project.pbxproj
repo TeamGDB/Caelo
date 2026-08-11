@@ -11,9 +11,10 @@
 		24989488DBD740B5C6FA59D6 /* CaeloPacketTunnel.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 7DD486E122A26D8C43B32F6D /* CaeloPacketTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
-		5B7D3CE266794F78CBEADFC7 /* TunnelLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B48720E93AEAD6873A01883 /* TunnelLog.swift */; };
+		67B15C107FA65AE1940D1FBA /* TunnelLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C950A51451F53606F51DD825 /* TunnelLog.swift */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */; };
+		84A3881BE21BCDC742876E5F /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D999B981EAB93B8FB3458E74 /* PacketTunnelProvider.swift */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
@@ -21,7 +22,6 @@
 		BE26F8AD90FD4602F4C2B4FB /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 487F8255DB431B1CF57504A0 /* Pods_Runner.framework */; };
 		C9D28C246886A263F9EE570C /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F1419D8567ADABB84EE2E558 /* Pods_RunnerTests.framework */; };
 		D27B3FF17C5837B7D3556489 /* VpnManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3BA1E358E5082B64D138E68 /* VpnManager.swift */; };
-		DEDDD3A2F3F3E4571F1F321A /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC0D149D38829DC3792D2B9A /* PacketTunnelProvider.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,7 +80,6 @@
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7884E8672EC3CC0400C636F2 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
-		7B48720E93AEAD6873A01883 /* TunnelLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TunnelLog.swift; sourceTree = "<group>"; };
 		7DD486E122A26D8C43B32F6D /* CaeloPacketTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; name = CaeloPacketTunnel.appex; path = CaeloPacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E3115AE3F17E7DB82C7FE98 /* CaeloPacketTunnel-Bridging-Header.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = "CaeloPacketTunnel-Bridging-Header.h"; sourceTree = "<group>"; };
 		8171A6A042A8E0F659359A72 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -94,9 +93,10 @@
 		985EDC06EFFE9C8B1351111F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		9B5E697BE22A8178FDE2A021 /* Pods-RunnerTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.release.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.release.xcconfig"; sourceTree = "<group>"; };
 		B3BA1E358E5082B64D138E68 /* VpnManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VpnManager.swift; sourceTree = "<group>"; };
+		C950A51451F53606F51DD825 /* TunnelLog.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TunnelLog.swift; path = ../platform/apple/TunnelLog.swift; sourceTree = "<group>"; };
 		D377DE87F3121F258E7857AE /* CaeloPacketTunnel.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = CaeloPacketTunnel.entitlements; sourceTree = "<group>"; };
+		D999B981EAB93B8FB3458E74 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PacketTunnelProvider.swift; path = ../platform/apple/PacketTunnelProvider.swift; sourceTree = "<group>"; };
 		E04BEB49CD62D80E7EF7A896 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
-		EC0D149D38829DC3792D2B9A /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
 		F1419D8567ADABB84EE2E558 /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		FEA0AD90165683D3C7AE163A /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -136,6 +136,15 @@
 			);
 			name = iOS;
 			sourceTree = "<group>";
+		};
+		22DA533AF385CCCFCE74CC1D /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				D999B981EAB93B8FB3458E74 /* PacketTunnelProvider.swift */,
+				C950A51451F53606F51DD825 /* TunnelLog.swift */,
+			);
+			name = Shared;
+			sourceTree = SOURCE_ROOT;
 		};
 		331C8082294A63A400263BE5 /* RunnerTests */ = {
 			isa = PBXGroup;
@@ -190,6 +199,7 @@
 				76276089F72374ACA09839AA /* Pods */,
 				7AF5A3ADB26F8FE969CC182C /* Frameworks */,
 				AC7249A8CB76951F528824B1 /* CaeloPacketTunnel */,
+				22DA533AF385CCCFCE74CC1D /* Shared */,
 			);
 			sourceTree = "<group>";
 		};
@@ -223,11 +233,9 @@
 		AC7249A8CB76951F528824B1 /* CaeloPacketTunnel */ = {
 			isa = PBXGroup;
 			children = (
-				EC0D149D38829DC3792D2B9A /* PacketTunnelProvider.swift */,
 				8171A6A042A8E0F659359A72 /* Info.plist */,
 				D377DE87F3121F258E7857AE /* CaeloPacketTunnel.entitlements */,
 				7E3115AE3F17E7DB82C7FE98 /* CaeloPacketTunnel-Bridging-Header.h */,
-				7B48720E93AEAD6873A01883 /* TunnelLog.swift */,
 			);
 			name = CaeloPacketTunnel;
 			path = CaeloPacketTunnel;
@@ -472,8 +480,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DEDDD3A2F3F3E4571F1F321A /* PacketTunnelProvider.swift in Sources */,
-				5B7D3CE266794F78CBEADFC7 /* TunnelLog.swift in Sources */,
+				84A3881BE21BCDC742876E5F /* PacketTunnelProvider.swift in Sources */,
+				67B15C107FA65AE1940D1FBA /* TunnelLog.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

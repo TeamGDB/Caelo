@@ -4,10 +4,14 @@ import os
 
 /// Runs the tunnel.
 ///
-/// On iOS this is where the tunnel actually lives: a separate process the
-/// system starts, hands a utun descriptor, and stops when it decides to. The
-/// app cannot do any of it, which is why the split here is nothing like macOS
-/// or Android.
+/// This is where the tunnel actually lives on both Apple platforms: a separate
+/// process the system starts, hands a utun descriptor, and stops when it
+/// decides to. The app cannot do any of it.
+///
+/// iOS embeds this as an app extension; macOS installs it as a system
+/// extension, because that is what Developer ID distribution requires. The
+/// difference is entirely in how it gets there — what happens once it is
+/// running is the same, which is why this file is shared rather than copied.
 ///
 /// This file does not know what AmneziaWG is, and should not learn. It asks the
 /// core to describe the configuration, tells the system what the tunnel looks
