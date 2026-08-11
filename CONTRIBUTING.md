@@ -42,6 +42,18 @@ git commit -s -m "your message"
 That appends `Signed-off-by: Your Name <your@email.address>` using your git identity.
 Use a real name and a working address.
 
+## Branches
+
+Name a branch after the issue it closes: `<number>-<short-slug>`, lower case, hyphens.
+`10-selection-in-flutter`, not `selection-in-flutter`. GitHub links the two automatically
+and anyone reading `git branch` can find out why the work exists without asking.
+
+The slug describes the work, not the issue's title. An issue is often a question, and the
+branch is the answer — sometimes the opposite of what the title proposed.
+
+Work with no issue behind it takes a plain slug. If you cannot write one in a few words,
+that is usually the branch telling you it is two changes.
+
 ## Pull requests
 
 - One logical change per pull request.
@@ -49,13 +61,6 @@ Use a real name and a working address.
 - Say how you tested it. For anything touching the tunnel, "it connected" is not a test —
   tell us what you verified and on which network.
 - Rebase rather than merge when updating your branch.
-
-## The WireGuard fork
-
-Patches to our `wireguard-go` fork have a stricter rule: keep the AmneziaWG changes as
-discrete, self-contained commits. Do not mix them with upstream code, and do not reformat
-untouched files. Rebasing that fork onto a new upstream release has to stay a mechanical
-operation, and it stops being one the moment the patch series gets tangled.
 
 ## Reporting bugs
 
