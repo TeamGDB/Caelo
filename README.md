@@ -82,6 +82,26 @@ Any of them can be run without a core — `flutter build <platform>` on its own 
 the interface. The app then reports that the core is not there rather than pretending
 otherwise.
 
+## Packaging
+
+`packaging/` turns a build into the shapes people install. The Package workflow runs all of
+it on every dispatch, so the packaging is exercised continuously rather than discovered to
+be broken on the day of a release.
+
+| Platform | Formats |
+| --- | --- |
+| Android | one APK per ABI, a universal APK for sideloading, and an `.aab` |
+| Linux | `.tar.gz`, `.deb`, `.rpm`, AppImage |
+| macOS | `.dmg`, `.pkg` |
+| Windows | portable `.zip`, Inno Setup installer |
+
+Four Linux formats because "Linux" is not one thing: Debian and Fedora each want their own,
+the AppImage runs where neither is wanted, and the tarball is for people who would rather
+unpack it themselves.
+
+Nothing produced there is signed or notarised. That belongs with the signing identity and
+comes with the first real release; an unsigned build must never be handed out as one.
+
 Both scripts build the core from `core/` first, so a clean checkout is all either needs.
 
 ## License

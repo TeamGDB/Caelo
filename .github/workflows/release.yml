@@ -1,0 +1,143 @@
+name: Package
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+# Nothing here is signed or notarised. These are the shapes people install,
+# built so that the packaging itself is exercised on every run rather than
+# discovered to be broken on the day of a release.
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      value: ${{ steps.pick.outputs.value }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: pick
+        run: |
+          # A tag when there is one, otherwise something ordered and unique so
+          # that two dispatch runs never produce identically named packages.
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "value=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=0.1.0+${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+
+  android:
+    runs-on: ubuntu-latest
+    needs: version
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+
+      - run: flutter pub get
+      - run: ./scripts/build-android.sh release
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+
+      # The bundle as well as the APKs: stores want one, everyone else wants
+      # the other, and sideloading wants the universal APK because whoever
+      # passes the file on does not know what is at the far end.
+      - run: flutter build appbundle --release
+
+      - name: Collect
+        run: |
+          mkdir -p dist
+          for apk in build/app/outputs/flutter-apk/app-*release.apk; do
+            name=$(basename "$apk" .apk); name=${name#app-}; name=${name%-release}
+            [[ "$name" == "release" ]] && name=universal
+            cp "$apk" "dist/Caelo-android-$name.apk"
+          done
+          cp build/app/outputs/bundle/release/app-release.aab dist/Caelo-android.aab
+          ls -1sh dist
+
+      - uses: actions/upload-artifact@v7
+        with: { name: package-android, path: dist/*, if-no-files-found: error }
+
+  linux:
+    runs-on: ubuntu-latest
+    needs: version
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - name: Install the desktop and packaging toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev rpm ruby-dev build-essential libfuse2
+          sudo gem install --no-document fpm
+          curl -sSL -o /usr/local/bin/appimagetool \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /usr/local/bin/appimagetool
+
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+
+      - run: flutter pub get
+      - run: ./scripts/build-linux.sh release
+      - run: ./packaging/linux/package.sh x64 "${{ needs.version.outputs.value }}"
+
+      - uses: actions/upload-artifact@v7
+        with: { name: package-linux-x64, path: dist/*, if-no-files-found: error }
+
+  macos:
+    runs-on: macos-latest
+    needs: version
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+
+      - run: flutter pub get
+      - run: ./scripts/build-macos.sh release
+      - run: ./packaging/macos/package.sh "${{ needs.version.outputs.value }}"
+
+      - uses: actions/upload-artifact@v7
+        with: { name: package-macos, path: dist/*, if-no-files-found: error }
+
+  windows:
+    runs-on: windows-latest
+    needs: version
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+
+      - run: flutter pub get
+      - name: Build
+        shell: bash
+        run: ./scripts/build-windows.sh release
+      - name: Package
+        shell: bash
+        run: ./packaging/windows/package.sh "${{ needs.version.outputs.value }}"
+
+      - uses: actions/upload-artifact@v7
+        with: { name: package-windows, path: dist/*, if-no-files-found: error }

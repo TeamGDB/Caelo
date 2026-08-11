@@ -49,7 +49,14 @@ echo "==> Building the core for Android"
 
 echo "==> Building the app ($MODE)"
 cd "$APP_ROOT"
+
+# Split first, then universal. A single APK carrying every ABI is three times
+# the download for the two thirds nobody on a given phone will ever execute,
+# and this is a tool people fetch over a connection that is already being
+# interfered with. The universal one stays for sideloading, where the person
+# handing over the file does not know what is at the other end.
+flutter build apk "--$MODE" --split-per-abi
 flutter build apk "--$MODE"
 
 echo "==> Done"
-find build/app/outputs -name "*.apk" -maxdepth 4 2>/dev/null || true
+ls -1 build/app/outputs/flutter-apk/*.apk 2>/dev/null || true
