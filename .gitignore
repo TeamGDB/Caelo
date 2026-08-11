@@ -27,6 +27,11 @@ build/
 *.xcframework/
 android/app/src/main/jniLibs/
 
+# CocoaPods. The lockfile is committed so a checkout resolves to the same
+# pods; the installed copies are not.
+ios/Pods/
+macos/Pods/
+
 # Xcode
 xcuserdata/
 *.xcworkspace/xcuserdata/
