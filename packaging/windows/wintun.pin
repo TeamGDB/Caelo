@@ -1,0 +1,13 @@
+# The Wintun release Caelo is built and tested against.
+#
+# Pinned rather than "latest" because this is a kernel driver that creates the
+# adapter carrying somebody's whole machine, fetched over the network at build
+# time. A version and a hash make the build reproducible and make a substituted
+# download a failure rather than a surprise. WireGuard's own installer does the
+# same thing in its Makefile, and Tailscale keeps the same three values in Go.
+#
+# The DLL is not free software and is not in this repository. See
+# core/ATTRIBUTION.md for the licence it arrives under and why shipping it
+# alongside Caelo is aggregation rather than combination.
+version=0.14.1
+sha256=07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51

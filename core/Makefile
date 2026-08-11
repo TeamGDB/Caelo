@@ -82,10 +82,14 @@ probe:
 tun:
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-tun ./cmd/caelo-tun
 
-# The privileged half of the desktop. Linux for now; Windows joins it.
+# The privileged half of the desktop: Linux and Windows. An explicit -o does not
+# get the .exe that Go adds by itself, and a Windows service registered against
+# a path that does not exist starts nothing.
+EXE := $(if $(filter windows,$(shell go env GOOS)),.exe,)
+
 .PHONY: service
 service:
-	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-service ./cmd/caelo-service
+	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-service$(EXE) ./cmd/caelo-service
 
 .PHONY: test
 test:

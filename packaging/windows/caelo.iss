@@ -22,9 +22,15 @@ OutputBaseFilename={#AppName}-{#AppVersion}-windows-x64-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-; Per-user by default so that installing does not need an administrator. The
-; tunnel will, later, and it will ask then rather than at install time.
+#ifdef WithService
+; Registering a service needs an administrator, and there is no way to ask for
+; one later: the app itself never elevates, which is the whole point of the
+; arrangement. Asked once here, never again.
+PrivilegesRequired=admin
+#else
+; Without the service there is nothing to register, so nothing to elevate for.
 PrivilegesRequiredOverridesAllowed=dialog
+#endif
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 
@@ -43,4 +49,18 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Run]
+#ifdef WithService
+; Registers the tunnel service and asks the Service Control Manager to start it
+; when the app opens its pipe. Nothing runs at boot and nothing runs between
+; sessions: the service exists only while a tunnel does.
+Filename: "{app}\caelo-service.exe"; Parameters: "install"; StatusMsg: "Registering the tunnel service"; Flags: runhidden
+#endif
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+
+#ifdef WithService
+[UninstallRun]
+; Before the files go, not after. Stopping the service is what restores the
+; machine's routing, and the binary that knows how to undo it has to still be
+; on disk to do so.
+Filename: "{app}\caelo-service.exe"; Parameters: "uninstall"; RunOnceId: "RemoveCaeloService"; Flags: runhidden
+#endif
