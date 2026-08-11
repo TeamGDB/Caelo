@@ -47,5 +47,9 @@ selection contract can be implemented without waiting for network APIs.
   control coordinates and Russian 320 × 640 layout without overflow.
 
 The selected server is now visible before and during connection and the Home
-composition remains stable. Android build and device screenshots are recorded
-after the final runtime verification.
+composition remains stable. The official Android script produced core
+libraries for all three supported ABIs plus split and universal debug APKs. On
+Android 16, the server sheet selected Stockholm and that choice survived a
+force-stop and relaunch; no Flutter, RenderFlex or fatal errors appeared in the
+runtime log. The implementation commit is `223390e`; rollback with
+`git revert 223390e`.

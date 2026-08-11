@@ -43,5 +43,8 @@ allows the product flow to be reviewed while account services are developed.
 - No real invitation, key, account or server address is present in source or
   tests.
 
-The first-run interface and replaceable backend seam are implemented. Full
-suite, build and device verification are recorded after the stacked Home task.
+After the stacked Home task, the complete suite passed with 34 tests and the
+official Android script produced split and universal debug APKs. A clean
+Android 16 install opened Welcome, accepted a syntactically valid temporary
+invitation and opened Home. The implementation commit is `cd07a39`; rollback
+with `git revert cd07a39`.
