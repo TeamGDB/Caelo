@@ -29,7 +29,7 @@ void main() {
     for (final server in servers) {
       expect(server.id, startsWith('demo-'));
       expect(server.name, isNot(contains('://')));
-      expect(server.location, isNot(contains('=')));
+      expect(server.description, isNot(contains('=')));
     }
   });
 }

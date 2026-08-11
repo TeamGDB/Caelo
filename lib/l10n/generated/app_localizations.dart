@@ -308,6 +308,18 @@ abstract class AppLocalizations {
   /// **'Flag or emoji'**
   String get configurationEmoji;
 
+  /// No description provided for @configurationDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Server description'**
+  String get configurationDescription;
+
+  /// No description provided for @customServerDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'User configuration'**
+  String get customServerDescription;
+
   /// No description provided for @configurationEmpty.
   ///
   /// In en, this message translates to:

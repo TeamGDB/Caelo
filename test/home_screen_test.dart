@@ -198,6 +198,7 @@ void main() {
     expect(find.text('Main'), findsNothing);
     expect(find.text('Stable'), findsNothing);
     expect(find.text('Testing'), findsNothing);
+    expect(find.byType(CupertinoScrollbar), findsOneWidget);
 
     final unselected = tester.widget<Container>(
       find.byKey(const ValueKey('server-row-demo-stockholm')),
@@ -219,9 +220,18 @@ void main() {
     );
     await tester.pumpAndSettle();
     final expandedTop = tester.getTopLeft(surface).dy;
+    final headingTop = tester.getTopLeft(find.text('Choose server')).dy;
 
     await tester.drag(
-      find.byKey(const ValueKey('server-row-demo-helsinki')),
+      find.byKey(const ValueKey('server-list-scroll')),
+      const Offset(0, -220),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.getTopLeft(find.text('Choose server')).dy, headingTop);
+
+    await tester.drag(
+      find.byKey(const ValueKey('server-list-scroll')),
       const Offset(0, 220),
     );
     await tester.pumpAndSettle();

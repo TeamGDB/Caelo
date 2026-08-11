@@ -59,6 +59,8 @@
   "configuration": "Конфиг",
   "configurationName": "Название конфигурации",
   "configurationEmoji": "Флаг или эмодзи",
+  "configurationDescription": "Описание сервера",
+  "customServerDescription": "Пользовательская конфигурация",
   "configurationEmpty": "Вставьте конфигурацию",
   "addConfiguration": "Добавить конфигурацию",
   "customConfiguration": "Свой конфиг",

@@ -24,6 +24,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
   final _controller = TextEditingController();
   final _nameController = TextEditingController();
   final _emojiController = TextEditingController();
+  final _descriptionController = TextEditingController();
   bool _loaded = false;
   String? _error;
 
@@ -42,6 +43,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
       _controller.text = existing ?? '';
       _nameController.text = widget.config?.name ?? '';
       _emojiController.text = widget.config?.emoji ?? '📄';
+      _descriptionController.text = widget.config?.description ?? '';
       _loaded = true;
     });
   }
@@ -51,6 +53,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
     _controller.dispose();
     _nameController.dispose();
     _emojiController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
@@ -75,12 +78,14 @@ class _ConfigScreenState extends State<ConfigScreen> {
           _nameController.text,
           text,
           emoji: _emojiController.text,
+          description: _descriptionController.text,
         );
       } else {
         await ConfigStore.create(
           _nameController.text,
           text,
           emoji: _emojiController.text,
+          description: _descriptionController.text,
         );
       }
       if (mounted) Navigator.of(context).pop();
@@ -177,6 +182,17 @@ class _ConfigScreenState extends State<ConfigScreen> {
                               l10n.configurationEmoji,
                               style: CaeloTheme.caption(palette),
                             ),
+                          ),
+                        ),
+                        const SizedBox(height: CaeloSpace.md),
+                        CupertinoTextField(
+                          controller: _descriptionController,
+                          placeholder: l10n.configurationDescription,
+                          padding: const EdgeInsets.all(CaeloSpace.md),
+                          decoration: BoxDecoration(
+                            color: palette.surface1,
+                            borderRadius: CaeloRadius.controlAll,
+                            border: Border.all(color: palette.border),
                           ),
                         ),
                         const SizedBox(height: CaeloSpace.md),

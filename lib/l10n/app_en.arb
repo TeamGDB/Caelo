@@ -102,6 +102,8 @@
   "configuration": "Configuration",
   "configurationName": "Configuration name",
   "configurationEmoji": "Flag or emoji",
+  "configurationDescription": "Server description",
+  "customServerDescription": "User configuration",
   "configurationEmpty": "Paste a configuration",
   "addConfiguration": "Add configuration",
   "customConfiguration": "Custom config",

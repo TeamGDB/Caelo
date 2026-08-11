@@ -111,32 +111,30 @@ class _ServerDrawerState extends State<ServerDrawer> {
                     ),
                   ],
                 ),
-                child: Column(
-                  children: [
-                    _PeekHeader(
-                      selected: widget.controller.selected,
-                      locked: widget.locked,
-                      limitedScope: widget.limitedScope,
-                      onDragUpdate: updateExtent,
-                      onDragEnd: settleExtent,
-                      onTap: expandFromTap,
-                    ),
-                    Expanded(
-                      child: CustomScrollView(
-                        key: const ValueKey('server-list-scroll'),
-                        controller: _listController,
-                        physics: widget.locked
-                            ? const NeverScrollableScrollPhysics()
-                            : const ClampingScrollPhysics(),
-                        slivers: [
-                          SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                CaeloSpace.gutter,
-                                CaeloSpace.gutter,
-                                CaeloSpace.gutter,
-                                CaeloSpace.xs,
-                              ),
+                child: LayoutBuilder(
+                  builder: (context, sheetConstraints) {
+                    final showsServerList =
+                        sheetConstraints.maxHeight >= 152 + CaeloSpace.xl * 2;
+                    return Column(
+                      children: [
+                        _PeekHeader(
+                          selected: widget.controller.selected,
+                          locked: widget.locked,
+                          limitedScope: widget.limitedScope,
+                          onDragUpdate: updateExtent,
+                          onDragEnd: settleExtent,
+                          onTap: expandFromTap,
+                        ),
+                        if (showsServerList) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              CaeloSpace.gutter,
+                              CaeloSpace.gutter,
+                              CaeloSpace.gutter,
+                              CaeloSpace.xs,
+                            ),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
                               child: Text(
                                 AppLocalizations.of(context).chooseServer,
                                 style: CaeloTheme.headline(
@@ -145,35 +143,55 @@ class _ServerDrawerState extends State<ServerDrawer> {
                               ),
                             ),
                           ),
-                          SliverPadding(
-                            padding: EdgeInsets.fromLTRB(
-                              CaeloSpace.sm,
-                              CaeloSpace.xs,
-                              CaeloSpace.sm,
-                              CaeloSpace.xl +
-                                  MediaQuery.paddingOf(context).bottom,
-                            ),
-                            sliver: SliverList.separated(
-                              itemCount: widget.controller.servers.length,
-                              separatorBuilder: (_, _) =>
-                                  const SizedBox(height: 2),
-                              itemBuilder: (context, index) {
-                                final server = widget.controller.servers[index];
-                                return _ServerRow(
-                                  server: server,
-                                  selected:
-                                      server == widget.controller.selected,
-                                  onPressed: widget.locked
-                                      ? null
-                                      : () => widget.controller.select(server),
-                                );
-                              },
+                          Expanded(
+                            child: CupertinoScrollbar(
+                              controller: _listController,
+                              thumbVisibility: true,
+                              child: CustomScrollView(
+                                key: const ValueKey('server-list-scroll'),
+                                controller: _listController,
+                                physics: widget.locked
+                                    ? const NeverScrollableScrollPhysics()
+                                    : const ClampingScrollPhysics(),
+                                slivers: [
+                                  SliverPadding(
+                                    padding: EdgeInsets.fromLTRB(
+                                      CaeloSpace.sm,
+                                      CaeloSpace.xs,
+                                      CaeloSpace.sm,
+                                      CaeloSpace.xl +
+                                          MediaQuery.paddingOf(context).bottom,
+                                    ),
+                                    sliver: SliverList.separated(
+                                      itemCount:
+                                          widget.controller.servers.length,
+                                      separatorBuilder: (_, _) =>
+                                          const SizedBox(height: 2),
+                                      itemBuilder: (context, index) {
+                                        final server =
+                                            widget.controller.servers[index];
+                                        return _ServerRow(
+                                          server: server,
+                                          selected:
+                                              server ==
+                                              widget.controller.selected,
+                                          onPressed: widget.locked
+                                              ? null
+                                              : () => widget.controller.select(
+                                                  server,
+                                                ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
-                      ),
-                    ),
-                  ],
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -275,8 +293,7 @@ class _PeekHeader extends StatelessWidget {
                                 Text(
                                   limitedScope
                                       ? l10n.localTunnelOnly
-                                      : server?.location ??
-                                            l10n.serverListMockNotice,
+                                      : _description(server, l10n),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: CaeloTheme.body(palette).copyWith(
@@ -370,7 +387,7 @@ class _ServerRow extends StatelessWidget {
                     ).copyWith(fontSize: 20, fontWeight: FontWeight.w600),
                   ),
                   Text(
-                    server.location,
+                    _description(server, AppLocalizations.of(context)),
                     style: CaeloTheme.body(
                       palette,
                     ).copyWith(color: palette.muted, fontSize: 17),
@@ -398,4 +415,9 @@ class _ServerRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String _description(ServerOption? server, AppLocalizations l10n) {
+  final value = server?.description.trim() ?? '';
+  return value.isEmpty ? l10n.customServerDescription : value;
 }

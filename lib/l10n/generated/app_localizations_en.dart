@@ -125,6 +125,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get configurationEmoji => 'Flag or emoji';
 
   @override
+  String get configurationDescription => 'Server description';
+
+  @override
+  String get customServerDescription => 'User configuration';
+
+  @override
   String get configurationEmpty => 'Paste a configuration';
 
   @override

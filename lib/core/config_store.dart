@@ -7,18 +7,30 @@ import 'app_storage.dart';
 
 @immutable
 class StoredConfig {
-  const StoredConfig({required this.id, required this.name, this.emoji = '📄'});
+  const StoredConfig({
+    required this.id,
+    required this.name,
+    this.emoji = '📄',
+    this.description = '',
+  });
 
   final String id;
   final String name;
   final String emoji;
+  final String description;
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'emoji': emoji};
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'emoji': emoji,
+    'description': description,
+  };
 
   static StoredConfig fromJson(Map<String, dynamic> json) => StoredConfig(
     id: json['id'] as String,
     name: json['name'] as String,
     emoji: json['emoji'] as String? ?? '📄',
+    description: json['description'] as String? ?? '',
   );
 }
 
@@ -114,6 +126,7 @@ abstract final class ConfigStore {
     String name,
     String configText, {
     String emoji = '📄',
+    String description = '',
   }) async {
     final index = await _loadIndex();
     final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
@@ -121,6 +134,7 @@ abstract final class ConfigStore {
       id: id,
       name: _normaliseName(name),
       emoji: _normaliseEmoji(emoji),
+      description: description.trim(),
     );
     await _writeConfig(config.id, configText);
     await _saveIndex([...index.configs, config], config.id);
@@ -132,6 +146,7 @@ abstract final class ConfigStore {
     String name,
     String configText, {
     String emoji = '📄',
+    String description = '',
   }) async {
     final index = await _loadIndex();
     if (!index.configs.any((config) => config.id == id)) {
@@ -145,6 +160,7 @@ abstract final class ConfigStore {
             id: id,
             name: _normaliseName(name),
             emoji: _normaliseEmoji(emoji),
+            description: description.trim(),
           )
         else
           config,

@@ -8,7 +8,7 @@ class ServerOption {
   const ServerOption({
     required this.id,
     required this.name,
-    required this.location,
+    required this.description,
     required this.flag,
     required this.badge,
     this.latencyMs,
@@ -17,7 +17,7 @@ class ServerOption {
 
   final String id;
   final String name;
-  final String location;
+  final String description;
   final String flag;
   final String badge;
   final int? latencyMs;
@@ -39,7 +39,7 @@ class MockServerCatalog implements ServerCatalog {
     ServerOption(
       id: 'demo-helsinki',
       name: 'Helsinki',
-      location: 'Finland',
+      description: 'Primary preview server',
       flag: '🇫🇮',
       badge: 'Main',
       latencyMs: 28,
@@ -47,7 +47,7 @@ class MockServerCatalog implements ServerCatalog {
     ServerOption(
       id: 'demo-stockholm',
       name: 'Stockholm',
-      location: 'Sweden',
+      description: 'Stable preview server',
       flag: '🇸🇪',
       badge: 'Stable',
       latencyMs: 41,
@@ -55,7 +55,7 @@ class MockServerCatalog implements ServerCatalog {
     ServerOption(
       id: 'demo-frankfurt',
       name: 'Frankfurt',
-      location: 'Germany',
+      description: 'Testing preview server',
       flag: '🇩🇪',
       badge: 'Testing',
       latencyMs: 67,
@@ -78,7 +78,7 @@ class DevelopmentServerCatalog implements ServerCatalog {
         ServerOption(
           id: 'user-${config.id}',
           name: config.name,
-          location: 'Local configuration',
+          description: config.description,
           flag: config.emoji,
           badge: 'Custom',
           configId: config.id,
