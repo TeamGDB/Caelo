@@ -41,6 +41,10 @@ cat > "$WORK/nodes.json" <<JSON
       "nodes": ["first", "second"]
     }
   },
+  "meta": {
+    "first":  { "country": "DE", "description": "Best for video" },
+    "second": { "country": "NL", "maintenance": true }
+  },
   "nodes": {
     "first": {
       "tag": "First",
@@ -87,8 +91,26 @@ for _ in $(seq 1 50); do
   sleep 0.2
 done
 
-echo "==> fetching"
+echo "==> fetching the plain document"
 curl -fsS -D "$WORK/headers" -o "$WORK/document.json" "http://127.0.0.1:$PORT/sub/$TOKEN"
+grep -qi 'content-type: application/json' "$WORK/headers" \
+  || { echo "!! a client that did not ask should get plain sing-box JSON" >&2; exit 1; }
+
+echo "==> and the Caelo document"
+curl -fsS -H 'Accept: application/vnd.caelo.subscription+json, application/json' \
+  -D "$WORK/caelo-headers" -o "$WORK/caelo.json" "http://127.0.0.1:$PORT/sub/$TOKEN"
+grep -qi 'content-type: application/vnd.caelo.subscription' "$WORK/caelo-headers" \
+  || { echo "!! asking for the richer document got the plain one" >&2; exit 1; }
+python3 -c '
+import json, sys
+document = json.load(open(sys.argv[1]))
+nodes = document["nodes"]
+assert document["version"] == 1, "the version has to be stated"
+for node in nodes:
+    assert node["id"], "every node needs an identity"
+    assert "endpoint" in node, "every node carries its own endpoint"
+print("    version %d, ids: %s" % (document["version"], ", ".join(n["id"] for n in nodes)))
+' "$WORK/caelo.json"
 
 echo "==> headers"
 grep -i -E 'subscription-userinfo|profile-update-interval' "$WORK/headers" | sed 's/^/    /'
@@ -131,8 +153,13 @@ import 'dart:io';
 import 'subscription.dart';
 
 Future<void> main(List<String> arguments) async {
+  final wantsCaelo = arguments.length > 1 && arguments[1] == 'caelo';
+
   final client = HttpClient();
   final request = await client.getUrl(Uri.parse(arguments.first));
+  if (wantsCaelo) {
+    request.headers.set('accept', '$caeloDocumentType, application/json');
+  }
   final response = await request.close();
   final body = await response.transform(utf8.decoder).join();
 
@@ -140,9 +167,21 @@ Future<void> main(List<String> arguments) async {
     response.headers.value('subscription-userinfo'),
   );
   final interval = response.headers.value('profile-update-interval');
-  final nodes = readNodes(body);
+  final nodes = readNodes(
+    body,
+    contentType: response.headers.contentType?.mimeType,
+  );
 
-  stdout.writeln('nodes    ${nodes.map((n) => "${n.position}:${n.tag}").join(", ")}');
+  stdout.writeln('as       ${wantsCaelo ? "the Caelo document" : "plain sing-box"}');
+  for (final each in nodes) {
+    final about = [
+      if (each.flag.isNotEmpty) each.flag,
+      each.tag.isEmpty ? '(unnamed)' : each.tag,
+      if (each.description.isNotEmpty) '— ${each.description}',
+      if (each.maintenance) '[out of service]',
+    ].join(' ');
+    stdout.writeln('node     ${each.id.padRight(12)} $about');
+  }
   stdout.writeln('used     ${usage.usedBytes} of ${usage.totalBytes}');
   stdout.writeln('left     ${usage.remainingBytes}');
   stdout.writeln('expires  ${usage.expires}');
@@ -159,7 +198,8 @@ Future<void> main(List<String> arguments) async {
 }
 DART
   cp "$ROOT/lib/core/subscription.dart" "$WORK/subscription.dart"
-  dart run "$WORK/read.dart" "http://127.0.0.1:$PORT/sub/$TOKEN" | sed 's/^/    /'
+  dart run "$WORK/read.dart" "http://127.0.0.1:$PORT/sub/$TOKEN" plain | sed 's/^/    /'
+  dart run "$WORK/read.dart" "http://127.0.0.1:$PORT/sub/$TOKEN" caelo | sed 's/^/    /'
 else
   echo "!! no dart on PATH; skipped the app's half" >&2
 fi

@@ -61,8 +61,8 @@ abstract final class SubscriptionFetcher {
         // silently connecting somewhere else while still showing the old choice
         // would be worse than forgetting it.
         clearPin:
-            subscription.pinnedTag != null &&
-            !fetched.nodes.any((node) => node.tag == subscription.pinnedTag),
+            subscription.pinnedId != null &&
+            !fetched.nodes.any((node) => node.id == subscription.pinnedId),
       );
 
       await SubscriptionStore.save(updated);
@@ -118,6 +118,13 @@ abstract final class SubscriptionFetcher {
       // client and which build and nothing else: a user agent goes to every
       // server, including one that is only pretending to be a subscription.
       request.headers.set(HttpHeaders.userAgentHeader, 'Caelo/$appVersion');
+      // Offered, not demanded. A server that understands it answers with the
+      // richer document; one that does not answers with plain sing-box JSON,
+      // and which arrived is decided by the response rather than by this.
+      request.headers.set(
+        HttpHeaders.acceptHeader,
+        '$caeloDocumentType, application/json',
+      );
       final response = await request.close().timeout(timeout);
 
       if (response.statusCode == 404 || response.statusCode == 403) {
@@ -134,7 +141,10 @@ abstract final class SubscriptionFetcher {
 
       final List<SubscriptionNode> nodes;
       try {
-        nodes = readNodes(body);
+        nodes = readNodes(
+          body,
+          contentType: response.headers.contentType?.mimeType,
+        );
       } on FormatException catch (error) {
         throw SubscriptionFailed(
           'the server sent something unreadable: ${error.message}',
