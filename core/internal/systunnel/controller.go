@@ -1,4 +1,4 @@
-//go:build darwin || linux
+//go:build darwin || linux || windows
 
 // Package systunnel owns a tunnel that carries the whole machine's traffic.
 //
@@ -117,6 +117,7 @@ func (c *Controller) Start(configText string) (*Status, error) {
 
 	network := system.Config{
 		Interface:    name,
+		Handle:       deviceHandle(tunDevice),
 		Address:      cfg.Addresses[0].String(),
 		MTU:          cfg.MTU,
 		EndpointHost: endpointHost,

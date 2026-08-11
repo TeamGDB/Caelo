@@ -1,8 +1,7 @@
 // Only where there is no better arrangement. macOS has the NetworkExtension,
 // where the system owns the tunnel and nothing of ours runs as root at all;
-// this exists because Linux and Windows offer nothing equivalent. Windows is
-// added to this line when its half of listen() lands.
-//go:build linux
+// this exists because Linux and Windows offer nothing equivalent.
+//go:build linux || windows
 
 // Command caelo-service is the privileged half of Caelo on the desktop.
 //
@@ -37,17 +36,32 @@ import (
 	"github.com/TeamGDB/Caelo/core/internal/version"
 )
 
+// stopEverything restores the machine and exits. Set once, in main, so that
+// the platform's own stop signal -- a SIGTERM on Linux, the Service Control
+// Manager on Windows -- reaches the same path as everything else.
+var stopEverything = func(string) {}
+
 func main() {
 	socketPath := flag.String("socket", ipc.SocketPath, "where to listen when not socket-activated")
 	idle := flag.Duration("idle", 90*time.Second, "exit after this long with nothing up and nobody connected")
 	verbose := flag.Bool("v", false, "log device internals")
+
+	// Before the flags: the subcommands take no flags, and Parse would reject
+	// them as arguments it did not expect.
+	if handled, err := platformCommand(); handled {
+		if err != nil {
+			log.SetPrefix("caelo-service: ")
+			log.Fatal(err)
+		}
+		return
+	}
 	flag.Parse()
 
 	log.SetPrefix("caelo-service: ")
 	log.SetFlags(log.LstdFlags)
 
-	if os.Geteuid() != 0 {
-		log.Fatal("must run as root: this program exists to do what the app may not")
+	if err := mustBePrivileged(); err != nil {
+		log.Fatal(err)
 	}
 
 	controller := systunnel.New(*verbose)
@@ -64,6 +78,10 @@ func main() {
 		defer os.Remove(*socketPath)
 	}
 
+	stopEverything = func(why string) {
+		shutdown(controller, listener, socketPath, activated, why)
+	}
+
 	stopped := make(chan os.Signal, 1)
 	signal.Notify(stopped, os.Interrupt, syscall.SIGTERM)
 
@@ -71,7 +89,7 @@ func main() {
 
 	go func() {
 		<-stopped
-		shutdown(controller, listener, socketPath, activated, "asked to stop")
+		stopEverything("asked to stop")
 	}()
 	go func() {
 		<-idler.expired
@@ -82,21 +100,32 @@ func main() {
 			idler.busy()
 			return
 		}
-		shutdown(controller, listener, socketPath, activated, "idle")
+		stopEverything("idle")
 	}()
 
 	log.Printf("listening on %s", describe(*socketPath, activated))
 
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			return
+	accept := func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			idler.busy()
+			go func() {
+				defer idler.idle()
+				serve(conn, controller)
+			}()
 		}
-		idler.busy()
-		go func() {
-			defer idler.idle()
-			serve(conn, controller)
-		}()
+	}
+
+	// Under a service manager the accept loop runs in the background while the
+	// manager owns the main goroutine. Started from a command line there is
+	// nothing else to do with it.
+	if managed, err := runManaged(accept); err != nil {
+		log.Fatal(err)
+	} else if !managed {
+		accept()
 	}
 }
 
