@@ -32,6 +32,9 @@ class _LogScreenState extends State<LogScreen> {
   void initState() {
     super.initState();
     _refresh();
+    // On iOS the interesting lines live in another process and have to be
+    // fetched rather than read.
+    unawaited(Diagnostics.refreshFromExtension());
     // The interesting moment is usually happening right now — someone opens
     // this and then presses connect on another screen.
     _watch = Diagnostics.changes.listen((_) => _refresh());

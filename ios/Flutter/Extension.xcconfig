@@ -1,0 +1,13 @@
+// The extension's own configuration.
+//
+// Generated.xcconfig is where FLUTTER_BUILD_NAME and FLUTTER_BUILD_NUMBER come
+// from, and Xcode only gives it to the Runner target. Without it the
+// extension's Info.plist expands those to nothing, CFBundleVersion ends up
+// empty, and iOS refuses to install the bundle at all — which it says plainly,
+// but only at install time, long after everything has built cleanly.
+//
+// Included rather than duplicated so the extension cannot drift to a different
+// version from the app it ships inside.
+#include "Generated.xcconfig"
+
+DEVELOPMENT_TEAM = BM4788UD8M
