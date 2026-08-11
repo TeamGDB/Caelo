@@ -77,6 +77,14 @@ class _ServerDrawerState extends State<ServerDrawer> {
           }
         }
 
+        void expandFromTap() {
+          if (widget.locked || (_extent ?? peek) >= expanded) return;
+          setState(() {
+            _dragging = false;
+            _extent = expanded;
+          });
+        }
+
         return Align(
           alignment: Alignment.bottomCenter,
           child: AnimatedContainer(
@@ -111,6 +119,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
                       limitedScope: widget.limitedScope,
                       onDragUpdate: updateExtent,
                       onDragEnd: settleExtent,
+                      onTap: expandFromTap,
                     ),
                     Expanded(
                       child: CustomScrollView(
@@ -137,11 +146,12 @@ class _ServerDrawerState extends State<ServerDrawer> {
                             ),
                           ),
                           SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(
+                            padding: EdgeInsets.fromLTRB(
                               CaeloSpace.sm,
                               CaeloSpace.xs,
                               CaeloSpace.sm,
-                              CaeloSpace.xl,
+                              CaeloSpace.xl +
+                                  MediaQuery.paddingOf(context).bottom,
                             ),
                             sliver: SliverList.separated(
                               itemCount: widget.controller.servers.length,
@@ -181,6 +191,7 @@ class _PeekHeader extends StatelessWidget {
     required this.limitedScope,
     required this.onDragUpdate,
     required this.onDragEnd,
+    required this.onTap,
   });
 
   final ServerOption? selected;
@@ -188,6 +199,7 @@ class _PeekHeader extends StatelessWidget {
   final bool limitedScope;
   final ValueChanged<double> onDragUpdate;
   final ValueChanged<double> onDragEnd;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -196,6 +208,7 @@ class _PeekHeader extends StatelessWidget {
     final server = selected;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
+      onTap: onTap,
       onVerticalDragUpdate: (details) => onDragUpdate(details.delta.dy),
       onVerticalDragEnd: (details) =>
           onDragEnd(details.velocity.pixelsPerSecond.dy),

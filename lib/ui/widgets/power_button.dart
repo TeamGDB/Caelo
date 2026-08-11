@@ -128,12 +128,19 @@ class _PowerButtonState extends State<PowerButton>
     TunnelPhase.disconnected => palette.primary,
   };
 
+  Color _labelContent(CaeloPalette palette) =>
+      widget.phase == TunnelPhase.disconnected &&
+          palette.brightness == Brightness.light
+      ? const Color(0xFF101414)
+      : _content(palette);
+
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
     final shortestSide = MediaQuery.sizeOf(context).shortestSide;
-    final diameter = (shortestSide * 0.64).clamp(210.0, 252.0).toDouble();
+    final diameter = (shortestSide * 0.68).clamp(220.0, 268.0).toDouble();
     final content = _content(palette);
+    final labelContent = _labelContent(palette);
 
     return Semantics(
       button: true,
@@ -238,7 +245,7 @@ class _PowerButtonState extends State<PowerButton>
                       textAlign: TextAlign.center,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: content,
+                        color: labelContent,
                         fontSize: (diameter * 0.1).clamp(21.0, 26.0).toDouble(),
                         height: 1.1,
                         fontWeight: FontWeight.w700,

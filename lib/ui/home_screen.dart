@@ -33,50 +33,60 @@ class HomeScreen extends StatelessWidget {
     return CupertinoPageScaffold(
       backgroundColor: palette.background,
       child: CaeloPageSurface(
-        child: SafeArea(
-          child: Stack(
-            children: [
-              Align(
-                // Lower than geometric centre: the primary action remains
-                // reachable by a thumb without colliding with the server peek.
-                alignment: const Alignment(0, 0.28),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: CaeloSpace.gutter,
-                  ),
-                  child: PowerButton(
-                    phase: status.phase,
-                    label: buttonLabel,
-                    onPressed: controller.toggle,
-                    semanticLabel:
-                        status.phase == TunnelPhase.connected ||
-                            status.phase == TunnelPhase.connecting
-                        ? l10n.disconnect
-                        : l10n.connect,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: SafeArea(
+                child: Align(
+                  // Lower than geometric centre: the primary action remains
+                  // reachable by a thumb without colliding with the server peek.
+                  alignment: const Alignment(0, 0.16),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: CaeloSpace.gutter,
+                    ),
+                    child: PowerButton(
+                      phase: status.phase,
+                      label: buttonLabel,
+                      onPressed: controller.toggle,
+                      semanticLabel:
+                          status.phase == TunnelPhase.connected ||
+                              status.phase == TunnelPhase.connecting
+                          ? l10n.disconnect
+                          : l10n.connect,
+                    ),
                   ),
                 ),
               ),
-              Positioned.fill(
-                child: ServerDrawer(
-                  controller: servers,
-                  locked: status.phase != TunnelPhase.disconnected,
-                  limitedScope:
-                      status.phase == TunnelPhase.connected &&
-                      !controller.coversWholeMachine,
+            ),
+            Positioned.fill(
+              child: ServerDrawer(
+                controller: servers,
+                locked: status.phase != TunnelPhase.disconnected,
+                limitedScope:
+                    status.phase == TunnelPhase.connected &&
+                    !controller.coversWholeMachine,
+              ),
+            ),
+            // Mobile SafeArea starts below the status bar. macOS reports no
+            // such inset for its transparent title bar, so reserve its chrome
+            // explicitly and keep the button out of the traffic-light row.
+            Positioned.fill(
+              child: SafeArea(
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: defaultTargetPlatform == TargetPlatform.macOS
+                          ? 36
+                          : CaeloSpace.control,
+                      right: CaeloSpace.control,
+                      child: const _SettingsButton(),
+                    ),
+                  ],
                 ),
               ),
-              // Mobile SafeArea starts below the status bar. macOS reports no
-              // such inset for its transparent title bar, so reserve its chrome
-              // explicitly and keep the button out of the traffic-light row.
-              Positioned(
-                top: defaultTargetPlatform == TargetPlatform.macOS
-                    ? 36
-                    : CaeloSpace.control,
-                right: CaeloSpace.control,
-                child: const _SettingsButton(),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

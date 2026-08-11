@@ -34,20 +34,34 @@ void main() {
     serverController.dispose();
   });
 
-  Future<void> pumpHome(WidgetTester tester, {Locale? locale}) async {
+  Future<void> pumpHome(
+    WidgetTester tester, {
+    Locale? locale,
+    CaeloPalette palette = CaeloPalette.dark,
+    double bottomInset = 0,
+  }) async {
+    final home = bottomInset == 0
+        ? const HomeScreen()
+        : MediaQuery(
+            data: MediaQueryData(
+              size: const Size(800, 600),
+              padding: EdgeInsets.only(bottom: bottomInset),
+            ),
+            child: const HomeScreen(),
+          );
     await tester.pumpWidget(
       CaeloColors(
-        palette: CaeloPalette.dark,
+        palette: palette,
         child: ServerSelectionScope(
           controller: serverController,
           child: TunnelScope(
             notifier: controller,
             child: CupertinoApp(
               locale: locale,
-              theme: CaeloTheme.data(CaeloPalette.dark),
+              theme: CaeloTheme.data(palette),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const HomeScreen(),
+              home: home,
             ),
           ),
         ),
@@ -161,7 +175,7 @@ void main() {
     expect(client.calls, contains('connect'));
   });
 
-  testWidgets('keeps servers on Home and expands them only by swiping', (
+  testWidgets('keeps servers on Home and expands on the selected server tap', (
     tester,
   ) async {
     await pumpHome(tester, locale: const Locale('en'));
@@ -173,12 +187,6 @@ void main() {
 
     expect(find.byType(ServerDrawer), findsOneWidget);
     expect(find.byType(CupertinoActionSheet), findsNothing);
-    expect(tester.getTopLeft(surface).dy, beforeTap);
-
-    await tester.drag(
-      find.byKey(const ValueKey('server-drag-handle')),
-      const Offset(0, -360),
-    );
     await tester.pumpAndSettle();
 
     expect(tester.getTopLeft(surface).dy, lessThan(beforeTap - 200));
@@ -224,8 +232,33 @@ void main() {
   testWidgets('makes the power control visually dominant', (tester) async {
     await pumpHome(tester, locale: const Locale('en'));
 
-    expect(tester.getSize(find.byType(PowerButton)).width, greaterThan(240));
+    expect(tester.getSize(find.byType(PowerButton)).width, greaterThan(280));
     expect(tester.getCenter(find.byType(PowerButton)).dy, greaterThan(300));
+    expect(tester.getCenter(find.byType(PowerButton)).dy, lessThan(335));
+  });
+
+  testWidgets('uses a dark idle label in the light theme', (tester) async {
+    await pumpHome(
+      tester,
+      locale: const Locale('en'),
+      palette: CaeloPalette.light,
+    );
+
+    final label = tester.widget<Text>(find.text('Connect'));
+    expect(label.style?.color, const Color(0xFF101414));
+  });
+
+  testWidgets('server surface covers the bottom safe-area background', (
+    tester,
+  ) async {
+    await pumpHome(tester, locale: const Locale('en'), bottomInset: 24);
+
+    expect(
+      tester
+          .getBottomLeft(find.byKey(const ValueKey('server-sheet-surface')))
+          .dy,
+      600,
+    );
   });
 
   testWidgets('keeps the server section collapsed while connecting', (
