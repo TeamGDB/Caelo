@@ -5,7 +5,9 @@ import 'package:caelo/l10n/generated/app_localizations.dart';
 import 'package:caelo/theme/app_theme.dart';
 import 'package:caelo/theme/palette.dart';
 import 'package:caelo/ui/home_screen.dart';
+import 'package:caelo/ui/server_picker_sheet.dart';
 import 'package:caelo/ui/widgets/caelo_surface.dart';
+import 'package:caelo/ui/widgets/power_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,11 +56,12 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('says so when nothing is configured', (tester) async {
+  testWidgets('keeps the area under the power button clear', (tester) async {
     await pumpHome(tester, locale: const Locale('en'));
 
     expect(find.text('Connect'), findsOneWidget);
-    expect(find.text('No configuration yet'), findsOneWidget);
+    expect(find.text('No configuration yet'), findsNothing);
+    expect(find.text('Selected server'), findsOneWidget);
   });
 
   // Being idle is not the same as having nothing to dial. Saying the second
@@ -113,7 +116,7 @@ void main() {
     await pumpHome(tester, locale: const Locale('ru'));
 
     expect(find.text('Подключить'), findsOneWidget);
-    expect(find.text('Конфиг не добавлен'), findsOneWidget);
+    expect(find.text('Выбранный сервер'), findsOneWidget);
   });
 
   // The most harmful thing this screen could do is imply the machine is
@@ -145,14 +148,7 @@ void main() {
       client.emit(connected);
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(
-        tester
-            .widget<AnimatedOpacity>(
-              find.ancestor(of: caveat, matching: find.byType(AnimatedOpacity)),
-            )
-            .opacity,
-        0,
-      );
+      expect(caveat, findsNothing);
     });
   });
 
@@ -163,6 +159,26 @@ void main() {
     await tester.pump();
 
     expect(client.calls, contains('connect'));
+  });
+
+  testWidgets('uses a branded sheet instead of CupertinoActionSheet', (
+    tester,
+  ) async {
+    await pumpHome(tester, locale: const Locale('en'));
+
+    await tester.tap(find.text('Helsinki'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ServerPickerSheet), findsOneWidget);
+    expect(find.byType(CupertinoActionSheet), findsNothing);
+    expect(find.text('Choose server'), findsOneWidget);
+    expect(tester.getBottomLeft(find.byType(ServerPickerSheet)).dy, 600);
+  });
+
+  testWidgets('makes the power control visually dominant', (tester) async {
+    await pumpHome(tester, locale: const Locale('en'));
+
+    expect(tester.getSize(find.byType(PowerButton)).width, greaterThan(240));
   });
 
   testWidgets('places Settings in the upper-right safe area', (tester) async {

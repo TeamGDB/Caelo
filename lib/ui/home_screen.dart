@@ -8,12 +8,11 @@ import '../l10n/generated/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
 import 'settings_screen.dart';
+import 'server_picker_sheet.dart';
 import 'widgets/caelo_surface.dart';
 import 'widgets/power_button.dart';
 
-/// The whole product, more or less: a button, a word, and a line of small text
-/// saying what you got. Everything else is a settings screen you should never
-/// need to open.
+/// The product centre: one primary action and a persistent server surface.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -47,38 +46,15 @@ class HomeScreen extends StatelessWidget {
                     left: CaeloSpace.gutter,
                     right: CaeloSpace.gutter,
                   ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      PowerButton(
-                        phase: status.phase,
-                        label: buttonLabel,
-                        onPressed: controller.toggle,
-                        semanticLabel:
-                            status.phase == TunnelPhase.connected ||
-                                status.phase == TunnelPhase.connecting
-                            ? l10n.disconnect
-                            : l10n.connect,
-                      ),
-                      const SizedBox(height: CaeloSpace.md),
-                      _ConfigurationHint(
-                        visible:
-                            !controller.hasConfiguration && !status.hasNode,
-                      ),
-                      const SizedBox(height: CaeloSpace.sm),
-                      // The tunnel is real but it lives on a userspace stack
-                      // inside this process. Never imply the machine is covered.
-                      _Caveat(
-                        visible:
-                            status.phase == TunnelPhase.connected &&
-                            !controller.coversWholeMachine,
-                      ),
-                      const SizedBox(height: CaeloSpace.control),
-                      _ReconnectAction(
-                        visible: status.phase == TunnelPhase.connected,
-                        onPressed: controller.reconnectDifferently,
-                      ),
-                    ],
+                  child: PowerButton(
+                    phase: status.phase,
+                    label: buttonLabel,
+                    onPressed: controller.toggle,
+                    semanticLabel:
+                        status.phase == TunnelPhase.connected ||
+                            status.phase == TunnelPhase.connecting
+                        ? l10n.disconnect
+                        : l10n.connect,
                   ),
                 ),
               ),
@@ -89,6 +65,9 @@ class HomeScreen extends StatelessWidget {
                 child: _ServerPanel(
                   controller: servers,
                   locked: status.phase != TunnelPhase.disconnected,
+                  limitedScope:
+                      status.phase == TunnelPhase.connected &&
+                      !controller.coversWholeMachine,
                 ),
               ),
               // Mobile SafeArea starts below the status bar. macOS reports no
@@ -109,75 +88,23 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _ConfigurationHint extends StatelessWidget {
-  const _ConfigurationHint({required this.visible});
-
-  final bool visible;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = CaeloColors.of(context);
-    final l10n = AppLocalizations.of(context);
-    return SizedBox(
-      height: 18,
-      child: AnimatedOpacity(
-        opacity: visible ? 1 : 0,
-        duration: CaeloMotion.quick,
-        child: Text(
-          visible ? l10n.noConfig : '',
-          style: CaeloTheme.caption(palette),
-        ),
-      ),
-    );
-  }
-}
-
 /// Subscription server selection. While the backend is absent the controller
 /// provides explicitly isolated presentation mocks; this widget never mutates
 /// or fabricates [TunnelStatus].
 class _ServerPanel extends StatelessWidget {
-  const _ServerPanel({required this.controller, required this.locked});
+  const _ServerPanel({
+    required this.controller,
+    required this.locked,
+    required this.limitedScope,
+  });
 
   final ServerSelectionController controller;
   final bool locked;
+  final bool limitedScope;
 
   Future<void> _choose(BuildContext context) async {
     if (locked || controller.servers.isEmpty) return;
-    final l10n = AppLocalizations.of(context);
-    await showCupertinoModalPopup<void>(
-      context: context,
-      builder: (sheetContext) => CupertinoActionSheet(
-        title: Text(l10n.chooseServer),
-        message: Text(l10n.serverListMockNotice),
-        actions: [
-          for (final server in controller.servers)
-            CupertinoActionSheetAction(
-              isDefaultAction: server == controller.selected,
-              onPressed: () async {
-                Navigator.pop(sheetContext);
-                await controller.select(server);
-              },
-              child: Row(
-                children: [
-                  Text(server.flag, style: const TextStyle(fontSize: 24)),
-                  const SizedBox(width: CaeloSpace.control),
-                  Expanded(
-                    child: Text(
-                      '${server.name} · ${server.location}',
-                      textAlign: TextAlign.left,
-                    ),
-                  ),
-                  if (server.latencyMs case final latency?) Text('$latency ms'),
-                ],
-              ),
-            ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(sheetContext),
-          child: Text(l10n.done),
-        ),
-      ),
-    );
+    await showCaeloServerPicker(context, controller);
   }
 
   @override
@@ -226,7 +153,9 @@ class _ServerPanel extends StatelessWidget {
                         style: CaeloTheme.title(palette),
                       ),
                       Text(
-                        server?.location ?? l10n.serverListMockNotice,
+                        limitedScope
+                            ? l10n.localTunnelOnly
+                            : server?.location ?? l10n.serverListMockNotice,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: CaeloTheme.caption(palette),
@@ -289,65 +218,6 @@ class _ServerBadge extends StatelessWidget {
           style: CaeloTheme.caption(
             palette,
           ).copyWith(color: palette.accent, fontWeight: FontWeight.w600),
-        ),
-      ),
-    );
-  }
-}
-
-/// States plainly what "connected" currently covers. It disappears when the
-/// NetworkExtension lands and the answer becomes "everything".
-class _Caveat extends StatelessWidget {
-  const _Caveat({required this.visible});
-
-  final bool visible;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = CaeloColors.of(context);
-    return SizedBox(
-      height: 16,
-      child: AnimatedOpacity(
-        opacity: visible ? 1 : 0,
-        duration: const Duration(milliseconds: 220),
-        child: Text(
-          AppLocalizations.of(context).localTunnelOnly,
-          style: CaeloTheme.caption(
-            palette,
-          ).copyWith(color: palette.dim, fontSize: 11),
-        ),
-      ),
-    );
-  }
-}
-
-/// Present only when it can do something, and quiet even then. Reaching for it
-/// means the automatic choice was wrong, which should be rare.
-class _ReconnectAction extends StatelessWidget {
-  const _ReconnectAction({required this.visible, required this.onPressed});
-
-  final bool visible;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = CaeloColors.of(context);
-    return SizedBox(
-      height: 32,
-      child: AnimatedOpacity(
-        opacity: visible ? 1 : 0,
-        duration: const Duration(milliseconds: 220),
-        child: IgnorePointer(
-          ignoring: !visible,
-          child: CupertinoButton(
-            padding: const EdgeInsets.symmetric(horizontal: CaeloSpace.md),
-            minimumSize: Size.zero,
-            onPressed: onPressed,
-            child: Text(
-              AppLocalizations.of(context).reconnectDifferently,
-              style: CaeloTheme.caption(palette).copyWith(color: palette.dim),
-            ),
-          ),
         ),
       ),
     );

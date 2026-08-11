@@ -23,6 +23,7 @@ class CaeloPalette {
     required this.foreground,
     required this.muted,
     required this.dim,
+    required this.primary,
     required this.accent,
     required this.accentSurface,
     required this.accentBorder,
@@ -55,6 +56,9 @@ class CaeloPalette {
   /// Tertiary text — present, but not asking to be read.
   final Color dim;
 
+  /// Idle primary action. Kept separate from [accent], which means connected.
+  final Color primary;
+
   /// Connected.
   final Color accent;
 
@@ -79,6 +83,7 @@ class CaeloPalette {
     foreground: Color(0xFFF0F2F4),
     muted: Color(0xFFAEB4BD),
     dim: Color(0xFF6E757F),
+    primary: Color(0xFF72B9D6),
     accent: Color(0xFF54C69A),
     accentSurface: Color(0xFF0E211B),
     accentBorder: Color(0xFF235141),
@@ -103,6 +108,7 @@ class CaeloPalette {
     foreground: Color(0xFF0A3735),
     muted: Color(0xFF496964),
     dim: Color(0xFF6B8781),
+    primary: Color(0xFF3697B8),
     accent: Color(0xFF2FA982),
     accentSurface: Color(0xFFDCF0E7),
     accentBorder: Color(0xFFA9D9C6),

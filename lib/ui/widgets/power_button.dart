@@ -102,7 +102,10 @@ class _PowerButtonState extends State<PowerButton>
       radius: 0.95,
     ),
     _ => RadialGradient(
-      colors: [palette.surface1, palette.surface2],
+      colors: [
+        palette.surface1,
+        Color.lerp(palette.surface2, palette.primary, 0.16)!,
+      ],
       center: const Alignment(-0.25, -0.35),
       radius: 0.95,
     ),
@@ -112,7 +115,7 @@ class _PowerButtonState extends State<PowerButton>
     TunnelPhase.connected => palette.accentBorder,
     TunnelPhase.failed => palette.dangerBorder,
     TunnelPhase.connecting || TunnelPhase.disconnecting => palette.accentBorder,
-    TunnelPhase.disconnected => palette.surface3,
+    TunnelPhase.disconnected => palette.primary,
   };
 
   Color _content(CaeloPalette palette) => switch (widget.phase) {
@@ -122,14 +125,14 @@ class _PowerButtonState extends State<PowerButton>
           : const Color(0xFFFFFFFF),
     TunnelPhase.failed => palette.danger,
     TunnelPhase.connecting || TunnelPhase.disconnecting => palette.foreground,
-    TunnelPhase.disconnected => palette.muted,
+    TunnelPhase.disconnected => palette.primary,
   };
 
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
     final shortestSide = MediaQuery.sizeOf(context).shortestSide;
-    final diameter = (shortestSide * 0.56).clamp(176.0, 224.0).toDouble();
+    final diameter = (shortestSide * 0.64).clamp(210.0, 252.0).toDouble();
     final content = _content(palette);
 
     return Semantics(
@@ -179,9 +182,11 @@ class _PowerButtonState extends State<PowerButton>
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: _border(palette),
-                          width: connected
-                              ? CaeloStroke.emphasis
-                              : CaeloStroke.hairline,
+                          width:
+                              connected ||
+                                  widget.phase == TunnelPhase.disconnected
+                              ? 3
+                              : CaeloStroke.emphasis,
                         ),
                       ),
                       decoration: BoxDecoration(
@@ -189,10 +194,11 @@ class _PowerButtonState extends State<PowerButton>
                         gradient: _gradient(palette),
                         boxShadow: [
                           BoxShadow(
-                            color: (connected ? palette.accent : palette.border)
-                                .withValues(alpha: connected ? 0.24 : 0.12),
-                            blurRadius: connected ? 48 : 24,
-                            spreadRadius: connected ? 4 : 0,
+                            color:
+                                (connected ? palette.accent : palette.primary)
+                                    .withValues(alpha: connected ? 0.28 : 0.22),
+                            blurRadius: connected ? 52 : 32,
+                            spreadRadius: connected ? 5 : 2,
                             offset: const Offset(0, 8),
                           ),
                         ],
@@ -220,7 +226,7 @@ class _PowerButtonState extends State<PowerButton>
                 children: [
                   Icon(
                     CupertinoIcons.power,
-                    size: (diameter * 0.29).clamp(52.0, 64.0).toDouble(),
+                    size: (diameter * 0.29).clamp(60.0, 72.0).toDouble(),
                     color: content,
                   ),
                   SizedBox(height: diameter * 0.07),
@@ -233,7 +239,7 @@ class _PowerButtonState extends State<PowerButton>
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: content,
-                        fontSize: (diameter * 0.1).clamp(18.0, 22.0).toDouble(),
+                        fontSize: (diameter * 0.1).clamp(21.0, 26.0).toDouble(),
                         height: 1.1,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.3,
