@@ -24,7 +24,17 @@ note in the README for why the alternative was rejected.
 
 ## Copied material
 
-None yet. Anything copied file-by-file gets a row here with the source path, the upstream
+| What | From | License | Where |
+| --- | --- | --- | --- |
+| The declarations of `ctl_info`, `sockaddr_ctl` and `CTLIOCGINFO`, and the approach of locating the tunnel's descriptor by scanning for a utun control socket | [wireguard-apple](https://github.com/WireGuard/wireguard-apple) | MIT | `ios/CaeloPacketTunnel/CaeloPacketTunnel-Bridging-Header.h`, `PacketTunnelProvider.swift` |
+
+`<sys/kern_control.h>` is not in the iOS SDK, so those three declarations have
+to be reproduced by anyone who needs them; the ABI is public and stable. The
+scanning approach is theirs, and it exists because the documented-looking
+alternative — reading `packetFlow`'s `socket.fileDescriptor` key path — is
+undocumented and stops working.
+
+Anything else copied file-by-file gets a row above, with the source path, the upstream
 commit, and the license it arrived under.
 
 If the netstack `tun.Device` in `core/` ends up adapted from sing-box's

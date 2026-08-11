@@ -72,8 +72,11 @@ final class VpnManager {
 
         // Everything the tunnel knows lives in the other process. This is the
         // only way to see it.
+        // Read from the shared container rather than asked for, so it works
+        // when the extension has already been stopped -- which is exactly when
+        // the question is worth asking.
         case "log":
-            ask("log", result)
+            result(Self.sharedLog())
 
         default:
             result(FlutterMethodNotImplemented)
@@ -124,6 +127,14 @@ final class VpnManager {
                 }
             }
         }
+    }
+
+    /// What the extension wrote down, from the container they share.
+    private static func sharedLog() -> String? {
+        guard let url = FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: "group.team.gdb.caelo")?
+            .appendingPathComponent("tunnel.log") else { return nil }
+        return try? String(contentsOf: url, encoding: .utf8)
     }
 
     /// Asks the extension something and hands back whatever it says.

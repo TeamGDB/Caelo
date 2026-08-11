@@ -19,15 +19,23 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     // devices from the tunnel to gain nothing.
     private let log = OSLog(subsystem: "team.gdb.caelo", category: "tunnel")
 
+    // Both, deliberately. os_log is for anyone with the device attached to a
+    // Mac; the file is for everyone else, and it is the one that survives this
+    // process being stopped.
     private func note(_ message: String) {
         os_log("%{public}@", log: log, type: .info, message)
+        TunnelLog.note(message)
     }
 
     private func fault(_ message: String) {
         os_log("%{public}@", log: log, type: .error, message)
+        TunnelLog.note("error: \(message)")
     }
 
     override func startTunnel(options: [String: NSObject]?) async throws {
+        TunnelLog.begin()
+        note("startTunnel")
+
         guard let config = configuration() else {
             fault("started with no configuration")
             throw NEVPNError(.configurationInvalid)
@@ -44,11 +52,20 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             throw NEVPNError(.configurationInvalid)
         }
 
-        try await setTunnelNetworkSettings(settings(from: described))
+        note("core described the configuration: endpoint \(described["endpoint"] ?? "?"), mtu \(described["mtu"] ?? "?"), routes \((described["allowed_ips"] as? [String])?.count ?? 0)")
+
+        do {
+            try await setTunnelNetworkSettings(settings(from: described))
+            note("network settings applied")
+        } catch {
+            fault("the system rejected the network settings: \(error)")
+            throw error
+        }
 
         // Only valid once the settings are applied: before that there is no
         // interface to have a descriptor for.
         let fd = tunnelDescriptor()
+        note("tunnel descriptor \(fd)")
         guard fd >= 0 else {
             fault("the system provided no tunnel descriptor")
             throw NEVPNError(.connectionFailed)
@@ -62,10 +79,19 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         protectSockets()
         note("tunnel up")
+
+        // The core's own account of the handshake, folded into the same file so
+        // that one thing survives the process rather than two.
+        if let core = call({ caelo_log() }), let lines = core["lines"] as? [String] {
+            lines.suffix(60).forEach { TunnelLog.note("core \($0)") }
+        }
     }
 
     override func stopTunnel(with reason: NEProviderStopReason) async {
         note("stopping, reason \(reason.rawValue)")
+        if let core = call({ caelo_log() }), let lines = core["lines"] as? [String] {
+            lines.suffix(60).forEach { TunnelLog.note("core \($0)") }
+        }
         _ = call { caelo_disconnect_fd() }
     }
 
@@ -171,15 +197,41 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     /// The descriptor behind packetFlow.
     ///
-    /// There is no public accessor. wireguard-apple reads the same key path,
-    /// and has for years; the alternative is copying every packet through
-    /// readPackets and writePackets, which costs a copy in each direction for
-    /// no benefit.
+    /// There is no public accessor, and the obvious trick — reading
+    /// packetFlow's "socket.fileDescriptor" key path — is undocumented and has
+    /// stopped working. So the socket is found rather than asked for: every
+    /// descriptor this process holds is examined until one turns out to be
+    /// connected to the kernel's utun control, which only the tunnel's can be.
+    ///
+    /// The approach is wireguard-apple's, which has survived a decade of iOS
+    /// releases the key path did not.
+    ///
+    /// The alternative is copying every packet through readPackets and
+    /// writePackets, at a copy in each direction for no benefit.
     private func tunnelDescriptor() -> Int32 {
-        if let fd = packetFlow.value(forKeyPath: "socket.fileDescriptor") as? Int32 {
-            return fd
+        var control = ctl_info()
+        withUnsafeMutablePointer(to: &control.ctl_name) {
+            $0.withMemoryRebound(to: CChar.self, capacity: MemoryLayout.size(ofValue: $0.pointee)) {
+                _ = strcpy($0, "com.apple.net.utun_control")
+            }
         }
-        // Falls back to the interface the system named for us.
+
+        for fd in Int32(0)...1024 {
+            var address = sockaddr_ctl()
+            var length = socklen_t(MemoryLayout.size(ofValue: address))
+            var result: Int32 = -1
+
+            withUnsafeMutablePointer(to: &address) {
+                $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    result = getpeername(fd, $0, &length)
+                }
+            }
+            guard result == 0, address.sc_family == AF_SYSTEM else { continue }
+
+            if control.ctl_id == 0, ioctl(fd, CTLIOCGINFO, &control) != 0 { continue }
+            if address.sc_id == control.ctl_id { return fd }
+        }
+
         return -1
     }
 }

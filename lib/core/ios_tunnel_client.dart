@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/services.dart';
 
@@ -135,10 +134,8 @@ class IosTunnelClient implements TunnelClient {
   static Future<List<String>> extensionLog() async {
     try {
       final reply = await _channel.invokeMethod<String>('log');
-      if (reply == null) return const [];
-
-      final decoded = jsonDecode(reply) as Map<String, dynamic>;
-      return (decoded['lines'] as List?)?.cast<String>() ?? const [];
+      if (reply == null || reply.isEmpty) return const [];
+      return reply.split('\n').where((line) => line.isNotEmpty).toList();
     } on Object {
       // The extension is not running, which is an ordinary state: there is
       // simply nothing to say yet.
