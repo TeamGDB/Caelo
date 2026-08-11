@@ -44,8 +44,13 @@ func caelo_version() *C.char {
 	})
 }
 
-// caelo_connect brings up the tunnel described by an AmneziaWG .conf file and
-// leaves it up.
+// caelo_connect brings up the tunnel described by a configuration and leaves it
+// up.
+//
+// The configuration is either an AmneziaWG `.conf` or one endpoint object from
+// a subscription's sing-box document, told apart by its first character. Which
+// one it is stops mattering here: both produce the same internal form, and the
+// app never has to know the difference or parse either.
 //
 // Returning successfully means the device is configured and running. It does
 // not mean the peer answered: WireGuard has no connect step, and only traffic
@@ -128,7 +133,7 @@ func caelo_status() *C.char {
 //
 //export caelo_describe
 func caelo_describe(configText *C.char) *C.char {
-	cfg, err := awg.ParseConfig(C.GoString(configText))
+	cfg, err := awg.Parse(C.GoString(configText))
 	if err != nil {
 		return failure(err)
 	}

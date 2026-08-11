@@ -44,7 +44,7 @@ func run(configPath, target string, timeout time.Duration, verbose bool) error {
 	// Parsed twice — once here to describe the tunnel before it is dialled, and
 	// once inside the probe. A few microseconds buys the operator a description
 	// of what is about to happen even when the handshake never completes.
-	cfg, err := awg.ParseConfig(string(raw))
+	cfg, err := awg.Parse(string(raw))
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", configPath, err)
 	}

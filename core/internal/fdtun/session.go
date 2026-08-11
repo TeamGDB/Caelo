@@ -59,7 +59,7 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 		s.stopLocked()
 	}
 
-	cfg, err := awg.ParseConfig(configText)
+	cfg, err := awg.Parse(configText)
 	if err != nil {
 		return nil, fmt.Errorf("reading configuration: %w", err)
 	}
