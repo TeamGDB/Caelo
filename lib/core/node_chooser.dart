@@ -19,6 +19,23 @@ class NoNodeWorked implements Exception {
       : 'none of the $tried nodes carried traffic';
 }
 
+/// A node that answered, and how long it took to say so.
+///
+/// The measurement is kept rather than only logged. It was taken to decide
+/// whether the node works at all, but it is also the only latency figure that
+/// means anything: measured from this device, on this network, through this
+/// node. A number a server sends is a number measured from somewhere else.
+class ChosenNode {
+  const ChosenNode({required this.node, required this.latency});
+
+  final SubscriptionNode node;
+
+  /// How long the probe's request took, end to end through the tunnel. Not a
+  /// ping: it includes the handshake and a real HTTPS exchange, which is what
+  /// somebody actually waits for.
+  final Duration latency;
+}
+
 /// Picks which node to connect through.
 ///
 /// Works down the list a subscription served, in the order it served it, and
@@ -45,7 +62,7 @@ abstract final class NodeChooser {
   /// at all — connecting each candidate for real would raise and drop a system
   /// tunnel per candidate, and on iOS and Android that restarts the tunnel
   /// extension and drops every connection on the device, once per candidate.
-  static Future<SubscriptionNode> choose({
+  static Future<ChosenNode> choose({
     List<SubscriptionNode>? among,
     Duration perNode = perNode,
   }) async {
@@ -60,10 +77,13 @@ abstract final class NodeChooser {
           url: probeUrl,
           timeout: perNode,
         );
-        Diagnostics.record(
-          'probe: $name answered in ${result['elapsed_ms']}ms',
+        final elapsed = Duration(
+          milliseconds: (result['elapsed_ms'] as num?)?.round() ?? 0,
         );
-        return node;
+        Diagnostics.record(
+          'probe: $name answered in ${elapsed.inMilliseconds}ms',
+        );
+        return ChosenNode(node: node, latency: elapsed);
       } on Object catch (error) {
         // Recorded and moved past. A node that does not answer is the ordinary
         // case this exists to handle, not a failure worth stopping for.
@@ -84,12 +104,12 @@ abstract final class NodeChooser {
   /// Nothing is written unless a node worked. Replacing a configuration that
   /// connects with one that has just been shown not to would be the worst
   /// possible moment to lose it.
-  static Future<SubscriptionNode> prepare({
+  static Future<ChosenNode> prepare({
     List<SubscriptionNode>? among,
     Duration perNode = perNode,
   }) async {
     final chosen = await choose(among: among, perNode: perNode);
-    await ConfigStore.write(chosen.endpoint);
+    await ConfigStore.write(chosen.node.endpoint);
     return chosen;
   }
 }
