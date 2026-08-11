@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'build_info.dart';
 import 'diagnostics.dart';
 import 'subscription.dart';
 import 'subscription_store.dart';
@@ -113,10 +114,10 @@ abstract final class SubscriptionFetcher {
     try {
       final request = await client.getUrl(Uri.parse(url)).timeout(timeout);
       // Servers that vary their answer by client are the reason this header
-      // exists. Ours says which client and which build, and nothing else: a
-      // user agent is sent to every server, including one that is only
-      // pretending to be a subscription.
-      request.headers.set(HttpHeaders.userAgentHeader, 'Caelo');
+      // exists, and docs/subscriptions.md promises what we send. It says which
+      // client and which build and nothing else: a user agent goes to every
+      // server, including one that is only pretending to be a subscription.
+      request.headers.set(HttpHeaders.userAgentHeader, 'Caelo/$appVersion');
       final response = await request.close().timeout(timeout);
 
       if (response.statusCode == 404 || response.statusCode == 403) {

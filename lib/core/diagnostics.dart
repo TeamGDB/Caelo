@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'app_storage.dart';
+import 'build_info.dart';
 import 'ffi/core_library.dart';
 import 'apple_tunnel_client.dart';
 import 'settings_store.dart';
@@ -205,7 +206,7 @@ abstract final class Diagnostics {
     final buffer = StringBuffer()
       ..writeln('Caelo diagnostic log')
       ..writeln('collected  ${DateTime.now().toUtc().toIso8601String()}')
-      ..writeln('app        0.1.0')
+      ..writeln('app        $appVersion')
       ..writeln(
         'platform   ${Platform.operatingSystem} ${Platform.operatingSystemVersion}',
       );
