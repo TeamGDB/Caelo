@@ -24,7 +24,12 @@ android {
         applicationId = "team.gdb.caelo"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // Pinned rather than inherited from flutter.minSdkVersion. The core's
+        // .so is built against this exact API by caelo-core's build-so.sh, and
+        // a Flutter upgrade that moved the default would leave a library that
+        // fails to load on the oldest devices we still claim to support — and
+        // only on those.
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
