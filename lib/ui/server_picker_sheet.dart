@@ -72,13 +72,13 @@ class ServerDrawer extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(
                           CaeloSpace.gutter,
-                          CaeloSpace.lg,
+                          CaeloSpace.xl,
                           CaeloSpace.gutter,
                           CaeloSpace.xs,
                         ),
                         child: Text(
                           AppLocalizations.of(context).chooseServer,
-                          style: CaeloTheme.title(palette),
+                          style: CaeloTheme.headline(palette),
                         ),
                       ),
                     ),
@@ -96,14 +96,13 @@ class ServerDrawer extends StatelessWidget {
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(
                         CaeloSpace.gutter,
-                        CaeloSpace.md,
+                        CaeloSpace.lg,
                         CaeloSpace.gutter,
                         CaeloSpace.xl,
                       ),
                       sliver: SliverList.separated(
                         itemCount: controller.servers.length,
-                        separatorBuilder: (_, _) =>
-                            const SizedBox(height: CaeloSpace.sm),
+                        separatorBuilder: (_, _) => const SizedBox(height: 2),
                         itemBuilder: (context, index) {
                           final server = controller.servers[index];
                           return _ServerRow(
@@ -158,67 +157,79 @@ class _PeekHeader extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                CaeloSpace.gutter,
-                CaeloSpace.sm,
-                CaeloSpace.gutter,
-                CaeloSpace.control,
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 54,
-                    child: Text(
-                      server?.flag ?? '—',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 30),
+            child: Column(
+              children: [
+                const SizedBox(height: CaeloSpace.sm),
+                Text(
+                  l10n.selectedServer,
+                  style: CaeloTheme.body(
+                    palette,
+                  ).copyWith(color: palette.muted, fontWeight: FontWeight.w600),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      CaeloSpace.gutter,
+                      CaeloSpace.xs,
+                      CaeloSpace.gutter,
+                      CaeloSpace.control,
                     ),
-                  ),
-                  const SizedBox(width: CaeloSpace.control),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Text(
-                          l10n.selectedServer,
-                          style: CaeloTheme.caption(palette),
+                        SizedBox(
+                          width: 54,
+                          child: Text(
+                            server?.flag ?? '—',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 32),
+                          ),
                         ),
-                        const SizedBox(height: CaeloSpace.xs),
-                        Text(
-                          server?.name ?? '—',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: CaeloTheme.title(palette),
+                        const SizedBox(width: CaeloSpace.control),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                server?.name ?? '—',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: CaeloTheme.title(palette),
+                              ),
+                              Text(
+                                limitedScope
+                                    ? l10n.localTunnelOnly
+                                    : server?.location ??
+                                          l10n.serverListMockNotice,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: CaeloTheme.body(
+                                  palette,
+                                ).copyWith(color: palette.muted),
+                              ),
+                            ],
+                          ),
                         ),
-                        Text(
-                          limitedScope
-                              ? l10n.localTunnelOnly
-                              : server?.location ?? l10n.serverListMockNotice,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: CaeloTheme.caption(palette),
+                        if (server?.latencyMs case final latency?)
+                          Text(
+                            l10n.latency(latency),
+                            style: CaeloTheme.body(
+                              palette,
+                            ).copyWith(color: palette.primary),
+                          ),
+                        const SizedBox(width: CaeloSpace.sm),
+                        Icon(
+                          locked
+                              ? CupertinoIcons.lock
+                              : CupertinoIcons.chevron_up,
+                          size: 20,
+                          color: palette.muted,
                         ),
                       ],
                     ),
                   ),
-                  if (server != null)
-                    Text(
-                      server.badge,
-                      style: CaeloTheme.caption(palette).copyWith(
-                        color: palette.accent,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  const SizedBox(width: CaeloSpace.sm),
-                  Icon(
-                    locked ? CupertinoIcons.lock : CupertinoIcons.chevron_up,
-                    size: 20,
-                    color: palette.dim,
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -245,14 +256,17 @@ class _ServerRow extends StatelessWidget {
       padding: EdgeInsets.zero,
       onPressed: onPressed,
       child: Container(
-        padding: const EdgeInsets.all(CaeloSpace.control),
+        key: ValueKey('server-row-${server.id}'),
+        padding: const EdgeInsets.symmetric(
+          horizontal: CaeloSpace.control,
+          vertical: CaeloSpace.sm,
+        ),
         decoration: BoxDecoration(
-          color: selected ? palette.accentSurface : palette.surface2,
+          color: selected ? palette.accentSurface : const Color(0x00000000),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected ? palette.accent : palette.border,
-            width: selected ? CaeloStroke.emphasis : CaeloStroke.hairline,
-          ),
+          border: selected
+              ? Border.all(color: palette.accent, width: CaeloStroke.emphasis)
+              : null,
         ),
         child: Row(
           children: [
@@ -281,20 +295,19 @@ class _ServerRow extends StatelessWidget {
                 ],
               ),
             ),
-            Text(
-              server.badge,
-              style: CaeloTheme.caption(
-                palette,
-              ).copyWith(color: palette.accent, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(width: CaeloSpace.sm),
-            Icon(
-              selected
-                  ? CupertinoIcons.check_mark_circled_solid
-                  : CupertinoIcons.circle,
-              color: selected ? palette.accent : palette.dim,
-              size: 24,
-            ),
+            if (server.latencyMs case final latency?)
+              Text(
+                AppLocalizations.of(context).latency(latency),
+                style: CaeloTheme.body(palette).copyWith(color: palette.muted),
+              ),
+            if (selected) ...[
+              const SizedBox(width: CaeloSpace.control),
+              Icon(
+                CupertinoIcons.check_mark_circled_solid,
+                color: palette.accent,
+                size: 24,
+              ),
+            ],
           ],
         ),
       ),

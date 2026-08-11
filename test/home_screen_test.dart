@@ -183,6 +183,16 @@ void main() {
 
     expect(tester.getTopLeft(surface).dy, lessThan(beforeTap - 200));
     expect(find.text('Choose server'), findsOneWidget);
+    expect(find.text('Main'), findsNothing);
+    expect(find.text('Stable'), findsNothing);
+    expect(find.text('Testing'), findsNothing);
+
+    final unselected = tester.widget<Container>(
+      find.byKey(const ValueKey('server-row-demo-stockholm')),
+    );
+    final decoration = unselected.decoration! as BoxDecoration;
+    expect(decoration.color, const Color(0x00000000));
+    expect(decoration.border, isNull);
   });
 
   testWidgets('makes the power control visually dominant', (tester) async {
