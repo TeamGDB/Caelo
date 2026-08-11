@@ -22,6 +22,7 @@ import (
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
+	"github.com/TeamGDB/Caelo/core/internal/probe"
 	"github.com/TeamGDB/Caelo/core/internal/tunnel"
 	"github.com/TeamGDB/Caelo/core/internal/version"
 )
@@ -64,6 +65,37 @@ func caelo_connect(configText *C.char) *C.char {
 //export caelo_check
 func caelo_check(url *C.char, timeoutMs C.int) *C.char {
 	result, err := session.Check(C.GoString(url), time.Duration(timeoutMs)*time.Millisecond)
+	if err != nil {
+		return failure(err)
+	}
+	return success(result)
+}
+
+// caelo_probe answers whether one configuration carries traffic, without
+// touching the machine's networking or the tunnel that may already be up.
+//
+// It runs on a userspace network stack inside this process: no interface, no
+// routes, nothing outside the caller rerouted. That is what makes it usable for
+// working down a list of candidates. The alternative — connecting for real and
+// checking — means raising and dropping a system tunnel per candidate, which on
+// iOS and Android restarts the extension and drops every connection on the
+// device each time round.
+//
+// It is also a stronger answer than a ping. A server can answer ICMP and still
+// refuse the handshake, and an obfuscated endpoint is meant to ignore anything
+// that is not the right first packet. Only a reply that came back through the
+// tunnel proves the node works.
+//
+//export caelo_probe
+func caelo_probe(configText *C.char, url *C.char, timeoutMs C.int) *C.char {
+	result, err := probe.Run(C.GoString(configText), probe.Options{
+		URL:     C.GoString(url),
+		Timeout: time.Duration(timeoutMs) * time.Millisecond,
+		// Whatever the application already asked for. Passing false here would
+		// have a probe silence a tunnel whose logging someone turned on to
+		// watch, which is the moment they are most likely to run one.
+		Verbose: diag.Verbose(),
+	})
 	if err != nil {
 		return failure(err)
 	}

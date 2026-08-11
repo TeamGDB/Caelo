@@ -10,6 +10,9 @@ typedef _ConnectNative = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef _ConnectFdNative = Pointer<Utf8> Function(Int32, Pointer<Utf8>);
 typedef _ConnectFd = Pointer<Utf8> Function(int, Pointer<Utf8>);
 typedef _CheckNative = Pointer<Utf8> Function(Pointer<Utf8>, Int32);
+typedef _ProbeNative =
+    Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, Int32);
+typedef _Probe = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, int);
 typedef _SetFlagNative = Pointer<Utf8> Function(Int32);
 typedef _SetFlag = Pointer<Utf8> Function(int);
 typedef _Check = Pointer<Utf8> Function(Pointer<Utf8>, int);
@@ -188,6 +191,45 @@ abstract final class CoreLibrary {
           ),
         );
       } finally {
+        malloc.free(target);
+      }
+    });
+  }
+
+  /// Answers whether one configuration carries traffic, without touching the
+  /// machine's networking or a tunnel that is already up.
+  ///
+  /// This is how a list of candidates is worked down. Connecting each one for
+  /// real to find out would raise and drop a system tunnel per candidate, and
+  /// on iOS and Android that restarts the tunnel extension and drops every
+  /// connection on the device each time round.
+  ///
+  /// It is also a stronger answer than a ping: a server can answer ICMP and
+  /// still refuse the handshake, and an obfuscated endpoint is supposed to
+  /// ignore anything that is not the right first packet.
+  static Future<Map<String, dynamic>> probe(
+    String configText, {
+    String url = 'https://ifconfig.me/ip',
+    Duration timeout = const Duration(seconds: 20),
+  }) {
+    final timeoutMs = timeout.inMilliseconds;
+    return Isolate.run(() {
+      final library = _open();
+      final config = configText.toNativeUtf8();
+      final target = url.toNativeUtf8();
+      try {
+        return _require(
+          _consume(
+            library,
+            library.lookupFunction<_ProbeNative, _Probe>('caelo_probe')(
+              config,
+              target,
+              timeoutMs,
+            ),
+          ),
+        );
+      } finally {
+        malloc.free(config);
         malloc.free(target);
       }
     });
