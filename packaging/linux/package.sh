@@ -54,7 +54,7 @@ if [[ -f "$ROOT/packaging/linux/$APP.png" ]]; then
 fi
 
 echo "==> tarball"
-tar -C "$BUNDLE" -czf "$OUT/$NAME-linux-$ARCH.tar.gz" .
+tar -C "$BUNDLE" -czf "$OUT/$NAME-$VERSION-linux-$ARCH.tar.gz" .
 
 if command -v fpm >/dev/null; then
   # One description of the package, two formats out of it. Writing a control
@@ -68,12 +68,12 @@ if command -v fpm >/dev/null; then
   echo "==> deb"
   fpm "${common[@]}" -t deb -a "$DEB_ARCH" \
     -d 'libgtk-3-0' -d 'libayatana-appindicator3-1 | libappindicator3-1' \
-    -p "$OUT/$NAME-linux-$ARCH.deb" . >/dev/null
+    -p "$OUT/$NAME-$VERSION-linux-$ARCH.deb" . >/dev/null
 
   echo "==> rpm"
   fpm "${common[@]}" -t rpm -a "$RPM_ARCH" \
     -d 'gtk3' \
-    -p "$OUT/$NAME-linux-$ARCH.rpm" . >/dev/null
+    -p "$OUT/$NAME-$VERSION-linux-$ARCH.rpm" . >/dev/null
 else
   echo "!! fpm not installed; skipping deb and rpm" >&2
 fi
@@ -88,7 +88,7 @@ if command -v appimagetool >/dev/null; then
   [[ -f "$ROOT/packaging/linux/$APP.png" ]] && cp "$ROOT/packaging/linux/$APP.png" "$APPDIR/$APP.png"
   ln -sf "$APP" "$APPDIR/AppRun"
   ARCH="$APPIMAGE_ARCH" appimagetool --no-appstream "$APPDIR" \
-    "$OUT/$NAME-linux-$ARCH.AppImage" >/dev/null 2>&1
+    "$OUT/$NAME-$VERSION-linux-$ARCH.AppImage" >/dev/null 2>&1
 else
   echo "!! appimagetool not installed; skipping AppImage" >&2
 fi

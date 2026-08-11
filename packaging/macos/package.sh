@@ -25,7 +25,7 @@ cp -R "$APP" "$STAGE/"
 # a folder someone has to work out.
 ln -s /Applications "$STAGE/Applications"
 hdiutil create -quiet -volname "$NAME" -srcfolder "$STAGE" -ov -format UDZO \
-  "$OUT/$NAME-macos.dmg"
+  "$OUT/$NAME-$VERSION-macos.dmg"
 
 echo "==> pkg"
 pkgbuild --quiet \
@@ -33,7 +33,7 @@ pkgbuild --quiet \
   --install-location /Applications \
   --identifier team.gdb.caelo \
   --version "$VERSION" \
-  "$OUT/$NAME-macos.pkg"
+  "$OUT/$NAME-$VERSION-macos.pkg"
 
 echo "==> Done"
 ls -1sh "$OUT"

@@ -58,14 +58,19 @@ jobs:
       - run: flutter build appbundle --release
 
       - name: Collect
+        env:
+          # In the name because minSdk is 24, and someone deciding whether a
+          # file is worth downloading onto an old phone should not have to
+          # install it to find out.
+          VERSION: ${{ needs.version.outputs.value }}
         run: |
           mkdir -p dist
           for apk in build/app/outputs/flutter-apk/app-*release.apk; do
             name=$(basename "$apk" .apk); name=${name#app-}; name=${name%-release}
             [[ "$name" == "release" ]] && name=universal
-            cp "$apk" "dist/Caelo-android-$name.apk"
+            cp "$apk" "dist/Caelo-$VERSION-android7+-$name.apk"
           done
-          cp build/app/outputs/bundle/release/app-release.aab dist/Caelo-android.aab
+          cp build/app/outputs/bundle/release/app-release.aab "dist/Caelo-$VERSION-android.aab"
           ls -1sh dist
 
       - uses: actions/upload-artifact@v7

@@ -29,7 +29,7 @@ OUT_WIN="$(cygpath -w "$OUT")"
 
 echo "==> portable zip"
 powershell -NoProfile -Command \
-  "Compress-Archive -Path '$SOURCE_WIN\\*' -DestinationPath '$OUT_WIN\\$NAME-windows-portable.zip' -Force"
+  "Compress-Archive -Path '$SOURCE_WIN\\*' -DestinationPath '$OUT_WIN\\$NAME-$VERSION-windows-x64-portable.zip' -Force"
 
 ISCC="$(command -v iscc || echo "/c/Program Files (x86)/Inno Setup 6/ISCC.exe")"
 if [[ -x "$ISCC" ]]; then
