@@ -68,7 +68,11 @@ Connected-состояние не подменялось тестовой кон
 
 ## Откат
 
-Реализация находится в signed-off коммите `4d1607d` (`Bring Home closer to the product specification`). Точечный откат выполняется через `git revert 4d1607d`, без переписывания истории и без отмены базовой дизайн-системы.
+После rebase на актуальный `main` реализация находится в signed-off коммите
+`24ce168` (`Bring Home closer to the product specification`) и ветке
+`16-home-real-state`. Точечный откат выполняется через `git revert 24ce168`,
+без переписывания истории и без отмены базовой дизайн-системы. Задача:
+https://github.com/TeamGDB/Caelo/issues/16.
 
 ## Результат
 

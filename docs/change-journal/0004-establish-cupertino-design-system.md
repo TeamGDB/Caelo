@@ -71,7 +71,11 @@ Linux desktop build не запускался: на хосте отсутств�
 
 ## Откат
 
-Реализация находится в отдельном signed-off коммите `7331a18` (`Establish the Cupertino design system`). Её можно отменить отдельным `git revert 7331a18`, не откатывая подготовительный журнал и не переписывая историю ветки.
+После rebase на актуальный `main` реализация находится в отдельном signed-off
+коммите `9c531a4` (`Establish the Cupertino design system`) и ветке
+`15-cupertino-design-system`. Её можно отменить отдельным
+`git revert 9c531a4`, не откатывая подготовительный журнал и не переписывая
+историю ветки. Задача: https://github.com/TeamGDB/Caelo/issues/15.
 
 ## Результат
 

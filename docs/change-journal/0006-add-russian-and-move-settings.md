@@ -10,10 +10,11 @@ Date: 2026-08-11
 - Do not introduce mock product data.
 
 The matching conflict cards already existed in TeamGDB Project 2, so they were
-reused instead of creating duplicates:
+reused instead of creating duplicates. They were later converted to repository
+issues to follow the updated contribution rules:
 
-- `[Конфликт спецификации] Согласовать начальный язык и ручное переключение локали`
-- `[Конфликт спецификации] Согласовать положение Settings с desktop window chrome`
+- [#17 — Согласовать начальный язык и ручное переключение локали](https://github.com/TeamGDB/Caelo/issues/17)
+- [#18 — Согласовать положение Settings с desktop window chrome](https://github.com/TeamGDB/Caelo/issues/18)
 
 Both cards were moved to **In progress** before implementation and to **Done**
 after verification.
@@ -46,9 +47,10 @@ explicit saved overrides.
 - Added a widget test for live English-to-Russian switching and unit checks for
   locale resolution.
 
-Implementation commit: `4cd0190` (`Add saved Russian and English locale choices`).
+After rebasing onto the current `main`, the implementation commit is `e91a88f`
+(`Add saved Russian and English locale choices`) on branch `17-saved-locale`.
 
-Rollback only this part with `git revert 4cd0190`.
+Rollback only this part with `git revert e91a88f`.
 
 ### Settings position
 
@@ -59,9 +61,11 @@ Rollback only this part with `git revert 4cd0190`.
 - Added layout tests for the general upper-right position and the macOS title
   bar reserve.
 
-Implementation commit: `3549988` (`Move Settings into the upper-right safe area`).
+After rebasing onto the current `main`, the implementation commit is `3ddc555`
+(`Move Settings into the upper-right safe area`) on branch
+`18-settings-upper-right`.
 
-Rollback only this part with `git revert 3549988`.
+Rollback only this part with `git revert 3ddc555`.
 
 ## Verification and result
 
