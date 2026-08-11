@@ -49,4 +49,17 @@ abstract final class SettingsStore {
     settings['themeMode'] = mode.name;
     await _save(settings);
   }
+
+  /// Whether the diagnostic log is being kept.
+  ///
+  /// Off by default, and stored rather than assumed: someone who turned it on
+  /// to catch an intermittent problem should not lose it by closing the app.
+  static Future<bool> diagnostics() async =>
+      (await _load())['diagnostics'] == true;
+
+  static Future<void> setDiagnostics(bool on) async {
+    final settings = Map<String, dynamic>.from(await _load());
+    settings['diagnostics'] = on;
+    await _save(settings);
+  }
 }

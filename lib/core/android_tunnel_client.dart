@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'config_store.dart';
+import 'diagnostics.dart';
 import 'ffi/core_library.dart';
 import 'tunnel.dart';
 
@@ -50,6 +51,7 @@ class AndroidTunnelClient implements TunnelClient {
     // descriptor that no longer carries anything, so being told is the only way
     // the screen stops claiming to be connected.
     if (call.method == 'revoked') {
+      Diagnostics.record('the system revoked the tunnel');
       await CoreLibrary.disconnectFd().catchError((_) {});
       _emit(const TunnelStatus(phase: TunnelPhase.disconnected));
     }
@@ -64,6 +66,7 @@ class AndroidTunnelClient implements TunnelClient {
     } on Object catch (error, stack) {
       // Reported rather than swallowed: "could not connect" with nothing
       // behind it is the least actionable message this app can produce.
+      Diagnostics.record('connect failed', error: error);
       debugPrint('Caelo: android connect failed: $error\n$stack');
       // Nothing to adopt. The app has not been asked to do anything yet.
     }
@@ -74,6 +77,7 @@ class AndroidTunnelClient implements TunnelClient {
     if (_current.phase == TunnelPhase.connecting) return;
 
     _emit(const TunnelStatus(phase: TunnelPhase.connecting));
+    Diagnostics.record('connect requested');
 
     try {
       final configText = await ConfigStore.read();
@@ -95,6 +99,10 @@ class AndroidTunnelClient implements TunnelClient {
       }
 
       final description = await CoreLibrary.describe(configText);
+      Diagnostics.record(
+        'configuration read: endpoint ${description['endpoint']}, '
+        'mtu ${description['mtu']}, obfuscated ${description['obfuscated']}',
+      );
 
       final fd = await _channel.invokeMethod<int>('establish', {
         'addresses': (description['addresses'] as List?)?.cast<String>() ?? [],
@@ -106,7 +114,9 @@ class AndroidTunnelClient implements TunnelClient {
         throw StateError('the system did not provide a tunnel descriptor');
       }
 
+      Diagnostics.record('system provided tun descriptor $fd');
       await CoreLibrary.connectFd(fd, configText);
+      Diagnostics.record('core adopted the descriptor');
 
       // Belt to the braces of excluding this app from its own routes, and
       // advisory for the same reason: a device that refuses it still has a
@@ -118,7 +128,10 @@ class AndroidTunnelClient implements TunnelClient {
           await CoreLibrary.socketFds(),
         );
       } on Object catch (error) {
-        debugPrint('Caelo: could not protect the tunnel sockets: $error');
+        Diagnostics.record(
+          'could not protect the tunnel sockets',
+          error: error,
+        );
       }
 
       _emit(

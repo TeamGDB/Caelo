@@ -127,4 +127,41 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearance => 'Appearance';
+
+  @override
+  String get diagnostics => 'Diagnostics';
+
+  @override
+  String get diagnosticLog => 'Diagnostic log';
+
+  @override
+  String get diagnosticLogOn => 'Record a diagnostic log';
+
+  @override
+  String get diagnosticLogNote =>
+      'Off by default. While on, connection events are kept on this device so a problem can be reported. Keys are never recorded; server addresses are.';
+
+  @override
+  String get viewLog => 'View log';
+
+  @override
+  String get logCopy => 'Copy';
+
+  @override
+  String get logClear => 'Clear';
+
+  @override
+  String get logExport => 'Export';
+
+  @override
+  String get logCopied => 'Copied';
+
+  @override
+  String get logCleared => 'Cleared';
+
+  @override
+  String get logEmpty => 'Nothing recorded yet';
+
+  @override
+  String get logDisabled => 'Recording is off';
 }

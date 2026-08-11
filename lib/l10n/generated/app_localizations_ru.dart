@@ -127,4 +127,41 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get appearance => 'Оформление';
+
+  @override
+  String get diagnostics => 'Диагностика';
+
+  @override
+  String get diagnosticLog => 'Журнал диагностики';
+
+  @override
+  String get diagnosticLogOn => 'Вести журнал диагностики';
+
+  @override
+  String get diagnosticLogNote =>
+      'По умолчанию выключено. Пока включено, события подключения хранятся на этом устройстве, чтобы проблему можно было показать. Ключи не записываются, адреса серверов — да.';
+
+  @override
+  String get viewLog => 'Посмотреть журнал';
+
+  @override
+  String get logCopy => 'Скопировать';
+
+  @override
+  String get logClear => 'Очистить';
+
+  @override
+  String get logExport => 'Выгрузить';
+
+  @override
+  String get logCopied => 'Скопировано';
+
+  @override
+  String get logCleared => 'Очищено';
+
+  @override
+  String get logEmpty => 'Пока ничего не записано';
+
+  @override
+  String get logDisabled => 'Запись выключена';
 }

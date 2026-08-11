@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/android_tunnel_client.dart';
 import 'core/core_tunnel_client.dart';
+import 'core/diagnostics.dart';
 import 'core/helper_client.dart';
 import 'core/settings_store.dart';
 import 'core/system_tunnel_client.dart';
@@ -16,8 +17,14 @@ import 'theme/palette.dart';
 import 'ui/home_screen.dart';
 import 'ui/window_chrome.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Before the first frame, so that a connection attempted immediately after
+  // launch is recorded. Failing to read the preference is not a reason to
+  // refuse to start.
+  await Diagnostics.load().catchError((_) {});
+
   runApp(const CaeloApp());
 }
 

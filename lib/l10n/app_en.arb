@@ -167,5 +167,53 @@
   "appearance": "Appearance",
   "@appearance": {
     "description": "Settings section holding the theme and the language."
+  },
+  "diagnostics": "Diagnostics",
+  "@diagnostics": {
+    "description": "Settings section for troubleshooting."
+  },
+  "diagnosticLog": "Diagnostic log",
+  "@diagnosticLog": {
+    "description": "Title of the log screen."
+  },
+  "diagnosticLogOn": "Record a diagnostic log",
+  "@diagnosticLogOn": {
+    "description": "Switch that turns diagnostic recording on."
+  },
+  "diagnosticLogNote": "Off by default. While on, connection events are kept on this device so a problem can be reported. Keys are never recorded; server addresses are.",
+  "@diagnosticLogNote": {
+    "description": "Explains what recording does and what it keeps."
+  },
+  "viewLog": "View log",
+  "@viewLog": {
+    "description": "Opens the log screen."
+  },
+  "logCopy": "Copy",
+  "@logCopy": {
+    "description": "Copies the log to the clipboard."
+  },
+  "logClear": "Clear",
+  "@logClear": {
+    "description": "Deletes everything recorded."
+  },
+  "logExport": "Export",
+  "@logExport": {
+    "description": "Shares the log as a file."
+  },
+  "logCopied": "Copied",
+  "@logCopied": {
+    "description": "Shown briefly after copying."
+  },
+  "logCleared": "Cleared",
+  "@logCleared": {
+    "description": "Shown briefly after clearing."
+  },
+  "logEmpty": "Nothing recorded yet",
+  "@logEmpty": {
+    "description": "Shown when recording is on but nothing has happened."
+  },
+  "logDisabled": "Recording is off",
+  "@logDisabled": {
+    "description": "Shown when recording is off."
   }
 }

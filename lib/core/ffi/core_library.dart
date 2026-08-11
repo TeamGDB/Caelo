@@ -10,6 +10,8 @@ typedef _ConnectNative = Pointer<Utf8> Function(Pointer<Utf8>);
 typedef _ConnectFdNative = Pointer<Utf8> Function(Int32, Pointer<Utf8>);
 typedef _ConnectFd = Pointer<Utf8> Function(int, Pointer<Utf8>);
 typedef _CheckNative = Pointer<Utf8> Function(Pointer<Utf8>, Int32);
+typedef _SetFlagNative = Pointer<Utf8> Function(Int32);
+typedef _SetFlag = Pointer<Utf8> Function(int);
 typedef _Check = Pointer<Utf8> Function(Pointer<Utf8>, int);
 typedef _FreeNative = Void Function(Pointer<Utf8>);
 typedef _Free = void Function(Pointer<Utf8>);
@@ -269,5 +271,43 @@ abstract final class CoreLibrary {
         )(),
       );
     });
+  }
+
+  /// The core's recent history, oldest line first.
+  ///
+  /// Cheap: it reads a ring in memory. Key material never appears in it —
+  /// redaction happens where each line is recorded, not here.
+  static ({List<String> lines, bool verbose}) log() {
+    final library = _open();
+    final decoded = _consume(
+      library,
+      library.lookupFunction<_StringNative, _StringNative>('caelo_log')(),
+    );
+
+    return (
+      lines: (decoded['lines'] as List?)?.cast<String>() ?? const <String>[],
+      verbose: decoded['verbose'] == true,
+    );
+  }
+
+  /// Turns the core's detailed logging on or off, including for a tunnel that
+  /// is already up — which is the case that matters, because nobody reconnects
+  /// to reproduce a problem they are having right now.
+  static void setVerbose(bool on) {
+    final library = _open();
+    _consume(
+      library,
+      library.lookupFunction<_SetFlagNative, _SetFlag>('caelo_set_verbose')(
+        on ? 1 : 0,
+      ),
+    );
+  }
+
+  static void clearLog() {
+    final library = _open();
+    _consume(
+      library,
+      library.lookupFunction<_StringNative, _StringNative>('caelo_clear_log')(),
+    );
   }
 }

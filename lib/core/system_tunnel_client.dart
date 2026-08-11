@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'config_store.dart';
+import 'diagnostics.dart';
 import 'helper_client.dart';
 import 'tunnel.dart';
 
@@ -48,6 +49,7 @@ class SystemTunnelClient implements TunnelClient {
     } on Object catch (error, stack) {
       // Reported rather than swallowed: "could not connect" with nothing
       // behind it is the least actionable message this app can produce.
+      Diagnostics.record('connect failed', error: error);
       debugPrint('Caelo: helper connect failed: $error\n$stack');
       // Nothing to adopt and nothing to report: the app has not been asked to
       // do anything yet.

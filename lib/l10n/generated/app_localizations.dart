@@ -325,6 +325,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Appearance'**
   String get appearance;
+
+  /// Settings section for troubleshooting.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnostics'**
+  String get diagnostics;
+
+  /// Title of the log screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagnostic log'**
+  String get diagnosticLog;
+
+  /// Switch that turns diagnostic recording on.
+  ///
+  /// In en, this message translates to:
+  /// **'Record a diagnostic log'**
+  String get diagnosticLogOn;
+
+  /// Explains what recording does and what it keeps.
+  ///
+  /// In en, this message translates to:
+  /// **'Off by default. While on, connection events are kept on this device so a problem can be reported. Keys are never recorded; server addresses are.'**
+  String get diagnosticLogNote;
+
+  /// Opens the log screen.
+  ///
+  /// In en, this message translates to:
+  /// **'View log'**
+  String get viewLog;
+
+  /// Copies the log to the clipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get logCopy;
+
+  /// Deletes everything recorded.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get logClear;
+
+  /// Shares the log as a file.
+  ///
+  /// In en, this message translates to:
+  /// **'Export'**
+  String get logExport;
+
+  /// Shown briefly after copying.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get logCopied;
+
+  /// Shown briefly after clearing.
+  ///
+  /// In en, this message translates to:
+  /// **'Cleared'**
+  String get logCleared;
+
+  /// Shown when recording is on but nothing has happened.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing recorded yet'**
+  String get logEmpty;
+
+  /// Shown when recording is off.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording is off'**
+  String get logDisabled;
 }
 
 class _AppLocalizationsDelegate

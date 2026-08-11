@@ -1,12 +1,14 @@
 import 'package:flutter/cupertino.dart';
 
 import '../core/config_store.dart';
+import '../core/diagnostics.dart';
 import '../core/ffi/core_library.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../main.dart' show ThemeModeScope;
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
 import 'config_screen.dart';
+import 'log_screen.dart';
 
 /// Resolved once. The core's version cannot change while the app is running,
 /// and a settings screen that re-crosses the FFI boundary on every rebuild is
@@ -145,6 +147,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
             _Section(
+              header: l10n.diagnostics,
+              footer: l10n.diagnosticLogNote,
+              children: [
+                _Row(
+                  label: l10n.diagnosticLogOn,
+                  trailing: CupertinoSwitch(
+                    value: Diagnostics.enabled,
+                    activeTrackColor: palette.accent,
+                    onChanged: (on) async {
+                      await Diagnostics.setEnabled(on);
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                ),
+                _Row(
+                  label: l10n.viewLog,
+                  onTap: () => Navigator.of(context).push(
+                    CupertinoPageRoute<void>(builder: (_) => const LogScreen()),
+                  ),
+                ),
+              ],
+            ),
+            _Section(
               header: l10n.about,
               children: [
                 const _Row(label: 'Caelo', value: '0.1.0'),
@@ -161,10 +186,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 }
 
 class _Section extends StatelessWidget {
-  const _Section({required this.header, required this.children});
+  const _Section({required this.header, required this.children, this.footer});
 
   final String header;
   final List<Widget> children;
+
+  /// Explains a section whose consequences are not obvious from its rows.
+  /// Anything that starts keeping a record of what someone does deserves one.
+  final String? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -195,6 +224,16 @@ class _Section extends StatelessWidget {
             ),
             child: Column(children: _separated(children, palette)),
           ),
+          if (footer != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                CaeloSpace.md + CaeloSpace.xs,
+                CaeloSpace.sm,
+                CaeloSpace.md + CaeloSpace.xs,
+                0,
+              ),
+              child: Text(footer!, style: CaeloTheme.caption(palette)),
+            ),
         ],
       ),
     );
@@ -218,19 +257,26 @@ class _Section extends StatelessWidget {
 }
 
 class _Row extends StatelessWidget {
-  const _Row({required this.label, this.value, this.labelColour, this.onTap});
+  const _Row({
+    required this.label,
+    this.value,
+    this.labelColour,
+    this.onTap,
+    this.trailing,
+  });
 
   final String label;
   final String? value;
   final Color? labelColour;
   final VoidCallback? onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
     // Rows with no action yet are shown dimmed rather than hidden, so the shape
     // of the screen does not change once the core wires them up.
-    final enabled = onTap != null || value != null;
+    final enabled = onTap != null || value != null || trailing != null;
 
     return GestureDetector(
       onTap: onTap,
@@ -259,6 +305,7 @@ class _Row extends StatelessWidget {
                 style: CaeloTheme.rowValue(palette),
                 overflow: TextOverflow.ellipsis,
               ),
+            ?trailing,
           ],
         ),
       ),

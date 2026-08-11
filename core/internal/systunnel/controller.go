@@ -19,6 +19,7 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
+	"github.com/TeamGDB/Caelo/core/internal/diag"
 	"github.com/TeamGDB/Caelo/core/internal/system"
 )
 
@@ -38,21 +39,16 @@ type Status struct {
 type Controller struct {
 	mu sync.Mutex
 
-	device    *device.Device
-	state     *system.State
-	network   system.Config
-	status    Status
-	logLevel  int
-	teardowns []func()
+	device  *device.Device
+	state   *system.State
+	network system.Config
+	status  Status
 }
 
 // New returns a Controller with nothing up.
 func New(verbose bool) *Controller {
-	level := device.LogLevelError
-	if verbose {
-		level = device.LogLevelVerbose
-	}
-	return &Controller{logLevel: level}
+	diag.SetVerbose(verbose)
+	return &Controller{}
 }
 
 // Start brings the tunnel up and points the machine at it.
@@ -95,7 +91,7 @@ func (c *Controller) Start(configText string) (*Status, error) {
 		return nil, fmt.Errorf("naming the utun interface: %w", err)
 	}
 
-	dev := device.NewDevice(tunDevice, conn.NewDefaultBind(), device.NewLogger(c.logLevel, "caelo "))
+	dev := device.NewDevice(tunDevice, conn.NewDefaultBind(), diag.DeviceLogger())
 
 	fail := func(err error) (*Status, error) {
 		dev.Close()

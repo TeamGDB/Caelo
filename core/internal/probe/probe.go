@@ -20,6 +20,7 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun/netstack"
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
+	"github.com/TeamGDB/Caelo/core/internal/diag"
 )
 
 // Result is what a probe found out.
@@ -71,11 +72,11 @@ func Run(configText string, opts Options) (*Result, error) {
 		return nil, fmt.Errorf("creating netstack device: %w", err)
 	}
 
-	level := device.LogLevelError
-	if opts.Verbose {
-		level = device.LogLevelVerbose
-	}
-	dev := device.NewDevice(tunnel, conn.NewDefaultBind(), device.NewLogger(level, "caelo "))
+	// Verbose is a request for this run, and the ring is shared, so it is set
+	// rather than passed: a tunnel already up should start talking too.
+	diag.SetVerbose(opts.Verbose)
+
+	dev := device.NewDevice(tunnel, conn.NewDefaultBind(), diag.DeviceLogger())
 	defer dev.Close()
 
 	if err := dev.IpcSet(cfg.IPC()); err != nil {

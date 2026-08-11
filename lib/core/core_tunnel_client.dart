@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'config_store.dart';
+import 'diagnostics.dart';
 import 'ffi/core_library.dart';
 import 'tunnel.dart';
 
@@ -75,6 +76,7 @@ class CoreTunnelClient implements TunnelClient {
     } on Object catch (error, stack) {
       // Reported rather than swallowed: "could not connect" with nothing
       // behind it is the least actionable message this app can produce.
+      Diagnostics.record('connect failed', error: error);
       debugPrint('Caelo: in-process connect failed: $error\n$stack');
       // Leaving a half-open device behind would make the next attempt fail for
       // a reason that has nothing to do with why this one did.

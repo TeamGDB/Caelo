@@ -21,6 +21,7 @@ import (
 	"unsafe"
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
+	"github.com/TeamGDB/Caelo/core/internal/diag"
 	"github.com/TeamGDB/Caelo/core/internal/tunnel"
 	"github.com/TeamGDB/Caelo/core/internal/version"
 )
@@ -124,6 +125,44 @@ func caelo_describe(configText *C.char) *C.char {
 		"endpoint":    cfg.Peer.Endpoint,
 		"obfuscated":  len(cfg.Obfuscation) > 0,
 	})
+}
+
+// caelo_log returns the core's recent history, oldest line first.
+//
+// Kept in memory rather than written anywhere: the core is a library inside
+// somebody else's process and has no business choosing where that process
+// writes. The application owns persistence, and does so only when its user has
+// asked for it.
+//
+// Key material never reaches these lines. Redaction happens where the line is
+// recorded rather than where it is written, because call sites are added by
+// people and the one that forgets is the one that matters.
+//
+//export caelo_log
+func caelo_log() *C.char {
+	return marshal(map[string]any{
+		"ok":      true,
+		"verbose": diag.Verbose(),
+		"lines":   diag.Lines(),
+	})
+}
+
+// caelo_set_verbose turns detailed logging on or off, taking effect at once —
+// including for a tunnel that is already up, which is the case that matters:
+// nobody reconnects to reproduce a problem they have right now.
+//
+//export caelo_set_verbose
+func caelo_set_verbose(on C.int) *C.char {
+	diag.SetVerbose(on != 0)
+	return marshal(map[string]any{"ok": true, "verbose": diag.Verbose()})
+}
+
+// caelo_clear_log forgets everything recorded so far.
+//
+//export caelo_clear_log
+func caelo_clear_log() *C.char {
+	diag.Clear()
+	return marshal(map[string]any{"ok": true})
 }
 
 // caelo_free releases a string returned by any function in this library.

@@ -19,6 +19,7 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
+	"github.com/TeamGDB/Caelo/core/internal/diag"
 )
 
 // Status describes a live tunnel.
@@ -73,7 +74,7 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 	}
 
 	bind := conn.NewDefaultBind()
-	dev := device.NewDevice(tunDevice, bind, device.NewLogger(device.LogLevelError, "caelo "))
+	dev := device.NewDevice(tunDevice, bind, diag.DeviceLogger())
 
 	if err := dev.IpcSet(cfg.IPC()); err != nil {
 		dev.Close()

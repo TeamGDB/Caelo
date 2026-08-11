@@ -24,6 +24,7 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun/netstack"
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
+	"github.com/TeamGDB/Caelo/core/internal/diag"
 )
 
 // ErrNotConnected is returned by operations that need a live tunnel.
@@ -77,7 +78,7 @@ func (s *Session) Connect(configText string) (*Info, error) {
 		return nil, fmt.Errorf("creating netstack device: %w", err)
 	}
 
-	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelError, "caelo "))
+	dev := device.NewDevice(tun, conn.NewDefaultBind(), diag.DeviceLogger())
 
 	if err := dev.IpcSet(cfg.IPC()); err != nil {
 		dev.Close()
