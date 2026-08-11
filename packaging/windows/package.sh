@@ -19,17 +19,25 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 [[ -d "$SOURCE" ]] || { echo "error: nothing built at $SOURCE" >&2; exit 1; }
 mkdir -p "$OUT"
 
+# Resolved before anything changes directory. A relative path is relative to
+# wherever the shell happens to be standing, and this script stands in three
+# places.
+SOURCE="$(cd "$SOURCE" && pwd)"
+OUT="$(cd "$OUT" && pwd)"
+SOURCE_WIN="$(cygpath -w "$SOURCE")"
+OUT_WIN="$(cygpath -w "$OUT")"
+
 echo "==> portable zip"
-( cd "$SOURCE" && powershell -NoProfile -Command \
-    "Compress-Archive -Path * -DestinationPath '$(cygpath -w "$(cd "$OUT" && pwd)")\\$NAME-windows-portable.zip' -Force" )
+powershell -NoProfile -Command \
+  "Compress-Archive -Path '$SOURCE_WIN\\*' -DestinationPath '$OUT_WIN\\$NAME-windows-portable.zip' -Force"
 
 ISCC="$(command -v iscc || echo "/c/Program Files (x86)/Inno Setup 6/ISCC.exe")"
 if [[ -x "$ISCC" ]]; then
   echo "==> installer"
   "$ISCC" \
     "/DAppVersion=$VERSION" \
-    "/DSourceDir=$(cygpath -w "$(cd "$SOURCE" && pwd)")" \
-    "/DOutputDir=$(cygpath -w "$(cd "$OUT" && pwd)")" \
+    "/DSourceDir=$SOURCE_WIN" \
+    "/DOutputDir=$OUT_WIN" \
     "$(cygpath -w "$ROOT/packaging/windows/caelo.iss")" >/dev/null
 else
   echo "!! Inno Setup not found; skipping the installer" >&2
