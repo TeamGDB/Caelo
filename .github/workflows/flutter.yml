@@ -39,10 +39,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The core is a separate private repository, so reaching it needs a token
-      # the default GITHUB_TOKEN cannot be. Without the secret the build still
-      # runs and the artifact is named for what it is, because a pipeline that
-      # fails on a fork or an unconfigured checkout teaches people to ignore it.
+      # The core is a separate private repository, so reaching it needs a
+      # credential the default GITHUB_TOKEN cannot be. A read-only deploy key
+      # rather than a personal token: it reaches one repository and can read
+      # nothing else, where a token with repo scope reaches everything its
+      # owner does.
+      #
+      # Without the secret the build still runs and the artifact is named for
+      # what it is. A pipeline that fails red on a fork teaches people to
+      # ignore red.
       - name: Check out the core
         id: core
         continue-on-error: true
@@ -50,7 +55,7 @@ jobs:
         with:
           repository: TeamGDB/caelo-core
           path: caelo-core
-          token: ${{ secrets.CORE_REPO_TOKEN }}
+          ssh-key: ${{ secrets.CORE_REPO_SSH_KEY }}
 
       - uses: actions/setup-go@v5
         if: steps.core.outcome == 'success'
@@ -89,7 +94,7 @@ jobs:
           if [ -f android/app/src/main/jniLibs/arm64-v8a/libcaelo.so ]; then
             echo "name=caelo-debug-apk" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::CORE_REPO_TOKEN is not set — this APK has no core in it"
+            echo "::warning::CORE_REPO_SSH_KEY is not set or has no access — this APK has no core in it"
             echo "name=caelo-debug-apk-no-core" >> "$GITHUB_OUTPUT"
           fi
 
@@ -114,7 +119,7 @@ jobs:
         with:
           repository: TeamGDB/caelo-core
           path: caelo-core
-          token: ${{ secrets.CORE_REPO_TOKEN }}
+          ssh-key: ${{ secrets.CORE_REPO_SSH_KEY }}
 
       - uses: actions/setup-go@v5
         if: steps.core.outcome == 'success'
@@ -148,7 +153,7 @@ jobs:
           if [ -f Caelo.app/Contents/Frameworks/libcaelo.dylib ]; then
             echo "name=caelo-debug-macos" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::CORE_REPO_TOKEN is not set — this build has no core in it"
+            echo "::warning::CORE_REPO_SSH_KEY is not set or has no access — this build has no core in it"
             echo "name=caelo-debug-macos-no-core" >> "$GITHUB_OUTPUT"
           fi
           zip -qry Caelo-debug.zip Caelo.app
