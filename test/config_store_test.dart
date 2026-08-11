@@ -51,7 +51,7 @@ void main() {
   });
 
   test('catalog exposes config names but not their secret contents', () async {
-    await ConfigStore.create('My office', _first);
+    await ConfigStore.create('My office', _first, emoji: '🏢');
 
     final configs = await ConfigStore.list();
     expect(configs.single.name, 'My office');
@@ -61,7 +61,14 @@ void main() {
     final servers = await const DevelopmentServerCatalog().load();
     final custom = servers.singleWhere((server) => server.configId != null);
     expect(custom.name, 'My office');
+    expect(custom.flag, '🏢');
     expect(custom.badge, 'Custom');
     expect(custom.latencyMs, isNull);
+  });
+
+  test('old metadata gets a neutral emoji without migration failure', () {
+    final config = StoredConfig.fromJson({'id': 'old', 'name': 'Old'});
+
+    expect(config.emoji, '📄');
   });
 }

@@ -79,7 +79,7 @@ class DevelopmentServerCatalog implements ServerCatalog {
           id: 'user-${config.id}',
           name: config.name,
           location: 'Local configuration',
-          flag: '📄',
+          flag: config.emoji,
           badge: 'Custom',
           configId: config.id,
         ),

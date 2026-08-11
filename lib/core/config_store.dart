@@ -7,15 +7,19 @@ import 'app_storage.dart';
 
 @immutable
 class StoredConfig {
-  const StoredConfig({required this.id, required this.name});
+  const StoredConfig({required this.id, required this.name, this.emoji = '📄'});
 
   final String id;
   final String name;
+  final String emoji;
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name};
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'emoji': emoji};
 
-  static StoredConfig fromJson(Map<String, dynamic> json) =>
-      StoredConfig(id: json['id'] as String, name: json['name'] as String);
+  static StoredConfig fromJson(Map<String, dynamic> json) => StoredConfig(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    emoji: json['emoji'] as String? ?? '📄',
+  );
 }
 
 /// Stores multiple private tunnel configurations while exposing only the
@@ -106,16 +110,29 @@ abstract final class ConfigStore {
     return file.readAsString();
   }
 
-  static Future<StoredConfig> create(String name, String configText) async {
+  static Future<StoredConfig> create(
+    String name,
+    String configText, {
+    String emoji = '📄',
+  }) async {
     final index = await _loadIndex();
     final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    final config = StoredConfig(id: id, name: _normaliseName(name));
+    final config = StoredConfig(
+      id: id,
+      name: _normaliseName(name),
+      emoji: _normaliseEmoji(emoji),
+    );
     await _writeConfig(config.id, configText);
     await _saveIndex([...index.configs, config], config.id);
     return config;
   }
 
-  static Future<void> update(String id, String name, String configText) async {
+  static Future<void> update(
+    String id,
+    String name,
+    String configText, {
+    String emoji = '📄',
+  }) async {
     final index = await _loadIndex();
     if (!index.configs.any((config) => config.id == id)) {
       throw StateError('configuration does not exist');
@@ -124,7 +141,11 @@ abstract final class ConfigStore {
     await _saveIndex([
       for (final config in index.configs)
         if (config.id == id)
-          StoredConfig(id: id, name: _normaliseName(name))
+          StoredConfig(
+            id: id,
+            name: _normaliseName(name),
+            emoji: _normaliseEmoji(emoji),
+          )
         else
           config,
     ], index.selectedId);
@@ -174,5 +195,10 @@ abstract final class ConfigStore {
   static String _normaliseName(String name) {
     final trimmed = name.trim();
     return trimmed.isEmpty ? 'Configuration' : trimmed;
+  }
+
+  static String _normaliseEmoji(String emoji) {
+    final trimmed = emoji.trim();
+    return trimmed.isEmpty ? '📄' : trimmed;
   }
 }

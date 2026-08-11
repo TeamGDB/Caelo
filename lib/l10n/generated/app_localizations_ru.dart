@@ -122,6 +122,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get configurationName => 'Название конфигурации';
 
   @override
+  String get configurationEmoji => 'Флаг или эмодзи';
+
+  @override
   String get configurationEmpty => 'Вставьте конфигурацию';
 
   @override

@@ -23,6 +23,7 @@ class ConfigScreen extends StatefulWidget {
 class _ConfigScreenState extends State<ConfigScreen> {
   final _controller = TextEditingController();
   final _nameController = TextEditingController();
+  final _emojiController = TextEditingController();
   bool _loaded = false;
   String? _error;
 
@@ -40,6 +41,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
     setState(() {
       _controller.text = existing ?? '';
       _nameController.text = widget.config?.name ?? '';
+      _emojiController.text = widget.config?.emoji ?? '📄';
       _loaded = true;
     });
   }
@@ -48,6 +50,7 @@ class _ConfigScreenState extends State<ConfigScreen> {
   void dispose() {
     _controller.dispose();
     _nameController.dispose();
+    _emojiController.dispose();
     super.dispose();
   }
 
@@ -67,9 +70,18 @@ class _ConfigScreenState extends State<ConfigScreen> {
         return;
       }
       if (widget.config case final config?) {
-        await ConfigStore.update(config.id, _nameController.text, text);
+        await ConfigStore.update(
+          config.id,
+          _nameController.text,
+          text,
+          emoji: _emojiController.text,
+        );
       } else {
-        await ConfigStore.create(_nameController.text, text);
+        await ConfigStore.create(
+          _nameController.text,
+          text,
+          emoji: _emojiController.text,
+        );
       }
       if (mounted) Navigator.of(context).pop();
     } on Object catch (error) {
@@ -122,14 +134,49 @@ class _ConfigScreenState extends State<ConfigScreen> {
                   Expanded(
                     child: Column(
                       children: [
-                        CupertinoTextField(
-                          controller: _nameController,
-                          placeholder: l10n.configurationName,
-                          padding: const EdgeInsets.all(CaeloSpace.md),
-                          decoration: BoxDecoration(
-                            color: palette.surface1,
-                            borderRadius: CaeloRadius.controlAll,
-                            border: Border.all(color: palette.border),
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 82,
+                              child: CupertinoTextField(
+                                controller: _emojiController,
+                                placeholder: '🏳️',
+                                textAlign: TextAlign.center,
+                                maxLength: 8,
+                                padding: const EdgeInsets.all(CaeloSpace.md),
+                                decoration: BoxDecoration(
+                                  color: palette.surface1,
+                                  borderRadius: CaeloRadius.controlAll,
+                                  border: Border.all(color: palette.border),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: CaeloSpace.sm),
+                            Expanded(
+                              child: CupertinoTextField(
+                                controller: _nameController,
+                                placeholder: l10n.configurationName,
+                                padding: const EdgeInsets.all(CaeloSpace.md),
+                                decoration: BoxDecoration(
+                                  color: palette.surface1,
+                                  borderRadius: CaeloRadius.controlAll,
+                                  border: Border.all(color: palette.border),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Padding(
+                            padding: const EdgeInsets.only(
+                              top: CaeloSpace.xs,
+                              left: CaeloSpace.xs,
+                            ),
+                            child: Text(
+                              l10n.configurationEmoji,
+                              style: CaeloTheme.caption(palette),
+                            ),
                           ),
                         ),
                         const SizedBox(height: CaeloSpace.md),

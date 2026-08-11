@@ -122,6 +122,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get configurationName => 'Configuration name';
 
   @override
+  String get configurationEmoji => 'Flag or emoji';
+
+  @override
   String get configurationEmpty => 'Paste a configuration';
 
   @override

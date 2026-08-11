@@ -101,6 +101,7 @@
   },
   "configuration": "Configuration",
   "configurationName": "Configuration name",
+  "configurationEmoji": "Flag or emoji",
   "configurationEmpty": "Paste a configuration",
   "addConfiguration": "Add configuration",
   "customConfiguration": "Custom config",

@@ -58,6 +58,7 @@
   "noConfig": "Конфиг не добавлен",
   "configuration": "Конфиг",
   "configurationName": "Название конфигурации",
+  "configurationEmoji": "Флаг или эмодзи",
   "configurationEmpty": "Вставьте конфигурацию",
   "addConfiguration": "Добавить конфигурацию",
   "customConfiguration": "Свой конфиг",
