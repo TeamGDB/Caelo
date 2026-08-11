@@ -34,11 +34,15 @@ powershell -NoProfile -Command \
 ISCC="$(command -v iscc || echo "/c/Program Files (x86)/Inno Setup 6/ISCC.exe")"
 if [[ -x "$ISCC" ]]; then
   echo "==> installer"
-  "$ISCC" \
-    "/DAppVersion=$VERSION" \
-    "/DSourceDir=$SOURCE_WIN" \
-    "/DOutputDir=$OUT_WIN" \
-    "$(cygpath -w "$ROOT/packaging/windows/caelo.iss")" >/dev/null
+  # Doubled slashes on purpose. Git Bash treats a lone leading / as a path and
+  # rewrites it into a Windows one, so /DSourceDir=... arrives as a directory
+  # and Inno Setup reports being given several script names. MSYS collapses //
+  # back to a single / and leaves the rest alone.
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' "$ISCC" \
+    "//DAppVersion=$VERSION" \
+    "//DSourceDir=$SOURCE_WIN" \
+    "//DOutputDir=$OUT_WIN" \
+    "$(cygpath -w "$ROOT/packaging/windows/caelo.iss")"
 else
   echo "!! Inno Setup not found; skipping the installer" >&2
 fi
