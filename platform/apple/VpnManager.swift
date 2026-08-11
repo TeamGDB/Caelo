@@ -22,7 +22,16 @@ final class VpnManager {
 
     static let channelName = "team.gdb.caelo/vpn"
 
+    // Which bundle the system starts to run the tunnel. On iOS that is the app
+    // extension shipped inside the app; on macOS it is the system extension,
+    // which is a different bundle with a different identifier. Naming the iOS
+    // one here would have macOS save a configuration pointing at a provider
+    // that does not exist on the machine.
+    #if os(macOS)
+    private static let providerBundleIdentifier = "team.gdb.caelo.SystemExtension"
+    #else
     private static let providerBundleIdentifier = "team.gdb.caelo.PacketTunnel"
+    #endif
 
     private let channel: FlutterMethodChannel
     private var manager: NETunnelProviderManager?
@@ -70,11 +79,9 @@ final class VpnManager {
             // immediately when the extension is already installed, and it is
             // the only moment we know the user wants the tunnel enough to be
             // interrupted for.
-            installer.activate { installed in
-                guard installed else {
-                    result(FlutterError(code: "extension",
-                                        message: "the tunnel extension was not approved",
-                                        details: nil))
+            installer.activate { refusal in
+                guard refusal == nil else {
+                    result(FlutterError(code: "extension", message: refusal, details: nil))
                     return
                 }
                 self.connect(config, result)
@@ -241,9 +248,14 @@ final class SystemExtensionInstaller: NSObject, OSSystemExtensionRequestDelegate
 
     private static let identifier = "team.gdb.caelo.SystemExtension"
 
-    private var pending: ((Bool) -> Void)?
+    /// Called with nil when the extension is installed, or with the reason it
+    /// is not. The reason is carried rather than reduced to a flag: every way
+    /// this can fail is a different thing to do about it, and reporting them
+    /// all as "not approved" sends the reader to System Settings to look at a
+    /// switch that was never the problem.
+    private var pending: ((String?) -> Void)?
 
-    func activate(_ done: @escaping (Bool) -> Void) {
+    func activate(_ done: @escaping (String?) -> Void) {
         pending = done
 
         let request = OSSystemExtensionRequest.activationRequest(
@@ -254,10 +266,10 @@ final class SystemExtensionInstaller: NSObject, OSSystemExtensionRequestDelegate
         OSSystemExtensionManager.shared.submitRequest(request)
     }
 
-    private func finish(_ installed: Bool) {
+    private func finish(_ reason: String?) {
         let done = pending
         pending = nil
-        DispatchQueue.main.async { done?(installed) }
+        DispatchQueue.main.async { done?(reason) }
     }
 
     // MARK: - OSSystemExtensionRequestDelegate
@@ -280,12 +292,45 @@ final class SystemExtensionInstaller: NSObject, OSSystemExtensionRequestDelegate
                  didFinishWithResult result: OSSystemExtensionRequest.Result) {
         // willCompleteAfterReboot is not success. Reporting it as such would
         // have the app try to start a tunnel that cannot exist until a restart.
-        finish(result == .completed)
+        finish(result == .completed
+               ? nil
+               : "the extension will not be in place until the machine restarts")
     }
 
     func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
-        NSLog("Caelo: the system refused to install the extension: \(error)")
-        finish(false)
+        finish(Self.explain(error))
+    }
+
+    /// Turns the system's refusal into something that says what to do.
+    ///
+    /// `OSSystemExtensionError` descriptions are written for whoever wrote the
+    /// app, not for whoever is looking at it, and two of these are routinely
+    /// caused by the machine rather than the build — a second copy of the app
+    /// lying around is enough for the system to inspect the wrong bundle.
+    private static func explain(_ error: Error) -> String {
+        let failure = error as NSError
+        let code = failure.domain == OSSystemExtensionErrorDomain
+            ? OSSystemExtensionError.Code(rawValue: failure.code) ?? .unknown
+            : .unknown
+
+        let advice: String? = switch code {
+        case .extensionNotFound:
+            "the system looked inside an app bundle that has no extension in it — "
+                + "usually another copy of Caelo still registered on this machine"
+        case .unsupportedParentBundleLocation:
+            "Caelo has to be run from /Applications"
+        case .authorizationRequired, .forbiddenBySystemPolicy:
+            "approve it in System Settings → General → Login Items & Extensions"
+        case .codeSignatureInvalid:
+            "the extension's signature was rejected"
+        case .validationFailed:
+            "the system rejected the extension bundle"
+        default:
+            nil
+        }
+
+        let described = error.localizedDescription
+        return advice.map { "\($0) (\(described))" } ?? described
     }
 }
 

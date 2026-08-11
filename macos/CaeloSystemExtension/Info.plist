@@ -20,13 +20,24 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- The system refuses to install a network extension without this, and
+	     says so only once everything else about the bundle is right. It is not
+	     shown anywhere the user can read it, which is a shame: this is the one
+	     sentence explaining why an application is asking for the run of the
+	     machine's networking. -->
+	<key>NSSystemExtensionUsageDescription</key>
+	<string>Caelo routes this machine's traffic through the tunnel you configured.</string>
 	<!-- A system extension declares its providers here rather than under
 	     NSExtension: it is not an app extension and the system looks in a
 	     different place. -->
 	<key>NetworkExtension</key>
 	<dict>
+		<!-- Must begin with one of the app groups in the entitlements, exactly
+		     as they are written there. Ours carries no team prefix, so neither
+		     can this: with $(TeamIdentifierPrefix) in front the system stages
+		     the extension, validates it, rejects it and uninstalls it again. -->
 		<key>NEMachServiceName</key>
-		<string>$(TeamIdentifierPrefix)group.team.gdb.caelo</string>
+		<string>group.team.gdb.caelo.tunnel</string>
 		<key>NEProviderClasses</key>
 		<dict>
 			<key>com.apple.networkextension.packet-tunnel</key>

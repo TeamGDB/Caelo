@@ -1,0 +1,12 @@
+// Version numbers for the system extension.
+//
+// Only the generated file, deliberately: the extension must not inherit the
+// Pods configuration the app uses, because that is where Flutter's plugin
+// frameworks enter the link and the extension carries none of them.
+//
+// The system replaces an installed extension only when the version differs. A
+// literal version here would mean every rebuilt extension is refused as
+// "already active", the old binary keeps running, and the tunnel fails for
+// reasons fixed several builds ago. Tying it to the app's build number makes
+// bumping pubspec.yaml the one thing that has to happen.
+#include "ephemeral/Flutter-Generated.xcconfig"
