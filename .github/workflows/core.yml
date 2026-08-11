@@ -10,20 +10,20 @@ on:
 permissions:
   contents: read
 
+defaults:
+  run:
+    working-directory: core
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: core
-
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
           go-version-file: core/go.mod
-          cache: true
+          cache-dependency-path: core/go.sum
 
       - name: Formatting
         run: |
@@ -34,68 +34,116 @@ jobs:
 
       - run: go test -race ./...
 
-      # The Android sources are behind build tags, so a host build never
-      # compiles them. Without this, a mistake there is found by the app's
-      # build days later.
-      - name: Type-check the Android sources
-        run: GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build ./internal/...
+      # Every platform's sources sit behind build tags, so a host build compiles
+      # none of them. Without this a mistake surfaces days later in an app build
+      # on a machine nobody is looking at.
+      - name: Type-check the other platforms
+        run: |
+          for target in android/arm64 ios/arm64 linux/amd64 windows/amd64; do
+            echo "==> $target"
+            GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go build ./internal/...
+          done
 
   android:
     runs-on: ubuntu-latest
     needs: test
-    defaults:
-      run:
-        working-directory: core
-
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
           go-version-file: core/go.mod
-          cache: true
+          cache-dependency-path: core/go.sum
 
       - name: Build libcaelo.so for every ABI
-        run: ./deploy/android/build-so.sh
+        run: ./deploy/android/build-so.sh build/android
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
 
       - uses: actions/upload-artifact@v7
         with:
-          name: libcaelo-android
+          name: core-android
           path: core/build/android/*/libcaelo.so
           if-no-files-found: error
 
-  macos:
+  apple:
     runs-on: macos-latest
     needs: test
-    defaults:
-      run:
-        working-directory: core
-
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
           go-version-file: core/go.mod
-          cache: true
+          cache-dependency-path: core/go.sum
 
-      - name: Build the shared library and the commands
-        run: make dylib probe tun helper
+      # Universal. A dylib built only for the host would fail to load on the
+      # other architecture, and it would fail at the user rather than here.
+      - name: Build the macOS library and commands
+        run: make macos probe tun helper
 
-      # Behind build tags and a different toolchain, so a host build never
-      # compiles it and a mistake would otherwise surface in the app's build.
       - name: Build the iOS xcframework
-        run: ./deploy/ios/build-xcframework.sh
+        run: make ios
 
-      # Unsigned. macOS builds are signed and notarised at release, not here,
-      # and an artifact from this job must never be handed to anyone as one.
       - uses: actions/upload-artifact@v7
         with:
-          name: libcaelo-macos
+          name: core-macos
           path: |
             core/build/libcaelo.dylib
             core/build/libcaelo.h
-            core/build/ios/caelo.xcframework
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: core-ios
+          path: core/build/ios/caelo.xcframework
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - run: make linux
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: core-linux
+          path: core/build/libcaelo.so
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      # Built directly rather than through the Makefile: Windows runners have
+      # no make, and installing one to run a single command is a dependency
+      # bought for nothing.
+      - name: Build caelo.dll
+        shell: bash
+        run: |
+          version=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
+          CGO_ENABLED=1 go build -buildmode=c-shared \
+            -ldflags "-X github.com/TeamGDB/Caelo/core/internal/version.Version=$version" \
+            -o build/caelo.dll ./libcaelo
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: core-windows
+          path: |
+            core/build/caelo.dll
+            core/build/caelo.h
           if-no-files-found: error

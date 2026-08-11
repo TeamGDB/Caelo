@@ -3,31 +3,69 @@ LDFLAGS := -X github.com/TeamGDB/Caelo/core/internal/version.Version=$(VERSION)
 
 BUILD := build
 
-.PHONY: all
-all: probe tun helper dylib
+# The shared library is named for what each platform's loader expects to find,
+# which is why nothing on the Dart side ever builds a path.
+.PHONY: lib
+lib:
+	@case "$$(go env GOOS)" in \
+	  darwin)  $(MAKE) macos ;; \
+	  linux)   $(MAKE) linux ;; \
+	  windows) $(MAKE) windows ;; \
+	  *) echo "no library target for $$(go env GOOS)" >&2; exit 1 ;; \
+	esac
 
-# The privileged half. Installed with deploy/macos/install-helper.sh.
-.PHONY: helper
-helper:
-	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-helper ./cmd/caelo-helper
+# Universal, not host-only. A dylib built on an Apple Silicon machine will not
+# load on an Intel one, and that failure happens at the user rather than at us.
+.PHONY: macos
+macos:
+	CGO_ENABLED=1 GOARCH=arm64 go build -buildmode=c-shared \
+		-ldflags "$(LDFLAGS)" -o $(BUILD)/libcaelo-arm64.dylib ./libcaelo
+	CGO_ENABLED=1 GOARCH=amd64 go build -buildmode=c-shared \
+		-ldflags "$(LDFLAGS)" -o $(BUILD)/libcaelo-amd64.dylib ./libcaelo
+	lipo -create -output $(BUILD)/libcaelo.dylib \
+		$(BUILD)/libcaelo-arm64.dylib $(BUILD)/libcaelo-amd64.dylib
+	@rm -f $(BUILD)/libcaelo-amd64.h
+	@mv $(BUILD)/libcaelo-arm64.h $(BUILD)/libcaelo.h
+	@rm -f $(BUILD)/libcaelo-arm64.dylib $(BUILD)/libcaelo-amd64.dylib
+	@lipo -info $(BUILD)/libcaelo.dylib
+
+# Kept as an alias: scripts and muscle memory both point at it.
+.PHONY: dylib
+dylib: macos
+
+.PHONY: linux
+linux:
+	CGO_ENABLED=1 go build -buildmode=c-shared \
+		-ldflags "$(LDFLAGS)" -o $(BUILD)/libcaelo.so ./libcaelo
+
+# Cross-compiling this needs mingw-w64; building it on Windows needs nothing
+# beyond a C compiler, which is why CI does it on a Windows runner.
+.PHONY: windows
+windows:
+	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 go build -buildmode=c-shared \
+		-ldflags "$(LDFLAGS)" -o $(BUILD)/caelo.dll ./libcaelo
+
+.PHONY: android
+android:
+	./deploy/android/build-so.sh $(BUILD)/android
+
+.PHONY: ios
+ios:
+	./deploy/ios/build-xcframework.sh
 
 .PHONY: probe
 probe:
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-probe ./cmd/caelo-probe
 
-# Routes the whole machine. Needs root to run, not to build.
+# Routes the whole machine. Needs root to run, not to build. macOS only.
 .PHONY: tun
 tun:
 	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-tun ./cmd/caelo-tun
 
-# The desktop apps load this. -buildmode=c-shared also writes libcaelo.h, which
-# is the authority on the FFI surface — the Dart bindings are written against
-# it, so regenerate before changing them.
-.PHONY: dylib
-dylib:
-	CGO_ENABLED=1 go build -buildmode=c-shared \
-		-ldflags "$(LDFLAGS)" \
-		-o $(BUILD)/libcaelo.dylib ./libcaelo
+# The privileged half. Installed with deploy/macos/install-helper.sh.
+.PHONY: helper
+helper:
+	go build -ldflags "$(LDFLAGS)" -o $(BUILD)/caelo-helper ./cmd/caelo-helper
 
 .PHONY: test
 test:

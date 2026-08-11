@@ -60,14 +60,19 @@ class CoreFailure implements Exception {
 /// core push state instead of being asked for it — a tunnel that drops on its
 /// own cannot announce itself through a function that returns once.
 abstract final class CoreLibrary {
-  /// macOS wants a dylib; Android and Linux want a plain shared object. On
-  /// Android the loader finds it by name inside the APK's lib directory, which
-  /// is why nothing here builds a path.
+  /// Each platform's loader has its own idea of what a shared library is
+  /// called, and each finds it by name on a path it already searches: the APK's
+  /// lib directory on Android, the bundle's Frameworks on macOS, the runner's
+  /// rpath on Linux, the executable's own directory on Windows. Which is why
+  /// nothing here builds a path.
   ///
-  /// iOS has neither: the core is a static archive linked into the executable,
-  /// so there is no file to open at all — see [_open].
-  static String get _libraryName =>
-      Platform.isMacOS ? 'libcaelo.dylib' : 'libcaelo.so';
+  /// iOS is absent because it has no file at all: the core is a static archive
+  /// linked into the executable. See [_open].
+  static String get _libraryName {
+    if (Platform.isMacOS) return 'libcaelo.dylib';
+    if (Platform.isWindows) return 'caelo.dll';
+    return 'libcaelo.so';
+  }
 
   /// Set `CAELO_CORE_DYLIB` to load a specific build — how you point a running
   /// app at a core you just rebuilt without reinstalling it.
@@ -103,8 +108,10 @@ abstract final class CoreLibrary {
     // already on the executable's rpath, so the bare name resolves.
     yield _libraryName;
 
-    // A checkout with caelo-core beside it, built but not yet bundled.
-    yield '../caelo-core/build/$_libraryName';
+    // A development checkout where the core has been built but not yet
+    // bundled — running from the project root rather than from an install.
+    yield 'core/build/$_libraryName';
+    yield '../core/build/$_libraryName';
   }
 
   /// Reads a string the core allocated, then hands the memory back. Every

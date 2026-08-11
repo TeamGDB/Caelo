@@ -63,20 +63,24 @@ and notarized.
 
 ## Building
 
-macOS, with the core bundled into the app:
+One script per platform. Each builds the core first, puts it where that platform's loader
+will find it, and then builds the app.
 
 ```bash
-./scripts/build-macos.sh debug
+./scripts/build-macos.sh debug     # universal dylib in Contents/Frameworks
+./scripts/build-android.sh debug   # one .so per ABI, packed into the APK
+./scripts/build-ios.sh release     # static xcframework linked into the binary
+./scripts/build-linux.sh debug     # .so in the bundle's lib/
+./scripts/build-windows.sh debug   # .dll beside the executable
 ```
 
-Android, with the core built for every ABI and packed into the APK:
+Android needs an NDK; the script finds one under the SDK Flutter already knows about, or
+takes `ANDROID_NDK_HOME`. iOS debug builds use a JIT and will not launch without the
+tooling attached, so release is the default there.
 
-```bash
-ANDROID_NDK_HOME=$ANDROID_HOME/ndk/<version> ./scripts/build-android.sh debug
-```
-
-Without an NDK, `flutter build apk --debug` still builds the interface; the app runs and
-reports that the core is not there.
+Any of them can be run without a core — `flutter build <platform>` on its own still builds
+the interface. The app then reports that the core is not there rather than pretending
+otherwise.
 
 Both scripts build the core from `core/` first, so a clean checkout is all either needs.
 
