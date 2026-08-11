@@ -1,5 +1,3 @@
-//go:build android || linux
-
 // Package fdtun runs a tunnel on a device the host platform created.
 //
 // On Android an application cannot open a tun device itself: the system does
@@ -16,7 +14,6 @@ import (
 
 	"github.com/amnezia-vpn/amneziawg-go/v3/conn"
 	"github.com/amnezia-vpn/amneziawg-go/v3/device"
-	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
@@ -61,14 +58,12 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 		return nil, fmt.Errorf("reading configuration: %w", err)
 	}
 
-	// Unmonitored on purpose. The ordinary constructor sets up netlink
-	// monitoring and looks the interface up by index, and neither is available
-	// for a descriptor VpnService produced — the app does not own that
-	// interface and cannot see it in the ways those calls expect.
+	// How a descriptor is adopted differs by platform; what happens to it
+	// afterwards does not. See adopt_*.go.
 	//
-	// MTU is not passed because it is not ours to set: VpnService.Builder
-	// applied it when it created the device.
-	tunDevice, _, err := tun.CreateUnmonitoredTUNFromFD(fd)
+	// MTU is not passed: it is not ours to set. Whoever created the device
+	// applied it, and on both platforms that is the system.
+	tunDevice, err := adopt(fd, cfg.MTU)
 	if err != nil {
 		return nil, fmt.Errorf("adopting the tun descriptor: %w", err)
 	}
