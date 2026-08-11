@@ -12,12 +12,22 @@ in order, was the more expensive arrangement.
 
 ## Design
 
-Everything that decides anything lives here. The app is a list, a button and a settings
-screen; it asks the core to connect and is told what happened. Any logic that exists in
-both places is logic that will eventually disagree with itself about what is connected.
+What lives here is everything about a configuration: what is in one, whether it carries
+traffic, and how to raise it. One at a time.
 
-**Nothing is forked.** [sing-box](https://github.com/SagerNet/sing-box) is imported as an
-ordinary Go module and Caelo registers its own protocol types through its public registry.
+What does not live here is subscriptions. A subscription is a way of delivering a document
+— a link, a request, a refresh interval, a cached last-good copy, a remaining-traffic
+header, several sources merged. A tunnel executes none of it, and the app is where the user
+edits it, so that is where it belongs. Nor does the order in which nodes are tried: it
+comes from the server, and a client that recomputed it would be guessing at something it
+was told.
+
+What must stay in one place is connection state, because state kept in two will eventually
+disagree with itself about what is connected.
+
+**Nothing will be forked.** [sing-box](https://github.com/SagerNet/sing-box) is to be
+imported as an ordinary Go module, with Caelo registering its own protocol types through
+its public registry.
 AmneziaWG comes from [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go), also as
 published. Upgrading either is a version bump. See
 [ATTRIBUTION.md](ATTRIBUTION.md) for licences and
@@ -41,6 +51,7 @@ use would only record an intention that nothing verifies.
 | --- | --- |
 | `internal/awg` | AmneziaWG configuration: parsing `.conf`, rendering the device's UAPI form |
 | `internal/tunnel` | A tunnel that stays up, for the app to drive |
+| `internal/probe` | One tunnel on a userspace stack, one request through it, nothing on the host |
 | `internal/system` | Taking over the machine's routing and DNS, and putting them back |
 | `cmd/caelo-probe` | Brings up one tunnel and makes one request through it |
 | `cmd/caelo-tun` | Routes the whole machine through a tunnel. Needs root |
@@ -69,6 +80,14 @@ https://ifconfig.me/ip → 200 OK in 7.3s
 
 If the address it prints is the endpoint's rather than yours, traffic went through the
 tunnel. Add `-v` to watch the handshake.
+
+The same thing is available to the app as `caelo_probe(config, url, timeoutMs)`. That is
+how a list of candidates is worked down: connecting each one for real to find out would
+raise and drop a *system* tunnel per candidate, which on iOS and Android restarts the
+tunnel extension and drops every connection on the device each time round. It is also a
+stronger answer than a ping — a server can answer ICMP and still refuse the handshake, and
+an obfuscated endpoint is supposed to ignore anything that is not the right first packet.
+Only a reply that came back through the tunnel proves the node works.
 
 Junk packets, header magic ranges and signature packets are passed to the device layer as
 the strings they arrived as. That grammar already has one implementation and does not need

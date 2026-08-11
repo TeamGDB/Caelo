@@ -57,14 +57,26 @@ to open them.
 
 ## Architecture
 
-Everything that decides anything lives in the Go core: subscription parsing and refresh,
-node probing and selection, connection state, statistics, scheduling. The Flutter front end
-is deliberately thin — a list, a button, a settings screen. Logic that exists in both
-places is logic that will eventually disagree with itself about what is connected.
+The core knows about configurations, not about subscriptions. It can say what is in one,
+whether it carries traffic, and raise it — one at a time. Everything that makes a
+subscription a subscription is delivery: a link, an HTTP request, a refresh interval, a
+cached copy of the last one that worked, a remaining-traffic header, several sources merged
+into a list. None of that is executed by a tunnel, and all of it is what the user sees and
+edits, so it lives in Flutter.
 
-**Caelo forks nothing.** [sing-box](https://github.com/SagerNet/sing-box) is imported as an
-ordinary Go module and the core registers its own `amneziawg` endpoint through its public
-registry. AmneziaWG comes from
+The rule that does not move is connection state. That exists in exactly one place, because
+state kept in two will eventually disagree with itself about what is connected.
+
+Nodes are tried in the order the server gives them. Measurement is available where it
+helps — `caelo_probe` answers whether a configuration really carries traffic, on a
+userspace stack, without touching the machine's networking or a tunnel already up — but
+the order is the server's, not something the client recomputes.
+
+**Caelo will fork nothing.** [sing-box](https://github.com/SagerNet/sing-box) is to be
+imported as an ordinary Go module, with the core registering its own `amneziawg` endpoint
+through its public registry — that is what makes an AmneziaWG node expressible in the same
+document as everything else. It is not a dependency yet: nothing imports it, and a version
+pinned for a build that does not use it records an intention rather than a fact. AmneziaWG comes from
 [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go), also as published. Both are
 upgraded by bumping a version; there is no patch series to rebase.
 
@@ -77,11 +89,11 @@ the reason this project exists, so it is the dependency that stays fresh.
 | Path | What it holds |
 | --- | --- |
 | [`lib/`](lib) | The interface. Flutter, Cupertino, one look everywhere. |
-| [`core/`](core) | The Go core: the tunnel, selection, state. |
+| [`core/`](core) | The Go core: the tunnel, the probe, state. |
 | [`packaging/`](packaging) | Turning a build into something installable. |
 | [`scripts/`](scripts) | One build script per platform. |
 
-Pinned: sing-box `v1.13.16`, amneziawg-go `v3.0.20260805`.
+Pinned: amneziawg-go `v3.0.20260805`. Intended: sing-box `v1.13.16`.
 
 ## Building
 
