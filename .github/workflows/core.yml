@@ -18,9 +18,9 @@ jobs:
         working-directory: core
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: core/go.mod
           cache: true
@@ -48,9 +48,9 @@ jobs:
         working-directory: core
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: core/go.mod
           cache: true
@@ -60,7 +60,7 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: libcaelo-android
           path: core/build/android/*/libcaelo.so
@@ -74,9 +74,9 @@ jobs:
         working-directory: core
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: core/go.mod
           cache: true
@@ -86,7 +86,7 @@ jobs:
 
       # Unsigned. macOS builds are signed and notarised at release, not here,
       # and an artifact from this job must never be handed to anyone as one.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: libcaelo-macos
           path: |
