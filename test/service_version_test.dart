@@ -42,9 +42,7 @@ void main() {
   // prevent -- an app and a service each certain the other is the broken one.
   test('agrees with the protocol version the core speaks', () {
     final source = File('core/internal/ipc/protocol.go').readAsStringSync();
-    final declared = RegExp(
-      r'ProtocolVersion\s*=\s*(\d+)',
-    ).firstMatch(source);
+    final declared = RegExp(r'ProtocolVersion\s*=\s*(\d+)').firstMatch(source);
 
     expect(
       declared,
