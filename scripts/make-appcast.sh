@@ -39,10 +39,21 @@ BASE_URL="${APPCAST_BASE_URL:-https://github.com/TeamGDB/Caelo/releases/download
 NOTES_URL="${APPCAST_NOTES_URL:-https://github.com/TeamGDB/Caelo/releases/tag/v$VERSION}"
 
 # The build number, not the marketing version. Sparkle compares this, and it is
-# the only number that is guaranteed to increase: 0.1.0 shipped more than once
-# while the build number kept moving.
-BUILD="$(sed -n 's/^version: .*+//p' pubspec.yaml)"
+# the only number guaranteed to increase: 0.1.0 shipped more than once while the
+# build number kept moving.
+#
+# It comes from the version being packaged when that version carries one, and
+# from pubspec.yaml otherwise. A tag reads "0.1.0" and has no build number of its
+# own, so pubspec is right; a dispatch run reads "0.1.0+7" and is a different
+# build from whatever pubspec last said. Taking pubspec's number in that case
+# produced a manifest claiming build 3 while pointing at the files of build 7 --
+# harmless in a draft, and exactly the sort of thing nobody notices until it is
+# a manifest people's copies are reading.
 SHORT="$(sed -n 's/^version: \([^+]*\).*/\1/p' pubspec.yaml)"
+case "$VERSION" in
+  *+*) BUILD="${VERSION##*+}" ;;
+  *)   BUILD="$(sed -n 's/^version: .*+//p' pubspec.yaml)" ;;
+esac
 [[ -n "$BUILD" && -n "$SHORT" ]] || { echo "!! could not read version from pubspec.yaml" >&2; exit 1; }
 
 # Written once here rather than read from the project, because a manifest that
