@@ -141,13 +141,70 @@ jobs:
         with: { channel: stable, cache: true }
 
       - run: flutter pub get
+
+      # The project signs manually against a named profile, which is right on a
+      # machine that has one and is why this job failed from the day the system
+      # extension landed until the day somebody ran it (#55). There is
+      # deliberately no unsigned fallback: an extension will not load without a
+      # signature anyway, and a workaround that quietly produced unsigned builds
+      # would still be here, unnoticed, long after signing became real.
+      - name: Put the signing identity on the runner
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_INSTALLER_P12: ${{ secrets.MACOS_INSTALLER_P12 }}
+          MACOS_INSTALLER_PASSWORD: ${{ secrets.MACOS_INSTALLER_PASSWORD }}
+          MACOS_PROVISIONING_PROFILES: ${{ secrets.MACOS_PROVISIONING_PROFILES }}
+        run: |
+          if [[ -z "$MACOS_CERTIFICATE_P12" ]]; then
+            echo "::error::No macOS signing identity. This job needs the secrets listed in docs/signing.md; see #42."
+            exit 1
+          fi
+          ./scripts/ci-macos-signing.sh setup
+
       - run: ./scripts/build-macos.sh release
+
+      # The application is notarised and stapled before it is wrapped, so that
+      # the copy inside the disk image carries its own ticket and validates on a
+      # machine that is offline the first time it is opened.
+      - name: Notarise the app
+        env:
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER: ${{ secrets.MACOS_NOTARY_ISSUER }}
+        run: ./scripts/notarize-macos.sh
+
       - run: ./packaging/macos/package.sh "${{ needs.version.outputs.value }}"
+
+      - name: Notarise what people download
+        env:
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          MACOS_NOTARY_ISSUER: ${{ secrets.MACOS_NOTARY_ISSUER }}
+        run: |
+          for file in dist/*.dmg dist/*.pkg; do
+            ./scripts/notarize-macos.sh "$file"
+          done
+
+      # Proof rather than assumption. Both of these have passed while the thing
+      # they describe was wrong: stapler validates a ticket that was attached to
+      # a bundle nobody checked, and spctl is the only one that answers the
+      # question a person's machine will ask.
+      - name: Prove it will open on a machine that has never seen it
+        run: |
+          hdiutil attach -quiet -nobrowse -mountpoint /tmp/caelo dist/*.dmg
+          spctl --assess --type execute --verbose=2 /tmp/caelo/Caelo.app
+          xcrun stapler validate /tmp/caelo/Caelo.app
+          hdiutil detach -quiet /tmp/caelo
 
       - uses: actions/upload-artifact@v7
         with: { name: macos-dmg, path: dist/*.dmg, if-no-files-found: error }
       - uses: actions/upload-artifact@v7
         with: { name: macos-pkg, path: dist/*.pkg, if-no-files-found: error }
+
+      - name: Take the signing material back off the runner
+        if: always()
+        run: ./scripts/ci-macos-signing.sh teardown
 
   windows:
     runs-on: windows-latest

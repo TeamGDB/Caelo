@@ -28,11 +28,30 @@ hdiutil create -quiet -volname "$NAME" -srcfolder "$STAGE" -ov -format UDZO \
   "$OUT/$NAME-$VERSION-macos.dmg"
 
 echo "==> pkg"
+# An installer package is signed by a different identity from the application:
+# Developer ID Installer rather than Developer ID Application. Signed when one is
+# present, and plainly unsigned when not, because a .pkg that looks official and
+# is not is the worse of the two outcomes.
+PKG_IDENTITY="${MACOS_INSTALLER_IDENTITY:-}"
+if [[ -z "$PKG_IDENTITY" ]]; then
+  PKG_IDENTITY="$(security find-identity -v 2>/dev/null |
+    sed -n 's/.*"\(Developer ID Installer[^"]*\)".*/\1/p' | head -1)"
+fi
+
+PKG_SIGNING=()
+if [[ -n "$PKG_IDENTITY" ]]; then
+  echo "    signing with: $PKG_IDENTITY"
+  PKG_SIGNING=(--sign "$PKG_IDENTITY")
+else
+  echo "!! no Developer ID Installer identity; the .pkg will be unsigned" >&2
+fi
+
 pkgbuild --quiet \
   --component "$APP" \
   --install-location /Applications \
   --identifier team.gdb.caelo \
   --version "$VERSION" \
+  "${PKG_SIGNING[@]+"${PKG_SIGNING[@]}"}" \
   "$OUT/$NAME-$VERSION-macos.pkg"
 
 echo "==> Done"
