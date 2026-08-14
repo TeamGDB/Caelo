@@ -16,6 +16,22 @@ enum TunnelPhase {
       this == TunnelPhase.connecting || this == TunnelPhase.disconnecting;
 }
 
+/// Why an attempt was abandoned, when the reason is something a person can act
+/// on rather than a network to retry against.
+///
+/// An enum rather than a message because the clients that raise these have no
+/// locale — they run below the interface — and a English sentence handed upwards
+/// would appear untranslated in a Russian window.
+enum TunnelFailure {
+  /// The privileged service is older than this application. It is replaced by
+  /// installing, so the remedy is to reinstall Caelo.
+  serviceOlderThanApp,
+
+  /// This application is older than the privileged service, which happens when
+  /// the service was updated by a package manager and the application was not.
+  appOlderThanService,
+}
+
 /// Which protocol carried the connection.
 ///
 /// This exists to be shown in small text, not to be chosen from. Picking a
@@ -36,6 +52,7 @@ class TunnelStatus {
     this.node,
     this.protocol,
     this.pingMs,
+    this.failure,
   });
 
   const TunnelStatus.disconnected() : this(phase: TunnelPhase.disconnected);
@@ -49,6 +66,12 @@ class TunnelStatus {
 
   /// Round-trip time to [node], if it has been measured.
   final int? pingMs;
+
+  /// Set only alongside [TunnelPhase.failed], and only when the cause is worth
+  /// naming. Most failures are not: "the handshake did not complete" tells
+  /// somebody nothing they can use, and the honest thing is to say the attempt
+  /// failed and let them retry.
+  final TunnelFailure? failure;
 
   bool get hasNode => node != null;
 }

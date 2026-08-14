@@ -17,6 +17,25 @@ const SocketPath = "/run/caelo/caelo.sock"
 // PipeName is where the service listens on Windows.
 const PipeName = `\\.\pipe\caelo`
 
+// ProtocolVersion is the version of this wire format.
+//
+// Deliberately not the product version. It changes when the meaning of what
+// crosses this socket changes — a field removed, a command's behaviour altered —
+// and stays put through every release that does not touch the protocol, which is
+// most of them. Tying it to the product version would force a lockstep upgrade
+// on every release and teach people to ignore the resulting warnings.
+//
+// It exists because the app and the service stop moving together the moment
+// updates apply themselves. Until then both halves only ever changed when a
+// person installed something; afterwards, an AppImage can meet a service
+// installed months earlier from a package, a Windows upgrade whose service
+// restart failed leaves a new app talking to an old service, and someone can
+// decline the macOS extension prompt and be left in exactly this state.
+//
+// The alternative to checking is not "it works anyway". It is a connect that
+// hangs, and logs that do not say why.
+const ProtocolVersion = 1
+
 // Command names. Anything else is refused.
 const (
 	CommandConnect    = "connect"
@@ -28,6 +47,12 @@ const (
 // Request is one command from the app.
 type Request struct {
 	Command string `json:"command"`
+
+	// ProtocolVersion is what the app was built against. Absent means an app
+	// from before this field existed, which reads as 0 and mismatches — which is
+	// correct, because such an app is by definition older than the service
+	// checking it.
+	ProtocolVersion int `json:"protocol_version,omitempty"`
 
 	// Config is the AmneziaWG .conf, sent with connect. It is passed over the
 	// socket rather than by path: the service runs as root and would happily
@@ -50,4 +75,9 @@ type Response struct {
 
 	Core      string `json:"core,omitempty"`
 	AmneziaWG string `json:"amneziawg,omitempty"`
+
+	// ProtocolVersion answers what the service speaks. Sent only with version,
+	// which is the one command that is always answered — discovering a mismatch
+	// must not itself require a matching protocol.
+	ProtocolVersion int `json:"protocol_version,omitempty"`
 }

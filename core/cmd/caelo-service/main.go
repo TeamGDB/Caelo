@@ -242,9 +242,31 @@ func serve(conn net.Conn, controller *systunnel.Controller) {
 }
 
 func handle(request ipc.Request, controller *systunnel.Controller) ipc.Response {
+	// Version is answered whatever the caller speaks: it is how a mismatch is
+	// discovered, so gating it behind a matching protocol would leave the app
+	// with a refusal it cannot interpret and no way to find out why.
+	if request.Command == ipc.CommandVersion {
+		return ipc.Response{
+			OK:              true,
+			Core:            version.Version,
+			AmneziaWG:       version.AmneziaWG(),
+			ProtocolVersion: ipc.ProtocolVersion,
+		}
+	}
+
+	// Everything else is refused on a mismatch, before the controller is
+	// touched. This is the half that protects against an app too old to know it
+	// should check — it cannot ask, so the service has to tell it.
+	if request.ProtocolVersion != ipc.ProtocolVersion {
+		log.Printf("refusing %q from protocol %d; this service speaks %d",
+			request.Command, request.ProtocolVersion, ipc.ProtocolVersion)
+		if request.ProtocolVersion < ipc.ProtocolVersion {
+			return ipc.Response{Error: "this Caelo application is older than the Caelo service; update the application"}
+		}
+		return ipc.Response{Error: "the Caelo service is older than this application; reinstall Caelo to update the service"}
+	}
+
 	switch request.Command {
-	case ipc.CommandVersion:
-		return ipc.Response{OK: true, Core: version.Version, AmneziaWG: version.AmneziaWG()}
 
 	case ipc.CommandStatus:
 		return fromStatus(controller.Status())

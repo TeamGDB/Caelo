@@ -21,6 +21,8 @@
   "statusConnected": "Подключено",
   "statusDisconnecting": "Отключение",
   "statusFailed": "Не удалось подключиться",
+  "serviceOlderThanApp": "Служба Caelo старее приложения. Переустановите Caelo, чтобы обновить её.",
+  "appOlderThanService": "Приложение старее службы Caelo. Обновите Caelo.",
   "connect": "Подключить",
   "disconnect": "Отключить",
   "viaNode": "через {node}",

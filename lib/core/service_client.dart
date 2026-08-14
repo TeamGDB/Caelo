@@ -25,6 +25,30 @@ class ServiceRefused implements Exception {
   String toString() => message;
 }
 
+/// Raised when the service is reachable but speaks a different protocol.
+///
+/// This is not a transient failure and retrying will not fix it, which is why
+/// it is its own type: treated as an ordinary connect failure it would present
+/// as a tunnel that will not come up, and someone would go looking at their
+/// network for a problem that is on their disk.
+class ServiceVersionMismatch implements Exception {
+  const ServiceVersionMismatch({required this.expected, required this.found});
+
+  /// What this application was built against.
+  final int expected;
+
+  /// What the service answered. Zero means it is old enough not to have
+  /// answered at all, which is itself the answer.
+  final int found;
+
+  bool get serviceIsOlder => found < expected;
+
+  @override
+  String toString() =>
+      'The Caelo service speaks protocol $found and this application speaks '
+      '$expected. ${serviceIsOlder ? 'Reinstall Caelo to update the service.' : 'Update the application.'}';
+}
+
 /// Talks to the privileged service.
 ///
 /// The service runs as root and does what the app may not: create a tunnel
@@ -55,12 +79,23 @@ abstract final class ServiceClient {
         FileSystemEntityType.notFound;
   }
 
+  /// The wire format this application was built against.
+  ///
+  /// Kept in step with `ipc.ProtocolVersion` in the core by hand, because there
+  /// is no generated boundary between the two yet. It changes when the meaning
+  /// of what crosses the socket changes, not when Caelo is released.
+  static const protocolVersion = 1;
+
   static Future<Map<String, dynamic>> _send(
     Map<String, dynamic> request, {
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    if (Platform.isWindows) return _decode(await _overPipe(request, timeout));
-    if (Platform.isLinux) return _decode(await _overSocket(request, timeout));
+    // On every request rather than only where it is checked: the service
+    // refuses anything privileged from a protocol it does not speak, and it can
+    // only do that if every request says which one it is.
+    final stamped = {...request, 'protocol_version': protocolVersion};
+    if (Platform.isWindows) return _decode(await _overPipe(stamped, timeout));
+    if (Platform.isLinux) return _decode(await _overSocket(stamped, timeout));
     throw const ServiceUnavailable('no service transport on this platform');
   }
 
@@ -136,4 +171,18 @@ abstract final class ServiceClient {
 
   static Future<Map<String, dynamic>> version() =>
       _send({'command': 'version'}, timeout: const Duration(seconds: 5));
+
+  /// Confirms the service on the other end speaks the same protocol, and throws
+  /// [ServiceVersionMismatch] if it does not.
+  ///
+  /// Asked before every attempt rather than once at launch. The service can be
+  /// replaced while the app is running — that is precisely what an automatic
+  /// update does — and a cached answer from before the upgrade would be a
+  /// confident report about a program that no longer exists. It costs one round
+  /// trip over a local socket, next to a call that is about to make another.
+  static Future<void> ensureCompatible() async {
+    final spoken = (await version())['protocol_version'] as int? ?? 0;
+    if (spoken == protocolVersion) return;
+    throw ServiceVersionMismatch(expected: protocolVersion, found: spoken);
+  }
 }

@@ -71,6 +71,11 @@ class ServiceTunnelClient implements TunnelClient {
     _emit(const TunnelStatus(phase: TunnelPhase.connecting));
 
     try {
+      // Before the configuration is read, because a mismatch is not something
+      // that having a configuration would fix, and reading one first would
+      // report "nothing to connect to" on a machine that has plenty.
+      await ServiceClient.ensureCompatible();
+
       final configText = await ConfigStore.read();
       if (configText == null) {
         // Nothing to connect to is not a failure of the tunnel. Saying "could
@@ -81,6 +86,20 @@ class ServiceTunnelClient implements TunnelClient {
       }
 
       _emit(_statusFrom(await ServiceClient.connect(configText)));
+    } on ServiceVersionMismatch catch (error) {
+      // Named rather than folded into the failure below, because retrying is
+      // useless and the interface has something specific to tell them. Left as
+      // a plain failure it would look like a network problem, and they would go
+      // looking for one.
+      Diagnostics.record('the app and the service disagree', error: error);
+      _emit(
+        TunnelStatus(
+          phase: TunnelPhase.failed,
+          failure: error.serviceIsOlder
+              ? TunnelFailure.serviceOlderThanApp
+              : TunnelFailure.appOlderThanService,
+        ),
+      );
     } on Object catch (error) {
       Diagnostics.record('connect failed', error: error);
       _emit(const TunnelStatus(phase: TunnelPhase.failed));

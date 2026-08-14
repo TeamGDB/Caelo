@@ -75,6 +75,14 @@ class AppLocalizationsRu extends AppLocalizations {
   String get statusFailed => 'Не удалось подключиться';
 
   @override
+  String get serviceOlderThanApp =>
+      'Служба Caelo старее приложения. Переустановите Caelo, чтобы обновить её.';
+
+  @override
+  String get appOlderThanService =>
+      'Приложение старее службы Caelo. Обновите Caelo.';
+
+  @override
   String get connect => 'Подключить';
 
   @override
