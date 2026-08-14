@@ -184,7 +184,7 @@ jobs:
           merge-multiple: true
 
       - name: Draft, not published
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           # A draft either way. Nothing here is signed, and a release that
           # anyone can find is a release someone will install.
