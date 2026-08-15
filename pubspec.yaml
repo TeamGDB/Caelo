@@ -2,7 +2,7 @@ name: caelo
 description: "A VPN client for subscription links."
 publish_to: 'none'
 
-version: 0.1.3+6
+version: 0.1.4+7
 
 environment:
   sdk: ^3.11.1
