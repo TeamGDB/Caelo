@@ -76,10 +76,38 @@ The private half becomes the `APPCAST_ED25519_KEY` secret and exists nowhere
 else. The public half is compiled into the app — `SUPublicEDKey` in the macOS
 `Info.plist`, and the equivalent constants on the other platforms.
 
-**There is no recovery from losing the private half.** No installed copy could
-ever be updated again, because the entire mechanism rests on nothing else being
-able to produce a signature they accept. Everyone would have to reinstall by
-hand. Treat it like the signing certificate it stands beside.
+### Two keys, from the first release
+
+The app trusts a **list** of public keys, not one, and it has to from the very
+first release. This is the part that cannot be added later: a single key cannot
+be replaced, because putting a second one into the app takes an update, and
+shipping an update takes the key you no longer have.
+
+So there are two — an active key that signs releases, and a spare that signs
+nothing until it must. They live in different places; a spare stored beside the
+key it stands in for is decoration.
+
+Rotating, when the active key is lost or has been somewhere it should not:
+
+1. Sign the next release with the spare — every existing installation already
+   accepts it.
+2. In that same release, change `trustedKeys` in `lib/core/update_check.dart`:
+   drop the lost key, keep the spare as the new active one, add a fresh spare.
+3. Once enough people have taken that update, the lost key is inert.
+
+Step 2 is why the list is in the app rather than fetched: a list that arrived
+over the network could be replaced by whoever replaced the manifest.
+
+**macOS needs none of this**, which is worth knowing before panicking. Sparkle
+falls back to Developer ID with a matching team ID when its own signature check
+fails — deliberately, so that a key can be rotated — and Apple reissues that
+certificate. Windows has no equivalent, because those builds carry no
+Authenticode signature at all, so there this list is the only thing that makes a
+lost key survivable.
+
+**Still, losing both is final.** No installed copy could be updated again, and
+everyone would have to reinstall by hand. Treat them like the signing
+certificate they stand beside, and keep them apart.
 
 Until the secret exists the script says so and carries on without signatures, so
 that the shape of the manifest is exercised on every run rather than first

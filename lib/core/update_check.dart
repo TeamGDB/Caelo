@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import 'build_info.dart';
 import 'diagnostics.dart';
+import 'ffi/core_library.dart';
 import 'settings_store.dart';
 
 /// A newer build than this one, and where to get it.
@@ -16,6 +17,7 @@ class AvailableUpdate {
     required this.url,
     required this.sizeBytes,
     required this.sha256,
+    required this.signature,
     required this.notesUrl,
   });
 
@@ -24,6 +26,12 @@ class AvailableUpdate {
   final String url;
   final int sizeBytes;
   final String sha256;
+
+  /// Base64 Ed25519 over the file's bytes, made by one of [UpdateCheck
+  /// .trustedKeys]. Empty when the manifest carried none, which is treated as
+  /// unsigned and therefore unusable rather than as "no check needed".
+  final String signature;
+
   final String notesUrl;
 }
 
@@ -50,6 +58,29 @@ class AvailableUpdate {
 ///    exists. Fetching it is a separate act that the person agrees to, because
 ///    it is large and their connection may be metered.
 abstract final class UpdateCheck {
+  /// The public keys a release may be signed by, base64, as they appear in
+  /// docs/updates.md.
+  ///
+  /// Two of them, from the first release onwards, and that is the entire reason
+  /// this is a list. A single key cannot be replaced: adding a second one takes
+  /// an update, and shipping an update takes the key you no longer have. With a
+  /// spare, a lost or compromised key is an afternoon — sign the next release
+  /// with the spare, then ship a build whose list drops the old one and adds a
+  /// fresh spare.
+  ///
+  /// The spare is never used until it has to be, and is kept somewhere the first
+  /// one is not. Storing both together would make this list decoration.
+  ///
+  /// macOS is the exception that needs none of this: Sparkle falls back to
+  /// Developer ID with a matching team when its own signature check fails,
+  /// precisely so that a key can be rotated, and Apple reissues that
+  /// certificate. Windows has no such fallback — the builds are unsigned — so
+  /// there this list is the only thing that makes a lost key survivable.
+  static const trustedKeys = [
+    'FC7JiwkRA+FUJO36lY3VHWQGuQ7Mqm3e0xKbO2S98/E=',
+    'YO9ZAcc1L0Ugzn84y5DS+md61cOU7wT3lf9PQ6xkZYk=',
+  ];
+
   /// A static file, not an API.
   ///
   /// api.github.com allows sixty unauthenticated requests an hour per IP, and
@@ -119,6 +150,7 @@ abstract final class UpdateCheck {
       url: artifact['url'] as String? ?? '',
       sizeBytes: artifact['size'] as int? ?? 0,
       sha256: artifact['sha256'] as String? ?? '',
+      signature: artifact['ed25519'] as String? ?? '',
       notesUrl: document['notes'] as String? ?? '',
     );
   }
@@ -149,6 +181,30 @@ abstract final class UpdateCheck {
     // rather than nothing at all.
     _ => 'android-universal',
   };
+
+  /// Whether a file downloaded for [update] is one we published.
+  ///
+  /// Checking the SHA-256 from the manifest is not a substitute: whoever could
+  /// hand over a different file could hand over a manifest describing it. The
+  /// signature is the only part an attacker cannot produce, which is why it
+  /// rather than the digest decides.
+  static Future<bool> isOurs({
+    required String path,
+    required AvailableUpdate update,
+  }) async {
+    if (update.signature.isEmpty) return false;
+    try {
+      await CoreLibrary.verifyRelease(
+        path: path,
+        signature: update.signature,
+        trustedKeys: trustedKeys,
+      );
+      return true;
+    } on Object catch (error) {
+      Diagnostics.record('a downloaded update was not ours', error: error);
+      return false;
+    }
+  }
 
   /// Overridden in tests, which do not run on the architecture they describe.
   @visibleForTesting

@@ -17,12 +17,14 @@ import "C"
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 	"unsafe"
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
 	"github.com/TeamGDB/Caelo/core/internal/probe"
+	"github.com/TeamGDB/Caelo/core/internal/release"
 	"github.com/TeamGDB/Caelo/core/internal/tunnel"
 	"github.com/TeamGDB/Caelo/core/internal/version"
 )
@@ -217,6 +219,36 @@ func caelo_set_verbose(on C.int) *C.char {
 //export caelo_clear_log
 func caelo_clear_log() *C.char {
 	diag.Clear()
+	return marshal(map[string]any{"ok": true})
+}
+
+// caelo_verify_release reports whether a downloaded file was signed by one of
+// the keys this build trusts.
+//
+// Separate from whatever the operating system thinks. Gatekeeper and
+// Authenticode answer "may this run here"; this answers "did we produce it", and
+// on Windows, where there is no Authenticode signature at all, it is the only
+// thing between somebody and a substituted installer.
+//
+// keysJSON is an array of base64 public keys rather than one key, and that is
+// the whole design: a single key cannot be replaced, because adding a second
+// would need an update signed with the key you no longer have.
+//
+//export caelo_verify_release
+func caelo_verify_release(path *C.char, signature *C.char, keysJSON *C.char) *C.char {
+	var encoded []string
+	if err := json.Unmarshal([]byte(C.GoString(keysJSON)), &encoded); err != nil {
+		return failure(fmt.Errorf("reading the trusted keys: %w", err))
+	}
+
+	keys, err := release.ParseTrusted(encoded)
+	if err != nil {
+		return failure(err)
+	}
+
+	if err := release.VerifyFile(C.GoString(path), C.GoString(signature), keys); err != nil {
+		return failure(err)
+	}
 	return marshal(map[string]any{"ok": true})
 }
 

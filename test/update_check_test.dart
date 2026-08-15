@@ -29,6 +29,7 @@ String manifest({
             'url': 'https://example.invalid/$key',
             'size': 1024,
             'sha256': 'a' * 64,
+            'ed25519': 'c2lnbmF0dXJl',
           },
       },
 });
@@ -41,7 +42,32 @@ void main() {
       expect(found!.build, appBuild + 1);
       expect(found.sizeBytes, 1024);
       expect(found.sha256, isNotEmpty);
+      expect(found.signature, isNotEmpty);
     });
+
+    // A manifest without one is not "no check needed", it is unusable. The
+    // digest is no substitute: whoever could serve a different file could serve
+    // a manifest describing it.
+    test(
+      'an artifact with no signature yields an empty one, not a default',
+      () {
+        final found = UpdateCheck.read(
+          jsonEncode({
+            'version': '9.9.9',
+            'build': appBuild + 1,
+            'artifacts': {
+              UpdateCheck.artifactKey: {
+                'url': 'https://example.invalid/x',
+                'size': 1,
+                'sha256': 'b' * 64,
+              },
+            },
+          }),
+        );
+        expect(found, isNotNull);
+        expect(found!.signature, isEmpty);
+      },
+    );
 
     // The marketing version has shipped more than once. Comparing it would have
     // every build of 0.1.0 consider every other one identical, which is the
@@ -140,6 +166,34 @@ void main() {
     // shared by everyone behind one exit node.
     test('it does not ask the GitHub API', () {
       expect(UpdateCheck.manifestUrl, isNot(contains('api.github.com')));
+    });
+  });
+
+  // The property everything else rests on. One key cannot be replaced: adding a
+  // second takes an update, and shipping an update takes the key that is gone.
+  // If this ever drops to one, a lost key ends updates for every installation
+  // that already exists.
+  group('more than one key is trusted', () {
+    test('there is a spare', () {
+      expect(
+        UpdateCheck.trustedKeys.length,
+        greaterThanOrEqualTo(2),
+        reason: 'a single key cannot be rotated, only lost',
+      );
+    });
+
+    test('they are distinct, and each is a 32-byte Ed25519 key', () {
+      expect(
+        UpdateCheck.trustedKeys.toSet().length,
+        UpdateCheck.trustedKeys.length,
+      );
+      for (final key in UpdateCheck.trustedKeys) {
+        expect(
+          base64Decode(key).length,
+          32,
+          reason: '$key is not an Ed25519 key',
+        );
+      }
     });
   });
 
