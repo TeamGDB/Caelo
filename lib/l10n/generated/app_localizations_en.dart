@@ -265,4 +265,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get updateCheckNote =>
       'Caelo asks a static file whether a newer version exists. The request carries no identifier and is the same from every installation, and it goes through the tunnel when one is up. Turning this off stops it being sent at all.';
+
+  @override
+  String get checkNow => 'Check now';
 }

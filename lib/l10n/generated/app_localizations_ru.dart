@@ -265,4 +265,7 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get updateCheckNote =>
       'Caelo спрашивает у статического файла, есть ли версия новее. Запрос не содержит идентификаторов и одинаков у всех установок, а когда поднят туннель — идёт через него. Выключатель прекращает отправку, а не прячет ответ.';
+
+  @override
+  String get checkNow => 'Проверить сейчас';
 }

@@ -5,6 +5,7 @@ import '../core/config_store.dart';
 import '../core/diagnostics.dart';
 import '../core/ffi/core_library.dart';
 import '../core/build_info.dart';
+import '../core/desktop_updater.dart';
 import '../core/settings_store.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../main.dart' show AccessScope, LocaleModeScope, ThemeModeScope;
@@ -234,10 +235,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ? null
                             : (on) async {
                                 await SettingsStore.setUpdateChecks(on);
+                                // The updater is told rather than left to read
+                                // the file: it schedules its own work, and one
+                                // that learned about this at the next launch
+                                // would keep checking until then.
+                                await DesktopUpdater.setEnabled(on);
                                 if (mounted) setState(() => updateChecks = on);
                               },
                       ),
                     ),
+                    if (DesktopUpdater.isSupported)
+                      _Row(
+                        label: l10n.checkNow,
+                        onTap: () => unawaited(DesktopUpdater.checkNow()),
+                      ),
                   ],
                 ),
                 _Section(

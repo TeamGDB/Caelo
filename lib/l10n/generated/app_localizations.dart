@@ -583,6 +583,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Caelo asks a static file whether a newer version exists. The request carries no identifier and is the same from every installation, and it goes through the tunnel when one is up. Turning this off stops it being sent at all.'**
   String get updateCheckNote;
+
+  /// Settings row that asks for an update check immediately.
+  ///
+  /// In en, this message translates to:
+  /// **'Check now'**
+  String get checkNow;
 }
 
 class _AppLocalizationsDelegate

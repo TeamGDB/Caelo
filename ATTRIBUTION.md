@@ -17,6 +17,7 @@ These are consumed as ordinary dependencies, not copied into this tree.
 | [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) | MIT | v3.0.20260805 | The AmneziaWG implementation, used as published. |
 | [wireguard-go](https://git.zx2c4.com/wireguard-go/) | MIT | via `amneziawg-go` | Upstream of `amneziawg-go`; its copyright notices travel with that dependency. |
 | [file_selector](https://github.com/flutter/packages/tree/main/packages/file_selector/file_selector) | BSD-3-Clause | 1.1.0 | Used as published to open the operating system file picker for local `.conf` import. |
+| [Sparkle](https://github.com/sparkle-project/Sparkle) | MIT, with BSD-2-Clause components (`bsdiff`/`bspatch`) | 2.9.x | The macOS updater, used as published. Its own signature check is left in place and supplemented rather than replaced: see `docs/updates.md`. |
 
 ## Forks
 

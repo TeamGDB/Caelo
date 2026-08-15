@@ -29,6 +29,12 @@ flutter_macos_podfile_setup
 target 'Runner' do
   use_frameworks!
 
+  # Replacing a running application on macOS means staging a copy, checking its
+  # signature, quitting, swapping the bundle and relaunching -- and from inside
+  # the sandbox, doing the swap from a helper, because the app cannot write to
+  # /Applications itself. Sparkle has done that for twenty years.
+  pod 'Sparkle', '~> 2.9'
+
   flutter_install_all_macos_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths

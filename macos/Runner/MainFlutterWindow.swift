@@ -3,6 +3,7 @@ import FlutterMacOS
 
 class MainFlutterWindow: NSWindow {
   private var vpn: VpnManager?
+  private var updater: Updater?
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
@@ -48,6 +49,10 @@ class MainFlutterWindow: NSWindow {
     // Held for the window's lifetime: it owns the channel and observes VPN
     // status changes, and a manager that is collected stops reporting them.
     vpn = VpnManager(messenger: flutterViewController.engine.binaryMessenger)
+
+    // Also held for the window's lifetime. Sparkle's controller schedules its
+    // own work; one that is collected stops checking, silently.
+    updater = Updater(messenger: flutterViewController.engine.binaryMessenger)
 
     super.awakeFromNib()
   }

@@ -28,5 +28,15 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUFeedURL</key>
+	<string>https://teamgdb.github.io/Caelo/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>FC7JiwkRA+FUJO36lY3VHWQGuQ7Mqm3e0xKbO2S98/E=</string>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUEnableSystemProfiling</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
 </dict>
 </plist>
