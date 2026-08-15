@@ -335,6 +335,18 @@ jobs:
           ./scripts/make-page.sh pages
           cp pages/appcast.xml pages/latest.json incoming/
 
+      # apt and dnf, built from the same packages the release carries. Separate
+      # from the manifest because they are what Linux actually upgrades through:
+      # /opt/caelo and the systemd units belong to the package manager, and
+      # nothing there self-updates.
+      - name: Build the Linux package repositories
+        env:
+          REPO_GPG_KEY: ${{ secrets.REPO_GPG_KEY }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apt-utils createrepo-c
+          ./scripts/make-repo.sh incoming pages
+
       # Uploaded whether or not it will be served, so that a draft run can be
       # read by a person before anything is promised to a machine.
       - uses: actions/upload-artifact@v7
