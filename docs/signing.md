@@ -172,13 +172,29 @@ and put it in a calendar rather than meeting it as a surprise.
 Not finished. The pipeline builds the archive on every run and stops there until
 the material below exists; the state of it is #78.
 
-iOS is signed differently from macOS, and not by choice. The project signs iOS
-automatically, and automatic signing wants an Xcode logged into an Apple ID —
-something a hosted runner is not. So the archive is built **unsigned**
-(`flutter build ipa --no-codesign`) and signed at export instead, against
-profiles named in `scripts/upload-testflight.sh`. That split has one useful side
-effect: the build half runs, and is worth running, on a machine with no
-certificate at all.
+iOS signs manually against named profiles, the way macOS does, and for the same
+reason: automatic signing wants an Xcode logged into an Apple ID, which a hosted
+runner is not. The Release configuration of both targets names
+`Caelo App Store` and `Caelo Tunnel App Store`; Debug and Profile are left
+automatic, so `flutter run` on a device is unaffected.
+
+Signing at **export** was tried first and does not work, which is worth knowing
+before anyone tries it again. Entitlements are compiled in at the moment of
+signing, so an archive built with `--no-codesign` carries none, and exporting it
+produces an app with only the four Apple adds by default. Everything reports
+success — `EXPORT SUCCEEDED`, both bundles signed by the distribution
+certificate — and App Store Connect rejects the upload:
+
+```
+ERROR: Missing Entitlement. The bundle 'Runner.app' is missing entitlement
+'com.apple.developer.networking.networkextension'. (90525)
+```
+
+An app that could not have run a tunnel, signed perfectly. Both the build and
+the upload now check the entitlements themselves rather than waiting to be told.
+
+On a machine with no certificate, `./scripts/build-ios.sh archive-unsigned`
+still proves the thing compiles, and produces nothing shippable.
 
 ### Two things have to be made by hand
 

@@ -30,68 +30,48 @@
 #   IOS_UPLOAD         false to sign and export without sending anything
 set -euo pipefail
 
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ARCHIVE="${1:-build/ios/archive/Runner.xcarchive}"
-TEAM_ID="${IOS_TEAM_ID:-BM4788UD8M}"
-METHOD="${IOS_EXPORT_METHOD:-app-store-connect}"
-PROFILE_APP="${IOS_PROFILE_APP:-Caelo App Store}"
-PROFILE_TUNNEL="${IOS_PROFILE_TUNNEL:-Caelo Tunnel App Store}"
 OUTPUT="${CAELO_IPA_DIR:-build/ios/ipa}"
-
-[[ -d "$ARCHIVE" ]] || {
-  echo "error: no archive at $ARCHIVE" >&2
-  echo "       build one first: ./scripts/build-ios.sh archive" >&2
-  exit 1
-}
 
 WORK="$(mktemp -d)"
 chmod 700 "$WORK"
 trap 'rm -rf "$WORK"' EXIT
 
-# Written rather than committed, because the profile names are the part that
-# changes when somebody regenerates them in the portal, and a file in the tree
-# that has to be edited in step with an external system is a file that will
-# disagree with it.
-#
-# The profiles these names refer to have to be created by hand in the developer
-# portal. The ones Xcode manages for itself cannot be used, whatever they are
-# called: exporting with manual signing against one fails with "is Xcode
-# managed, but signing settings require a manually managed profile", on Xcode 16
-# and 26 alike. Automatic signing would take them, and needs an Xcode signed
-# into an Apple ID, which is the thing a runner does not have.
-cat > "$WORK/ExportOptions.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>method</key><string>$METHOD</string>
-  <key>teamID</key><string>$TEAM_ID</string>
-  <key>signingStyle</key><string>manual</string>
-  <key>provisioningProfiles</key>
-  <dict>
-    <key>team.gdb.caelo</key><string>$PROFILE_APP</string>
-    <key>team.gdb.caelo.PacketTunnel</key><string>$PROFILE_TUNNEL</string>
-  </dict>
-  <key>uploadSymbols</key><true/>
-  <key>stripSwiftSymbols</key><true/>
-  <key>destination</key><string>export</string>
-</dict>
-</plist>
-PLIST
+IPA="$(find "$OUTPUT" -maxdepth 1 -name '*.ipa' -print -quit 2>/dev/null || true)"
 
-echo "==> Exporting a signed build ($METHOD)"
-rm -rf "$OUTPUT"
-xcodebuild -exportArchive \
-  -archivePath "$ARCHIVE" \
-  -exportOptionsPlist "$WORK/ExportOptions.plist" \
-  -exportPath "$OUTPUT" \
-  -allowProvisioningUpdates=NO
+# Flutter exports as part of building the archive, so on the pipeline's path
+# there is already an IPA here and re-exporting would only be a second chance to
+# do it differently. Exporting is for the other caller: somebody with an archive
+# and no IPA, which is what an archive built before this script existed looks
+# like.
+if [[ -z "$IPA" ]]; then
+  [[ -d "$ARCHIVE" ]] || {
+    echo "error: no IPA in $OUTPUT and no archive at $ARCHIVE" >&2
+    echo "       build one first: ./scripts/build-ios.sh archive" >&2
+    exit 1
+  }
 
-IPA="$(find "$OUTPUT" -maxdepth 1 -name '*.ipa' -print -quit)"
-[[ -n "$IPA" ]] || { echo "error: the export produced no .ipa" >&2; exit 1; }
+  "$HERE/ios-export-options.sh" > "$WORK/ExportOptions.plist"
 
-# Proof rather than assumption, and cheap: an export can succeed and still leave
-# the extension signed by something else, which App Store Connect rejects long
-# after the job has gone green.
+  echo "==> Exporting a signed build"
+  rm -rf "$OUTPUT"
+  xcodebuild -exportArchive \
+    -archivePath "$ARCHIVE" \
+    -exportOptionsPlist "$WORK/ExportOptions.plist" \
+    -exportPath "$OUTPUT" \
+    -allowProvisioningUpdates=NO
+
+  IPA="$(find "$OUTPUT" -maxdepth 1 -name '*.ipa' -print -quit)"
+  [[ -n "$IPA" ]] || { echo "error: the export produced no .ipa" >&2; exit 1; }
+fi
+
+
+# Proof rather than assumption, and cheap. Both of these have gone wrong here
+# already: an export can succeed with the extension signed by something else,
+# and it can succeed with the entitlements missing entirely, which is what an
+# unsigned archive produced -- an app that could not have run a tunnel, signed
+# perfectly, rejected on upload with error 90525.
 echo "==> What signed it"
 unzip -qo "$IPA" -d "$WORK/unpacked"
 for target in "$WORK/unpacked/Payload/"*.app "$WORK/unpacked/Payload/"*.app/PlugIns/*.appex; do
@@ -99,6 +79,17 @@ for target in "$WORK/unpacked/Payload/"*.app "$WORK/unpacked/Payload/"*.app/Plug
   authority="$(codesign -dvvv "$target" 2>&1 | sed -n 's/^Authority=//p' | head -1)"
   echo "    $(basename "$target"): ${authority:-unsigned}"
   [[ -n "$authority" ]] || { echo "error: $(basename "$target") came out unsigned" >&2; exit 1; }
+
+  entitlements="$(codesign -d --entitlements :- "$target" 2>/dev/null || true)"
+  for required in com.apple.developer.networking.networkextension \
+                  com.apple.security.application-groups; do
+    grep -q "$required" <<< "$entitlements" || {
+      echo "error: $(basename "$target") is missing $required." >&2
+      echo "       App Store Connect rejects this as error 90525. An archive" >&2
+      echo "       built with --no-codesign carries no entitlements at all." >&2
+      exit 1
+    }
+  done
 done
 
 if [[ "${IOS_UPLOAD:-true}" != "true" ]]; then
