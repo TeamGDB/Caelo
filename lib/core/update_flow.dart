@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'android_installer.dart';
 import 'desktop_updater.dart';
+import 'diagnostics.dart';
 import 'update_check.dart';
 import 'update_download.dart';
 
@@ -26,6 +27,15 @@ enum UpdateStage {
   /// The system installer has been asked to take over. Nothing further is known
   /// — whether it installs is between the person and Android.
   handedOver,
+
+  /// The file was fetched and proved ours, and handing it to the system
+  /// installer failed.
+  ///
+  /// Its own state rather than sharing [failed], because the two send somebody
+  /// to different places: a failed download is a network to retry, and this is
+  /// not. Sharing one meant a complete, verified file on disk being reported as
+  /// a download that did not finish (#71).
+  handOverFailed,
 
   /// Android will not let Caelo start an installation. Asked before downloading
   /// rather than after: tens of megabytes and then a refusal is a poor way to
@@ -90,6 +100,11 @@ class UpdateFlow extends ChangeNotifier {
     try {
       final found = await _look();
       available = found;
+      Diagnostics.record(
+        found == null
+            ? 'update check: nothing newer'
+            : 'update check: ${found.version} (build ${found.build}) available',
+      );
       _to(found == null ? UpdateStage.current : UpdateStage.found);
     } finally {
       _busy = false;
@@ -105,6 +120,7 @@ class UpdateFlow extends ChangeNotifier {
       // Before the download, not after. This is the whole reason the permission
       // is a state of its own rather than an error at the end.
       if (!await _canInstall()) {
+        Diagnostics.record('update: not allowed to install packages');
         _to(UpdateStage.needsPermission);
         return;
       }
@@ -119,12 +135,27 @@ class UpdateFlow extends ChangeNotifier {
       // Verification happened inside the fetch. Reaching here means the file is
       // signed by a key this build trusts, and only then is the installer told
       // about it.
-      await _install(file.path);
+      Diagnostics.record('update: downloaded and verified ${update.version}');
+
+      try {
+        await _install(file.path);
+      } on Object catch (error) {
+        // Deliberately not folded into the download's failure. They send
+        // somebody to different places, and sharing one reported a complete,
+        // verified file as a download that did not finish (#71).
+        Diagnostics.record('update: the installer refused it', error: error);
+        _to(UpdateStage.handOverFailed);
+        return;
+      }
+
+      Diagnostics.record('update: handed to the system installer');
       _to(UpdateStage.handedOver);
     } on DownloadFailed catch (error) {
+      Diagnostics.record('update: download failed', error: error);
       failure = error.reason;
       _to(UpdateStage.failed);
-    } on Object {
+    } on Object catch (error) {
+      Diagnostics.record('update: download failed', error: error);
       failure = DownloadFailure.unreachable;
       _to(UpdateStage.failed);
     } finally {

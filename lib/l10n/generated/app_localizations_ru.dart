@@ -303,4 +303,8 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get updateFailed => 'Скачивание не завершилось.';
+
+  @override
+  String get updateHandOverFailed =>
+      'Не удалось запустить установщик. Файл скачан и проверен — его не открыл Android.';
 }

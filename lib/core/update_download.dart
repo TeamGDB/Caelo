@@ -89,7 +89,17 @@ abstract final class UpdateDownload {
       throw const DownloadFailed(DownloadFailure.unreachable);
     }
 
-    final ours = await (verify ?? UpdateCheck.isOurs)(target.path, update);
+    // Wrapped rather than passed directly. UpdateCheck.isOurs takes named
+    // parameters, and `verify ?? UpdateCheck.isOurs` has no common function
+    // type, so Dart infers plain `Function` and the call becomes dynamic --
+    // which compiled cleanly and threw NoSuchMethodError on a device (#71).
+    // Every test injected `verify`, so the default was never once executed.
+    final check =
+        verify ??
+        (String path, AvailableUpdate update) =>
+            UpdateCheck.isOurs(path: path, update: update);
+
+    final ours = await check(target.path, update);
     if (!ours) {
       // Removed rather than kept for inspection. A file that failed this check
       // is one somebody may have chosen for us, and leaving it on disk with a
