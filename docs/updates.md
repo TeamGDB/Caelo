@@ -42,8 +42,10 @@ Two more properties of the host, written down so they are not rediscovered:
 
 - **A draft release does not serve its assets.** A manifest naming a draft's
   files offers an update that 404s for everyone who accepts it. This is why
-  `RELEASE_IS_DRAFT` in `release.yml` gates both the release and the manifest
-  from one place — they cannot drift apart.
+  the gate step in `release.yml` decides once, for both the release and the
+  manifest, so they cannot drift apart. It combines `PUBLISH_TAGGED_RELEASES`
+  with "is this a tag": a dispatch run is always a draft, which is what makes it
+  safe to look at a release before there is one to make.
 - **A release asset can be replaced under the same name.** The URL proves
   nothing about the bytes, which is fine, because the signature does.
 

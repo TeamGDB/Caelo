@@ -165,3 +165,106 @@ security find-certificate -c "Developer ID Application" -p |
 ```
 
 and put it in a calendar rather than meeting it as a surprise.
+
+## Windows: deliberately unsigned, for now
+
+Decided 15 August 2026, while the project has no users to speak of.
+
+Windows ships without an Authenticode certificate. This is a decision, not an
+oversight, and the reasoning should be re-read before anyone spends money
+reversing it.
+
+**It works.** Unlike macOS, where an unsigned build cannot load its system
+extension and therefore cannot tunnel at all, an unsigned Windows build is fully
+functional: Wintun carries its own Microsoft-attested driver signature, so the
+tunnel comes up regardless of who signed the installer around it. What is lost is
+trust, not capability.
+
+**What people see.** SmartScreen's "Windows protected your PC" on first run, a
+browser warning on download, and — worst of the three — "Publisher: unknown" on
+the elevation prompt, which Caelo needs because it installs a privileged service.
+An application that circumvents censorship, asks for administrator rights, and
+cannot say who wrote it is asking for exactly the habit that malware relies on.
+
+**Why not simply buy one.** Three reasons, in order of weight:
+
+1. There is nothing worth signing yet. #22 is open: the Windows tunnel has never
+   run on a real machine. A certificate bought today would spend its first months
+   accruing SmartScreen reputation for a binary that may not work.
+2. Since 2023 the private key must live on hardware or in a cloud signing
+   service, so a certificate cannot simply be handed to a hosted runner. Either a
+   self-hosted machine with the token, or a service such as Azure Trusted
+   Signing, which has its own eligibility and geography constraints.
+3. An individual, as opposed to a company, can hold only an OV certificate, and
+   the publisher line then reads as a person's name rather than an organisation.
+
+For reference, AmneziaVPN — same space, established, with an Estonian company
+behind it — signs by subject name from the Windows certificate store and does not
+sign on its public runners either. The constraint is structural, not a matter of
+diligence.
+
+**What is done instead.** Every artifact is listed in `latest.json` with its
+SHA-256 and an Ed25519 signature, so a download can be checked without
+Authenticode, and the Windows updater (#45) verifies that signature rather than
+relying on the operating system's opinion. The release notes say plainly that
+Windows will warn and why, rather than telling anyone to click through warnings.
+
+**When to revisit.** When there are enough users for the drop-off at the
+SmartScreen dialog to be worth measuring, and after #22 proves there is something
+to sign. Note that reputation accrues per certificate and never starts without
+one — this does not improve on its own with time.
+
+## Android
+
+One keystore, held outside the repository, and irrecoverable in the way that
+matters: Android refuses an update signed with a different key than the installed
+copy. Lose it and every existing installation is stranded — uninstall and
+reinstall, losing whatever the app was holding, with nothing we can do from our
+side. It is not reissued by anybody, exactly like the appcast key in
+`docs/updates.md`.
+
+Generate it once. The command prompts for a password and asks for a name and
+organisation; those end up in the certificate but nobody reads them:
+
+```bash
+keytool -genkeypair -v -keystore ~/.caelo-dev/caelo-release.jks -storetype PKCS12 -keyalg RSA -keysize 4096 -validity 10000 -alias caelo
+```
+
+PKCS#12 rather than the older JKS, which keytool itself now warns about. One
+password covers the store and the key.
+
+Then four secrets:
+
+```bash
+gh secret set ANDROID_KEYSTORE --repo TeamGDB/Caelo < <(base64 -i ~/.caelo-dev/caelo-release.jks)
+gh secret set ANDROID_KEYSTORE_PASSWORD --repo TeamGDB/Caelo
+gh secret set ANDROID_KEY_PASSWORD --repo TeamGDB/Caelo
+echo -n caelo | gh secret set ANDROID_KEY_ALIAS --repo TeamGDB/Caelo
+```
+
+Back it up the same way as the appcast key, and to the same standard: a copy that
+survives this machine, and somebody else able to reach it.
+
+### Building without it
+
+A clone with no keystore still builds. `android/app/build.gradle.kts` falls back
+to the debug key and says so in the build output, because an open-source project
+a stranger cannot build is not really open.
+
+The release workflow has no such fallback and fails outright when the secret is
+absent. The danger was never building a debug-signed APK — it is publishing one,
+and the difference is invisible until somebody tries to update. So the workflow
+also runs `apksigner` afterwards and refuses to go on if the certificate reads as
+`Android Debug`, or if it cannot read a certificate at all.
+
+### For local release builds
+
+Rather than exporting four variables, put them in `android/key.properties`, which
+is already in `android/.gitignore`:
+
+```properties
+storeFile=/Users/you/.caelo-dev/caelo-release.jks
+storePassword=...
+keyAlias=caelo
+keyPassword=...
+```

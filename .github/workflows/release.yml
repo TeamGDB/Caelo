@@ -12,17 +12,25 @@ permissions:
 # every run rather than discovered to be broken on the day of a release.
 #
 # macOS is signed and notarised here (#42); the system extension will not load
-# without it, so there is no useful unsigned build to fall back to. Windows and
-# Android are not yet -- when they are, RELEASE_IS_DRAFT below can go.
+# without it, so there is no useful unsigned build to fall back to.
+#
+# Windows ships unsigned on purpose -- it works without a certificate, and the
+# reasoning is written down in docs/signing.md rather than left to be guessed
+# from its absence. The release notes below say so to whoever downloads it.
 
 env:
-  # One switch, read in two places: whether the release is a draft, and whether
-  # the update manifest may be served. They have to agree. A served manifest
-  # pointing into a draft release offers every installed copy an update whose
-  # download 404s, because GitHub does not serve a draft's assets.
+  # Whether a tagged run may produce a release people can find and a manifest
+  # their installed copies will read.
   #
-  # Stays "true" until #42 -- signed artifacts -- lands.
-  RELEASE_IS_DRAFT: "true"
+  # Not the same question as "is this run a tag": both have to be true, and the
+  # two are combined once, in the gate step, so the release and the manifest
+  # cannot disagree. A served manifest pointing into a draft release offers
+  # every installed copy a download that 404s, because GitHub does not serve a
+  # draft's assets.
+  #
+  # A dispatch run stays a draft regardless, which is what makes it safe to look
+  # at a release before there is one to make.
+  PUBLISH_TAGGED_RELEASES: "true"
 
 jobs:
   version:
@@ -60,14 +68,72 @@ jobs:
         with: { channel: stable, cache: true }
 
       - run: flutter pub get
+
+      # No fallback to the debug key here, unlike a local build. Android refuses
+      # an update across a change of signing key, so a debug-signed APK that
+      # reached a release page would strand everyone who installed it: uninstall
+      # and reinstall, with nothing we could do about it afterwards.
+      - name: Put the release keystore on the runner
+        env:
+          CAELO_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE }}
+        run: |
+          if [[ -z "$CAELO_KEYSTORE_BASE64" ]]; then
+            echo "::error::No Android release keystore. See docs/signing.md; #42."
+            exit 1
+          fi
+          base64 --decode <<< "$CAELO_KEYSTORE_BASE64" > "$RUNNER_TEMP/caelo-release.jks"
+          # A keystore is a PKCS#12 container: DER, so it starts with 0x30. The
+          # same check the macOS certificate gets, for the same reason -- a
+          # mangled secret otherwise fails much later, describing something else.
+          if [[ "$(head -c 1 "$RUNNER_TEMP/caelo-release.jks" | xxd -p)" != "30" ]]; then
+            echo "::error::ANDROID_KEYSTORE did not decode to a keystore."
+            exit 1
+          fi
+
       - run: ./scripts/build-android.sh release
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+          CAELO_KEYSTORE: ${{ runner.temp }}/caelo-release.jks
+          CAELO_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CAELO_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          CAELO_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       # The bundle as well as the APKs: stores want one, everyone else wants
       # the other, and sideloading wants the universal APK because whoever
       # passes the file on does not know what is at the far end.
       - run: flutter build appbundle --release
+        env:
+          CAELO_KEYSTORE: ${{ runner.temp }}/caelo-release.jks
+          CAELO_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CAELO_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          CAELO_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      # Proof, not assumption. A build that quietly fell back to the debug key
+      # produces a perfectly good APK that must never be published, and the
+      # difference is invisible until somebody tries to update.
+      - name: Prove it was signed with the release key
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          for apk in build/app/outputs/flutter-apk/app-*release.apk; do
+            dn=$("$APKSIGNER" verify --print-certs "$apk" | grep -i "certificate DN:" || true)
+            # Absence is a failure, not a pass. If apksigner's output ever stops
+            # matching this, a check that quietly found nothing would report
+            # every debug-signed build as fine -- which is the only outcome this
+            # step exists to prevent.
+            if [[ -z "$dn" ]]; then
+              echo "::error::could not read a signing certificate from $(basename "$apk")"
+              exit 1
+            fi
+            echo "$(basename "$apk"): $dn"
+            if grep -qi "Android Debug" <<< "$dn"; then
+              echo "::error::$(basename "$apk") is signed with the debug key"
+              exit 1
+            fi
+          done
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/caelo-release.jks"
 
       - name: Collect
         env:
@@ -265,38 +331,51 @@ jobs:
         with: { name: update-manifests, path: pages/*, if-no-files-found: error }
 
       - id: gate
-        # Whether these manifests may be served. A draft release does not serve
-        # its assets, so publishing a manifest that points into one would offer
-        # every installed copy an update it then cannot download. Flip
-        # RELEASE_IS_DRAFT when #42 lands and the artifacts are signed.
+        # Decided once and used for both the release and the manifest. An
+        # earlier version read the flag directly for `draft:`, which meant
+        # clearing it would have published every dispatch run as a real release
+        # under a tag like v0.1.0+12.
         run: |
-          if [[ "$RELEASE_IS_DRAFT" != "true" && "${GITHUB_REF}" == refs/tags/v* ]]; then
+          if [[ "$PUBLISH_TAGGED_RELEASES" == "true" && "${GITHUB_REF}" == refs/tags/v* ]]; then
             echo "value=true" >> "$GITHUB_OUTPUT"
           else
             echo "value=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Manifests built but not served: the release is a draft."
+            echo "::notice::Draft only: manifests built but not served."
           fi
 
-      - name: Draft, not published
+      - name: Release
         uses: softprops/action-gh-release@v3
         with:
-          # A draft either way. Nothing here is signed, and a release that
-          # anyone can find is a release someone will install.
-          draft: ${{ env.RELEASE_IS_DRAFT }}
+          draft: ${{ steps.gate.outputs.value != 'true' }}
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.version.outputs.value) }}
           name: Caelo ${{ needs.version.outputs.value }}
           files: incoming/*
           body: |
-            Nothing here is signed or notarised yet. macOS will refuse to open
-            the app without a right-click, and Windows will warn. Do not treat
-            these as a release until that changes.
-
             | Platform | File |
             | --- | --- |
             | Android | one APK per architecture, or the universal one if unsure |
             | Linux | `.deb`, `.rpm`, AppImage, or the tarball |
             | macOS | `.dmg` — drag Caelo into Applications |
             | Windows | installer, or the portable zip to run from a stick |
+
+            ### Windows will warn, and it is right to
+
+            The Windows build is not signed with an Authenticode certificate, so
+            SmartScreen shows "Windows protected your PC" and the elevation
+            prompt says the publisher is unknown. Everything works — the driver
+            Caelo uses carries its own Microsoft-attested signature — but Windows
+            has no way to tell who built this installer.
+
+            Do not take that on faith. Every file here is listed in
+            [`latest.json`](https://teamgdb.github.io/Caelo/latest.json) with its
+            SHA-256, so you can check what you downloaded is what we published:
+
+            ```
+            shasum -a 256 Caelo-*-windows-x64-setup.exe
+            ```
+
+            macOS is signed with a Developer ID and notarised by Apple, and opens
+            without ceremony.
 
   pages:
     # Serving the manifest is a separate job from writing it, because it happens
