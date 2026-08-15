@@ -213,3 +213,58 @@ Windows will warn and why, rather than telling anyone to click through warnings.
 SmartScreen dialog to be worth measuring, and after #22 proves there is something
 to sign. Note that reputation accrues per certificate and never starts without
 one — this does not improve on its own with time.
+
+## Android
+
+One keystore, held outside the repository, and irrecoverable in the way that
+matters: Android refuses an update signed with a different key than the installed
+copy. Lose it and every existing installation is stranded — uninstall and
+reinstall, losing whatever the app was holding, with nothing we can do from our
+side. It is not reissued by anybody, exactly like the appcast key in
+`docs/updates.md`.
+
+Generate it once. The command prompts for a password and asks for a name and
+organisation; those end up in the certificate but nobody reads them:
+
+```bash
+keytool -genkeypair -v -keystore ~/.caelo-dev/caelo-release.jks -storetype PKCS12 -keyalg RSA -keysize 4096 -validity 10000 -alias caelo
+```
+
+PKCS#12 rather than the older JKS, which keytool itself now warns about. One
+password covers the store and the key.
+
+Then four secrets:
+
+```bash
+gh secret set ANDROID_KEYSTORE --repo TeamGDB/Caelo < <(base64 -i ~/.caelo-dev/caelo-release.jks)
+gh secret set ANDROID_KEYSTORE_PASSWORD --repo TeamGDB/Caelo
+gh secret set ANDROID_KEY_PASSWORD --repo TeamGDB/Caelo
+echo -n caelo | gh secret set ANDROID_KEY_ALIAS --repo TeamGDB/Caelo
+```
+
+Back it up the same way as the appcast key, and to the same standard: a copy that
+survives this machine, and somebody else able to reach it.
+
+### Building without it
+
+A clone with no keystore still builds. `android/app/build.gradle.kts` falls back
+to the debug key and says so in the build output, because an open-source project
+a stranger cannot build is not really open.
+
+The release workflow has no such fallback and fails outright when the secret is
+absent. The danger was never building a debug-signed APK — it is publishing one,
+and the difference is invisible until somebody tries to update. So the workflow
+also runs `apksigner` afterwards and refuses to go on if the certificate reads as
+`Android Debug`, or if it cannot read a certificate at all.
+
+### For local release builds
+
+Rather than exporting four variables, put them in `android/key.properties`, which
+is already in `android/.gitignore`:
+
+```properties
+storeFile=/Users/you/.caelo-dev/caelo-release.jks
+storePassword=...
+keyAlias=caelo
+keyPassword=...
+```

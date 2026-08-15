@@ -1,9 +1,25 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Signing material from a file on a developer machine, or the environment on a
+// runner. Never from the repository: android/.gitignore already excludes
+// key.properties and every keystore extension, and nothing here would put one
+// there anyway.
+val keyProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun signingValue(property: String, variable: String): String? =
+    keyProperties.getProperty(property) ?: System.getenv(variable)
+
+val releaseKeystore = signingValue("storeFile", "CAELO_KEYSTORE")
 
 android {
     namespace = "team.gdb.caelo"
@@ -35,11 +51,40 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (releaseKeystore != null) {
+                storeFile = file(releaseKeystore)
+                storePassword = signingValue("storePassword", "CAELO_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "CAELO_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "CAELO_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Falling back to the debug key rather than failing, so that anyone
+            // who clones this can build and run a release build without being
+            // handed a private key first. An open-source project that cannot be
+            // built by a stranger is not really open.
+            //
+            // The fallback announces itself, and the release workflow refuses to
+            // run without the real keystore, because the danger is not building
+            // a debug-signed APK -- it is publishing one. Android will not update
+            // an installation across a change of signing key, so an APK released
+            // by accident under the debug key strands everyone who installed it:
+            // they have to uninstall, losing whatever the app was holding, and
+            // there is no way to fix it from our side afterwards.
+            signingConfig = if (releaseKeystore != null) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "Caelo: no release keystore, signing with the debug key. " +
+                    "Fine for local use; see docs/signing.md before publishing."
+                )
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

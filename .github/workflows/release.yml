@@ -68,14 +68,72 @@ jobs:
         with: { channel: stable, cache: true }
 
       - run: flutter pub get
+
+      # No fallback to the debug key here, unlike a local build. Android refuses
+      # an update across a change of signing key, so a debug-signed APK that
+      # reached a release page would strand everyone who installed it: uninstall
+      # and reinstall, with nothing we could do about it afterwards.
+      - name: Put the release keystore on the runner
+        env:
+          CAELO_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE }}
+        run: |
+          if [[ -z "$CAELO_KEYSTORE_BASE64" ]]; then
+            echo "::error::No Android release keystore. See docs/signing.md; #42."
+            exit 1
+          fi
+          base64 --decode <<< "$CAELO_KEYSTORE_BASE64" > "$RUNNER_TEMP/caelo-release.jks"
+          # A keystore is a PKCS#12 container: DER, so it starts with 0x30. The
+          # same check the macOS certificate gets, for the same reason -- a
+          # mangled secret otherwise fails much later, describing something else.
+          if [[ "$(head -c 1 "$RUNNER_TEMP/caelo-release.jks" | xxd -p)" != "30" ]]; then
+            echo "::error::ANDROID_KEYSTORE did not decode to a keystore."
+            exit 1
+          fi
+
       - run: ./scripts/build-android.sh release
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+          CAELO_KEYSTORE: ${{ runner.temp }}/caelo-release.jks
+          CAELO_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CAELO_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          CAELO_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       # The bundle as well as the APKs: stores want one, everyone else wants
       # the other, and sideloading wants the universal APK because whoever
       # passes the file on does not know what is at the far end.
       - run: flutter build appbundle --release
+        env:
+          CAELO_KEYSTORE: ${{ runner.temp }}/caelo-release.jks
+          CAELO_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CAELO_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          CAELO_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      # Proof, not assumption. A build that quietly fell back to the debug key
+      # produces a perfectly good APK that must never be published, and the
+      # difference is invisible until somebody tries to update.
+      - name: Prove it was signed with the release key
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          for apk in build/app/outputs/flutter-apk/app-*release.apk; do
+            dn=$("$APKSIGNER" verify --print-certs "$apk" | grep -i "certificate DN:" || true)
+            # Absence is a failure, not a pass. If apksigner's output ever stops
+            # matching this, a check that quietly found nothing would report
+            # every debug-signed build as fine -- which is the only outcome this
+            # step exists to prevent.
+            if [[ -z "$dn" ]]; then
+              echo "::error::could not read a signing certificate from $(basename "$apk")"
+              exit 1
+            fi
+            echo "$(basename "$apk"): $dn"
+            if grep -qi "Android Debug" <<< "$dn"; then
+              echo "::error::$(basename "$apk") is signed with the debug key"
+              exit 1
+            fi
+          done
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/caelo-release.jks"
 
       - name: Collect
         env:
