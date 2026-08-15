@@ -194,6 +194,11 @@ jobs:
         with: { name: linux-x64-rpm, path: dist/*.rpm, if-no-files-found: error }
       - uses: actions/upload-artifact@v7
         with: { name: linux-x64-appimage, path: dist/*.AppImage, if-no-files-found: error }
+      # The .zsync is what makes the update information in the image mean
+      # anything: without it AppImageUpdate follows the pointer and finds
+      # nothing. `error` rather than `warn` for the same reason.
+      - uses: actions/upload-artifact@v7
+        with: { name: linux-x64-appimage-zsync, path: dist/*.AppImage.zsync, if-no-files-found: error }
       - uses: actions/upload-artifact@v7
         with: { name: linux-x64-tarball, path: dist/*.tar.gz, if-no-files-found: error }
 

@@ -120,8 +120,29 @@ if command -v appimagetool >/dev/null; then
   sed -i "s|^Exec=.*|Exec=$APP|" "$APPDIR/$APP.desktop"
   [[ -f "$ROOT/packaging/linux/$APP.png" ]] && cp "$ROOT/packaging/linux/$APP.png" "$APPDIR/$APP.png"
   ln -sf "$APP" "$APPDIR/AppRun"
-  ARCH="$APPIMAGE_ARCH" appimagetool --no-appstream "$APPDIR" \
-    "$OUT/$NAME-$VERSION-linux-$ARCH.AppImage" >/dev/null 2>&1
+  # Update information, embedded in the file itself. This is the one Linux
+  # format that should update in place: a single file the person owns, installing
+  # nothing, with no package manager to offend and no privileged service to keep
+  # in step. Everything else here belongs to apt or dnf (#46).
+  #
+  # The pattern matches what this script actually produces -- the canonical
+  # example says Caelo-*-x86_64.AppImage.zsync, which would match nothing, since
+  # these are named for the architecture as "x64" and carry "linux" in the middle.
+  UPDATE="gh-releases-zsync|TeamGDB|Caelo|latest|$NAME-*-linux-$ARCH.AppImage.zsync"
+
+  IMAGE="$NAME-$VERSION-linux-$ARCH.AppImage"
+  ARCH="$APPIMAGE_ARCH" appimagetool --no-appstream -u "$UPDATE" "$APPDIR" \
+    "$OUT/$IMAGE" >/dev/null 2>&1
+
+  # appimagetool writes the .zsync into the working directory rather than beside
+  # the image it was asked to produce. Left there it would be litter in the
+  # repository root and, worse, absent from the release -- so AppImageUpdate
+  # would find the update information, follow it, and fetch nothing.
+  if [[ -f "$IMAGE.zsync" ]]; then
+    mv "$IMAGE.zsync" "$OUT/"
+  else
+    echo "!! no $IMAGE.zsync; in-place updates will not work" >&2
+  fi
 else
   echo "!! appimagetool not installed; skipping AppImage" >&2
 fi
