@@ -12,8 +12,12 @@ void main() {
     // before it.
     final pubspec = File('pubspec.yaml').readAsLinesSync();
     final line = pubspec.firstWhere((line) => line.startsWith('version:'));
-    final declared = line.split(':')[1].trim().split('+').first;
+    final value = line.split(':')[1].trim();
 
-    expect(appVersion, declared);
+    expect(appVersion, value.split('+').first);
+    // And the build number, which is what an update check actually compares.
+    // A release that moved only this — which is most of them — would otherwise
+    // leave the app certain it was already current.
+    expect(appBuild, int.parse(value.split('+').last));
   });
 }
