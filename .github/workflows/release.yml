@@ -327,11 +327,6 @@ jobs:
           fi
           echo "$(xcode-select -p), iOS SDK $sdk"
 
-      # Unsigned, and useful unsigned: it proves the archive still builds on
-      # every run, including the runs where there is nothing to sign it with.
-      - name: Build the archive
-        run: ./scripts/build-ios.sh archive
-
       - id: signing
         name: Is there anything to sign with
         env:
@@ -385,11 +380,30 @@ jobs:
           IOS_PROVISIONING_PROFILES: ${{ secrets.IOS_PROVISIONING_PROFILES }}
         run: ./scripts/ci-apple-signing.sh setup ios
 
-      # Signed on every run, uploaded only from a tag. Exporting is where the
-      # profiles and the entitlements are actually checked against each other,
-      # so doing it on a dispatch run is worth the two minutes; sending a build
-      # to the testers is not something a dispatch run should decide.
-      - name: Sign, and upload from a tag
+      # After the signing material, not before it, which is the correction that
+      # cost the v0.1.6 tag. Entitlements are compiled in at the moment of
+      # signing, so an archive built with --no-codesign carries none at all, and
+      # exporting one produces an app signed perfectly and missing everything it
+      # needs: App Store Connect rejects it with 90525, "the bundle is missing
+      # entitlement com.apple.developer.networking.networkextension".
+      - name: Build the archive
+        env:
+          IOS_PROFILE_APP: ${{ vars.IOS_PROFILE_APP }}
+          IOS_PROFILE_TUNNEL: ${{ vars.IOS_PROFILE_TUNNEL }}
+        run: |
+          if [[ "${{ steps.signing.outputs.value }}" == "true" ]]; then
+            ./scripts/build-ios.sh archive
+          else
+            # Still worth building. It proves the archive compiles on runs where
+            # there is nothing to sign it with, and produces nothing shippable.
+            ./scripts/build-ios.sh archive-unsigned
+          fi
+
+      # Built and exported on every run, uploaded only from a tag. The export is
+      # where the profiles and the entitlements are checked against each other,
+      # so a dispatch run is worth the two minutes; sending a build to the
+      # testers is not something a dispatch run should decide.
+      - name: Upload from a tag
         if: steps.signing.outputs.value == 'true'
         env:
           IOS_ASC_KEY: ${{ secrets.IOS_ASC_KEY }}
