@@ -341,6 +341,11 @@ jobs:
           # error. macOS has had one since #42 and its absence would mean
           # something broke; iOS has never had one, and a job that is red on
           # every run is a job people stop reading. This goes away with #78.
+          # The length, because "the secret is missing" and "the secret is there
+          # and empty" look identical from here and are fixed differently -- one
+          # needs setting, the other needs setting again, by someone who thinks
+          # they already did. A base64 blob's length gives nothing away.
+          echo "certificate secret: ${#IOS_CERTIFICATE_P12} characters"
           if [[ -n "$IOS_CERTIFICATE_P12" ]]; then
             echo "value=true" >> "$GITHUB_OUTPUT"
           else
