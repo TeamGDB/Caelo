@@ -7,6 +7,7 @@ import 'desktop_updater.dart';
 import 'diagnostics.dart';
 import 'update_check.dart';
 import 'update_download.dart';
+import 'windows_updater.dart';
 
 /// Where an update attempt has got to.
 ///
@@ -49,8 +50,9 @@ enum UpdateStage {
 /// themselves.
 ///
 /// macOS is not one of them: Sparkle owns that flow, window and all, and this
-/// defers to it rather than reimplementing a worse one. What remains here is
-/// Android, and Windows once there is a machine to try it on.
+/// defers to it rather than reimplementing a worse one. What remains is Android
+/// and Windows, which differ only in what handing the file over means and
+/// whether anything has to be asked first.
 class UpdateFlow extends ChangeNotifier {
   UpdateFlow({
     Future<AvailableUpdate?> Function()? look,
@@ -59,8 +61,8 @@ class UpdateFlow extends ChangeNotifier {
     Future<void> Function(String)? install,
   }) : _look = look ?? UpdateCheck.look,
        _fetch = fetch ?? _defaultFetch,
-       _canInstall = canInstall ?? AndroidInstaller.canInstall,
-       _install = install ?? AndroidInstaller.install;
+       _canInstall = canInstall ?? _platformCanInstall,
+       _install = install ?? _platformInstall;
 
   final Future<AvailableUpdate?> Function() _look;
   final Future<File> Function(AvailableUpdate, void Function(double)) _fetch;
@@ -85,7 +87,20 @@ class UpdateFlow extends ChangeNotifier {
   /// second path on the same platform would mean two things able to replace the
   /// application, which is one more than anything needs.
   static bool get isSupported =>
-      AndroidInstaller.isSupported && !DesktopUpdater.isSupported;
+      (AndroidInstaller.isSupported || WindowsUpdater.isSupported) &&
+      !DesktopUpdater.isSupported;
+
+  /// Windows had none of this wired up, so the setting screen offered no way to
+  /// check and the only route to a new version was noticing one existed. The
+  /// updater itself was written and tested; nothing ever called it.
+  static Future<bool> _platformCanInstall() => WindowsUpdater.isSupported
+      ? WindowsUpdater.canInstall()
+      : AndroidInstaller.canInstall();
+
+  static Future<void> _platformInstall(String path) =>
+      WindowsUpdater.isSupported
+      ? WindowsUpdater.install(path)
+      : AndroidInstaller.install(path);
 
   void _to(UpdateStage next) {
     stage = next;

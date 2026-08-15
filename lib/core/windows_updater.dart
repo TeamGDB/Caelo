@@ -20,6 +20,14 @@ import 'update_download.dart';
 abstract final class WindowsUpdater {
   static bool get isSupported => Platform.isWindows;
 
+  /// Whether an update can be installed without asking for anything first.
+  ///
+  /// Always, on Windows. It exists to match the shape Android needs, where the
+  /// answer is a permission somebody may have refused; here the equivalent
+  /// moment is the installer's own elevation prompt, which comes later and is
+  /// not ours to ask for.
+  static Future<bool> canInstall() async => isSupported;
+
   /// Downloads the update, proves it is ours, and starts the installer.
   ///
   /// Returns once the installer has been started, not once anything is
@@ -41,9 +49,21 @@ abstract final class WindowsUpdater {
     // as one call rather than download-then-check so that no future edit can
     // reorder them: a file the installer has been given may already be running.
     final file = await UpdateDownload.fetch(update, onProgress: onProgress);
+    await install(file.path, start: start);
+  }
 
-    Diagnostics.record('starting the installer for ${update.version}');
-    await (start ?? _start)(file.path);
+  /// Starts the installer for a file that has already been verified.
+  ///
+  /// Separate from [apply] because UpdateFlow downloads and hands over as two
+  /// steps, and reports them differently: a download that failed sends somebody
+  /// somewhere other than an installer that refused (#71).
+  static Future<void> install(
+    String path, {
+    Future<ProcessResult> Function(String path)? start,
+  }) async {
+    if (!isSupported) return;
+    Diagnostics.record('starting the installer');
+    await (start ?? _start)(path);
   }
 
   static Future<ProcessResult> _start(String path) {

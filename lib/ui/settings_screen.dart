@@ -316,46 +316,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ],
                 ),
-                _Section(
-                  header: l10n.updates,
-                  footer: l10n.updateCheckNote,
-                  children: [
-                    _Row(
-                      label: l10n.checkForUpdates,
-                      trailing: CupertinoSwitch(
-                        value: updateChecks ?? false,
-                        activeTrackColor: palette.accent,
-                        onChanged: updateChecks == null
-                            ? null
-                            : (on) async {
-                                await SettingsStore.setUpdateChecks(on);
-                                // The updater is told rather than left to read
-                                // the file: it schedules its own work, and one
-                                // that learned about this at the next launch
-                                // would keep checking until then.
-                                await DesktopUpdater.setEnabled(on);
-                                if (mounted) setState(() => updateChecks = on);
-                              },
-                      ),
-                    ),
-                    if (DesktopUpdater.isSupported)
+                // Only where the app can actually replace itself. On iOS the
+                // App Store does it and on Linux the package manager does, so
+                // the section offered both a switch that governed nothing and a
+                // promise the app had no way to keep.
+                if (DesktopUpdater.isSupported || UpdateFlow.isSupported)
+                  _Section(
+                    header: l10n.updates,
+                    footer: l10n.updateCheckNote,
+                    children: [
                       _Row(
-                        label: l10n.checkNow,
-                        onTap: () => unawaited(DesktopUpdater.checkNow()),
+                        label: l10n.checkForUpdates,
+                        trailing: CupertinoSwitch(
+                          value: updateChecks ?? false,
+                          activeTrackColor: palette.accent,
+                          onChanged: updateChecks == null
+                              ? null
+                              : (on) async {
+                                  await SettingsStore.setUpdateChecks(on);
+                                  // The updater is told rather than left to read
+                                  // the file: it schedules its own work, and one
+                                  // that learned about this at the next launch
+                                  // would keep checking until then.
+                                  await DesktopUpdater.setEnabled(on);
+                                  if (mounted) {
+                                    setState(() => updateChecks = on);
+                                  }
+                                },
+                        ),
                       ),
-                    // Android does its own: Sparkle owns the flow on macOS, and
-                    // two things able to replace the application is one more
-                    // than anything needs.
-                    if (UpdateFlow.isSupported)
-                      _Row(
-                        label: l10n.checkNow,
-                        value: _updateRowValue(l10n),
-                        onTap: updates.stage == UpdateStage.downloading
-                            ? null
-                            : () => unawaited(updates.check()),
-                      ),
-                  ],
-                ),
+                      if (DesktopUpdater.isSupported)
+                        _Row(
+                          label: l10n.checkNow,
+                          onTap: () => unawaited(DesktopUpdater.checkNow()),
+                        ),
+                      // Android does its own: Sparkle owns the flow on macOS, and
+                      // two things able to replace the application is one more
+                      // than anything needs.
+                      if (UpdateFlow.isSupported)
+                        _Row(
+                          label: l10n.checkNow,
+                          value: _updateRowValue(l10n),
+                          onTap: updates.stage == UpdateStage.downloading
+                              ? null
+                              : () => unawaited(updates.check()),
+                        ),
+                    ],
+                  ),
                 _Section(
                   header: l10n.diagnostics,
                   footer: l10n.diagnosticLogNote,
