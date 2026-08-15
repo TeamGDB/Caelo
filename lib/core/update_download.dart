@@ -66,6 +66,31 @@ abstract final class UpdateDownload {
   @visibleForTesting
   static Future<File> Function(String) file = AppStorage.file;
 
+  /// Removes a download left behind by a previous run.
+  ///
+  /// Not straight after handing the file over: the system installer is reading
+  /// it at that moment, and deleting it out from under Android is how an
+  /// install fails for a reason nobody can reconstruct. By the next launch it
+  /// has either been installed or abandoned, and either way it is tens of
+  /// megabytes of nothing.
+  ///
+  /// Called at startup rather than before the next download, because somebody
+  /// who updates once and never presses the button again would otherwise carry
+  /// the file for the life of the installation.
+  static Future<void> discardLeftovers() async {
+    for (final suffix in const ['.apk', '.exe', '']) {
+      try {
+        final stale = await file('$fileName$suffix');
+        if (await stale.exists()) {
+          await stale.delete();
+          Diagnostics.record('removed a leftover download');
+        }
+      } on Object {
+        // A file we cannot remove is not worth failing a launch over.
+      }
+    }
+  }
+
   /// Downloads [update], checks it, and returns the file to install.
   ///
   /// Throws [DownloadFailed]. Progress is reported from 0 to 1 if [onProgress]

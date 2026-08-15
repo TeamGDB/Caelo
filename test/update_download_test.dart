@@ -164,4 +164,23 @@ void main() {
     );
     expect(directory.listSync(), isEmpty);
   });
+
+  // Twenty-six megabytes are left behind by a successful update: the installer
+  // is still reading the file when the hand-off returns, so it cannot be
+  // deleted then. By the next launch it is dead weight.
+  test('clears a download left behind by a previous run', () async {
+    final stale = File('${directory.path}/${UpdateDownload.fileName}.apk');
+    await stale.writeAsBytes(List.filled(1024, 0));
+    expect(stale.existsSync(), isTrue);
+
+    await UpdateDownload.discardLeftovers();
+
+    expect(stale.existsSync(), isFalse);
+    expect(directory.listSync(), isEmpty);
+  });
+
+  test('having nothing to clear is not a failure', () async {
+    await UpdateDownload.discardLeftovers();
+    expect(directory.listSync(), isEmpty);
+  });
 }
