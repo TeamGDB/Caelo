@@ -3,7 +3,12 @@ name: iOS probe
 # Temporary. Answers one question -- which Xcode on the runner can actually
 # build for an iOS device -- and is deleted once #78 knows the answer.
 
-on: workflow_dispatch
+# On push to this branch rather than on dispatch: a dispatch can only be aimed
+# at a workflow that already exists on the default branch, and this one is never
+# going to be there.
+on:
+  push:
+    branches: ["78-ios-testflight"]
 
 jobs:
   probe:
