@@ -18,7 +18,13 @@ if [[ ! -d "$CORE_ROOT" ]]; then
   exit 1
 fi
 
-VERSION="$(git -C "$APP_ROOT" describe --tags --always --dirty 2>/dev/null || echo dev)"
+# Told, when the caller knows. The release pipeline does, and asking git there
+# gets the wrong answer twice over: a Windows runner checks out with autocrlf on,
+# so every file looks modified and the version comes out "-dirty", and a shallow
+# checkout without tags falls back to a bare commit hash. Both describe the
+# runner rather than the release. Everywhere else it still asks git, where
+# "-dirty" means what it says.
+VERSION="${VERSION:-$(git -C "$APP_ROOT" describe --tags --always --dirty 2>/dev/null || echo dev)}"
 
 echo "==> Building the core"
 cd "$CORE_ROOT"
