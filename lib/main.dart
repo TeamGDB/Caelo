@@ -7,6 +7,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/android_tunnel_client.dart';
 import 'core/account_gateway.dart';
 import 'core/core_tunnel_client.dart';
+import 'core/desktop_updater.dart';
 import 'core/service_client.dart';
 import 'core/service_tunnel_client.dart';
 import 'core/diagnostics.dart';
@@ -118,6 +119,9 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     // resolved from it.
     WidgetsBinding.instance.addObserver(this);
     unawaited(_loadServers());
+    // After the setting has been read, not before: the updater is handed the
+    // answer rather than starting and being corrected.
+    unawaited(DesktopUpdater.start());
   }
 
   Future<void> _loadServers() async {

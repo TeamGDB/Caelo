@@ -1,22 +1,35 @@
 PODS:
+  - file_selector_macos (0.0.1):
+    - FlutterMacOS
   - FlutterMacOS (1.0.0)
   - share_plus (0.0.1):
     - FlutterMacOS
+  - Sparkle (2.9.5)
 
 DEPENDENCIES:
+  - file_selector_macos (from `Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
   - share_plus (from `Flutter/ephemeral/.symlinks/plugins/share_plus/macos`)
+  - Sparkle (~> 2.9)
+
+SPEC REPOS:
+  trunk:
+    - Sparkle
 
 EXTERNAL SOURCES:
+  file_selector_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
   share_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/share_plus/macos
 
 SPEC CHECKSUMS:
+  file_selector_macos: 3e56eaea051180007b900eacb006686fd54da150
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
   share_plus: 1fa619de8392a4398bfaf176d441853922614e89
+  Sparkle: 3ed3ee66c8526fcba244d06edef5f009d3bbc6ba
 
-PODFILE CHECKSUM: 54d867c82ac51cbd61b565781b9fada492027009
+PODFILE CHECKSUM: c1eab02df6491634ba724d7f47196d15c1d5b261
 
 COCOAPODS: 1.16.2
