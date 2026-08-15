@@ -24,6 +24,17 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Answered here so that an upload does not stop and wait for a person to
+	     answer it in App Store Connect, which is the one thing that keeps
+	     releasing from being automatic.
+
+	     False because Caelo's encryption is exempt, not because it has none:
+	     the source is published under the GPL, and publicly available
+	     encryption source code and the object code built from it fall outside
+	     the usual procedure once BIS and NSA have been notified of where to
+	     find it. That notification has not been sent yet (#78). -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

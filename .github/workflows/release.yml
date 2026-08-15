@@ -14,6 +14,10 @@ permissions:
 # macOS is signed and notarised here (#42); the system extension will not load
 # without it, so there is no useful unsigned build to fall back to.
 #
+# iOS is the exception to all of it: nothing here is downloadable, because an
+# iPhone updates through the App Store. That job builds an archive and, once
+# there is a certificate to sign it with, sends it to TestFlight (#78).
+#
 # Windows ships unsigned on purpose -- it works without a certificate, and the
 # reasoning is written down in docs/signing.md rather than left to be guessed
 # from its absence. The release notes below say so to whoever downloads it.
@@ -232,7 +236,7 @@ jobs:
             echo "::error::No macOS signing identity. This job needs the secrets listed in docs/signing.md; see #42."
             exit 1
           fi
-          ./scripts/ci-macos-signing.sh setup
+          ./scripts/ci-apple-signing.sh setup macos
 
       - run: ./scripts/build-macos.sh release
 
@@ -272,7 +276,133 @@ jobs:
 
       - name: Take the signing material back off the runner
         if: always()
-        run: ./scripts/ci-macos-signing.sh teardown
+        run: ./scripts/ci-apple-signing.sh teardown macos
+
+  # iOS goes to TestFlight rather than to the release page: the App Store is how
+  # an iPhone updates, so there is no file here for anyone to download and
+  # nothing for the manifest to describe. That is also why publish does not wait
+  # on this job -- a failed upload should not hold back four platforms that have
+  # something to ship.
+  ios:
+    runs-on: macos-latest
+    needs: version
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+
+      - run: flutter pub get
+
+      # App Store Connect rejects a build made against an SDK it considers old,
+      # and the runner's default Xcode is not always the newest it has. Choosing
+      # explicitly turns "rejected after a ten-minute upload" into a failure in
+      # the first seconds, naming what it found.
+      #
+      # Which Xcode is not chosen here, only checked. Two attempts at choosing
+      # one both landed on Xcode 26.0.1, which reports an iOS 26.0 SDK and then
+      # refuses to archive for a device with "iOS 26.0 is not installed" -- so
+      # neither the version nor the SDK on disk predicts whether a build will
+      # work. The runner image's own default does, and on the image that failed
+      # it was Xcode 26.6, a version newer than anything the search picked.
+      #
+      # What is left is the part worth failing on: whether that default is new
+      # enough for App Store Connect to accept what it builds.
+      - name: Check the runner's Xcode is new enough
+        env:
+          REQUIRED_MAJOR: "26"
+        run: |
+          sdk="$(xcodebuild -version -sdk iphoneos SDKVersion 2>/dev/null | head -1)"
+          major="${sdk%%.*}"
+          if [[ ! "$major" =~ ^[0-9]+$ ]]; then
+            echo "::error::No iOS SDK in $(xcode-select -p). See #78."
+            exit 1
+          fi
+          if (( major < REQUIRED_MAJOR )); then
+            echo "::error::This runner's Xcode has iOS SDK $sdk, and App Store Connect wants $REQUIRED_MAJOR. See #78."
+            exit 1
+          fi
+          echo "$(xcode-select -p), iOS SDK $sdk"
+
+      # Unsigned, and useful unsigned: it proves the archive still builds on
+      # every run, including the runs where there is nothing to sign it with.
+      - name: Build the archive
+        run: ./scripts/build-ios.sh archive
+
+      - id: signing
+        name: Is there anything to sign with
+        env:
+          IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILES: ${{ secrets.IOS_PROVISIONING_PROFILES }}
+          IOS_ASC_KEY: ${{ secrets.IOS_ASC_KEY }}
+          IOS_ASC_KEY_ID: ${{ secrets.IOS_ASC_KEY_ID }}
+          IOS_ASC_ISSUER: ${{ secrets.IOS_ASC_ISSUER }}
+        run: |
+          # Sizes, not values. A secret that exists and holds nothing looks
+          # exactly like one that was never set, and the two are fixed
+          # differently -- the second by somebody certain they already did it.
+          # Not hypothetical: all six were set, and the certificate arrived
+          # empty, because `base64 -i` on a file that is not there prints its
+          # complaint to one stream and nothing to the other, and `gh secret
+          # set` stores the nothing.
+          empty=()
+          for name in IOS_CERTIFICATE_P12 IOS_CERTIFICATE_PASSWORD \
+                      IOS_PROVISIONING_PROFILES IOS_ASC_KEY \
+                      IOS_ASC_KEY_ID IOS_ASC_ISSUER; do
+            value="${!name}"
+            printf '  %-28s %s\n' "$name" "${#value} characters"
+            [[ -n "$value" ]] || empty+=("$name")
+          done
+
+          # None of them is where this repository was before iOS signing
+          # existed, and it is a notice rather than an error: macOS has had a
+          # certificate since #42 so its absence means something broke, while a
+          # job that is red on every run is a job people stop reading.
+          #
+          # Some of them is a different thing -- somebody is part way through
+          # docs/signing.md -- and discovering it at the export is discovering
+          # it ten minutes late.
+          if [[ ${#empty[@]} -eq 6 ]]; then
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Archive built but not signed: no iOS signing material yet. See #78."
+          elif [[ ${#empty[@]} -gt 0 ]]; then
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Signing is half configured. Empty: ${empty[*]}. See docs/signing.md."
+            exit 1
+          else
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Put the signing identity on the runner
+        if: steps.signing.outputs.value == 'true'
+        env:
+          IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILES: ${{ secrets.IOS_PROVISIONING_PROFILES }}
+        run: ./scripts/ci-apple-signing.sh setup ios
+
+      # Signed on every run, uploaded only from a tag. Exporting is where the
+      # profiles and the entitlements are actually checked against each other,
+      # so doing it on a dispatch run is worth the two minutes; sending a build
+      # to the testers is not something a dispatch run should decide.
+      - name: Sign, and upload from a tag
+        if: steps.signing.outputs.value == 'true'
+        env:
+          IOS_ASC_KEY: ${{ secrets.IOS_ASC_KEY }}
+          IOS_ASC_KEY_ID: ${{ secrets.IOS_ASC_KEY_ID }}
+          IOS_ASC_ISSUER: ${{ secrets.IOS_ASC_ISSUER }}
+          IOS_PROFILE_APP: ${{ vars.IOS_PROFILE_APP }}
+          IOS_PROFILE_TUNNEL: ${{ vars.IOS_PROFILE_TUNNEL }}
+          IOS_UPLOAD: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: ./scripts/upload-testflight.sh
+
+      - name: Take the signing material back off the runner
+        if: always() && steps.signing.outputs.value == 'true'
+        run: ./scripts/ci-apple-signing.sh teardown ios
 
   windows:
     runs-on: windows-latest

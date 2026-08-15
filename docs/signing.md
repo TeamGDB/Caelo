@@ -1,7 +1,8 @@
-# Signing macOS builds in CI
+# Signing builds in CI
 
-What the release pipeline needs in order to produce a macOS build that opens on
-somebody else's machine, and how to give it to it.
+What the release pipeline needs in order to produce a build that opens on
+somebody else's machine, and how to give it to it. macOS first, because it is
+the one that is finished; iOS, Windows and Android follow.
 
 Everything here is done once. None of it can be done by anyone without access to
 the Apple Developer account, which is why it is written down rather than
@@ -131,7 +132,7 @@ uses it too.
 
 ## What the pipeline then does
 
-`scripts/ci-macos-signing.sh setup` builds a keychain inside `RUNNER_TEMP`,
+`scripts/ci-apple-signing.sh setup macos` builds a keychain inside `RUNNER_TEMP`,
 imports the identities, installs the profiles, and prints the identity names —
 names only, because the failure that catches, a Development certificate exported
 where a Developer ID was meant, is otherwise found days later by someone reading
@@ -165,6 +166,89 @@ security find-certificate -c "Developer ID Application" -p |
 ```
 
 and put it in a calendar rather than meeting it as a surprise.
+
+## iOS: TestFlight
+
+Not finished. The pipeline builds the archive on every run and stops there until
+the material below exists; the state of it is #78.
+
+iOS is signed differently from macOS, and not by choice. The project signs iOS
+automatically, and automatic signing wants an Xcode logged into an Apple ID —
+something a hosted runner is not. So the archive is built **unsigned**
+(`flutter build ipa --no-codesign`) and signed at export instead, against
+profiles named in `scripts/upload-testflight.sh`. That split has one useful side
+effect: the build half runs, and is worth running, on a machine with no
+certificate at all.
+
+### Two things have to be made by hand
+
+**An Apple Distribution certificate.** Not the cloud-managed one Xcode created —
+that one has no private key on this machine, which is the whole point of it, and
+a key that cannot be exported cannot be given to a runner. Generate a CSR
+locally, as for Developer ID above, and export the result as a `.p12`.
+
+**Two provisioning profiles, manually managed**, for `team.gdb.caelo` and
+`team.gdb.caelo.PacketTunnel`. The ones Xcode manages for itself will not do,
+whatever they are named: exporting against one fails with
+
+```
+Provisioning profile "..." is Xcode managed, but signing settings
+require a manually managed profile.
+```
+
+on Xcode 16 and 26 alike. Name them `Caelo App Store` and
+`Caelo Tunnel App Store`, or set `IOS_PROFILE_APP` and `IOS_PROFILE_TUNNEL` as
+repository variables to whatever you did name them.
+
+### The secrets
+
+```bash
+gh secret set IOS_CERTIFICATE_P12 --repo TeamGDB/Caelo < <(base64 -i Apple-Distribution.p12)
+gh secret set IOS_CERTIFICATE_PASSWORD --repo TeamGDB/Caelo
+gh secret set IOS_PROVISIONING_PROFILES --repo TeamGDB/Caelo < <(base64 -i caelo-ios-profiles.zip)
+gh secret set IOS_ASC_KEY --repo TeamGDB/Caelo < <(base64 -i AuthKey_XXXXXXXX.p8)
+gh secret set IOS_ASC_KEY_ID --repo TeamGDB/Caelo
+gh secret set IOS_ASC_ISSUER --repo TeamGDB/Caelo
+```
+
+The App Store Connect key can be the same one that notarises macOS. App Manager
+is enough authority to upload; it does not need Admin.
+
+**Check the paths before running these.** `base64 -i` on a file that is not
+there prints its complaint to stderr and nothing to stdout, and `gh secret set`
+stores the nothing — leaving a secret that exists, has a fresh timestamp, and is
+empty. That happened on the first attempt here and cost a pipeline run to find.
+The job prints the size of each secret at the start, which is where to look:
+
+```
+IOS_CERTIFICATE_P12          0 characters
+```
+
+### Which Xcode
+
+App Store Connect rejects a build made against an SDK it considers old, and a
+runner's default Xcode is not always the newest it has installed. The job picks
+the highest version present and fails immediately if that is below 26 — which is
+cheaper than being told after the upload. The same applies locally:
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode-26.3.app/Contents/Developer ./scripts/build-ios.sh archive
+```
+
+Check what you actually built against, since this is silent when it is wrong:
+
+```bash
+plutil -extract DTSDKName raw \
+  build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app/Info.plist
+```
+
+### Export compliance
+
+`ITSAppUsesNonExemptEncryption` is not in `ios/Runner/Info.plist` yet, and until
+it is, every upload stops and waits for a person to answer Apple's export
+questions — which is the one thing that keeps this from being automatic. The
+value is a legal statement rather than a build setting, so it is in #78 and not
+decided here.
 
 ## Windows: deliberately unsigned, for now
 
