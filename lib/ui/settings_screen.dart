@@ -5,7 +5,10 @@ import '../core/config_store.dart';
 import '../core/diagnostics.dart';
 import '../core/ffi/core_library.dart';
 import '../core/build_info.dart';
+import '../core/android_installer.dart';
 import '../core/desktop_updater.dart';
+import '../core/update_download.dart';
+import '../core/update_flow.dart';
 import '../core/settings_store.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../main.dart' show AccessScope, LocaleModeScope, ThemeModeScope;
@@ -55,12 +58,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// setting by itself.
   bool? updateChecks;
 
+  /// Built once and kept: it holds the download in flight, and rebuilding it on
+  /// every frame would lose the progress it is reporting.
+  late final UpdateFlow updates = UpdateFlow()..addListener(_onUpdateStage);
+
   @override
   void initState() {
     super.initState();
     onConfigChanged();
     unawaited(_loadUpdateChecks());
   }
+
+  @override
+  void dispose() {
+    updates.removeListener(_onUpdateStage);
+    updates.dispose();
+    super.dispose();
+  }
+
+  void _onUpdateStage() {
+    if (!mounted) return;
+    setState(() {});
+    // Everything except a bare result wants a dialog. `current` deliberately
+    // does not: "you are up to date" as a modal is a box somebody has to
+    // dismiss to learn nothing.
+    if (updates.stage == UpdateStage.found ||
+        updates.stage == UpdateStage.needsPermission ||
+        updates.stage == UpdateStage.failed) {
+      unawaited(_showUpdateDialog());
+    }
+  }
+
+  Future<void> _showUpdateDialog() async {
+    final l10n = AppLocalizations.of(context);
+    final stage = updates.stage;
+    final update = updates.available;
+
+    await showCupertinoDialog<void>(
+      context: context,
+      builder: (dialog) => CupertinoAlertDialog(
+        title: Text(switch (stage) {
+          UpdateStage.found => l10n.updateFound(update?.version ?? ''),
+          UpdateStage.needsPermission => l10n.checkForUpdates,
+          _ => l10n.updateFailed,
+        }),
+        content: Text(switch (stage) {
+          UpdateStage.found => '',
+          UpdateStage.needsPermission => l10n.updateNeedsPermission,
+          _ =>
+            updates.failure == DownloadFailure.untrusted
+                ? l10n.updateNotOurs
+                : l10n.updateFailed,
+        }),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () {
+              Navigator.of(dialog).pop();
+              updates.dismiss();
+            },
+            child: Text(l10n.cancel),
+          ),
+          if (stage == UpdateStage.found)
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () {
+                Navigator.of(dialog).pop();
+                unawaited(updates.download());
+              },
+              child: Text(
+                l10n.updateDownload(
+                  ((update?.sizeBytes ?? 0) / 1048576).toStringAsFixed(0),
+                ),
+              ),
+            ),
+          if (stage == UpdateStage.needsPermission)
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () {
+                Navigator.of(dialog).pop();
+                unawaited(AndroidInstaller.requestPermission());
+                updates.dismiss();
+              },
+              child: Text(l10n.updateOpenSettings),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _updateRowValue(AppLocalizations l10n) => switch (updates.stage) {
+    UpdateStage.checking => l10n.updateChecking,
+    UpdateStage.current => l10n.updateCurrent,
+    UpdateStage.downloading =>
+      '${l10n.updateDownloading} ${(updates.progress * 100).toStringAsFixed(0)}%',
+    UpdateStage.handedOver => l10n.updateInstalling,
+    _ => '',
+  };
 
   Future<void> _loadUpdateChecks() async {
     final on = await SettingsStore.updateChecks();
@@ -248,6 +341,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _Row(
                         label: l10n.checkNow,
                         onTap: () => unawaited(DesktopUpdater.checkNow()),
+                      ),
+                    // Android does its own: Sparkle owns the flow on macOS, and
+                    // two things able to replace the application is one more
+                    // than anything needs.
+                    if (UpdateFlow.isSupported)
+                      _Row(
+                        label: l10n.checkNow,
+                        value: _updateRowValue(l10n),
+                        onTap: updates.stage == UpdateStage.downloading
+                            ? null
+                            : () => unawaited(updates.check()),
                       ),
                   ],
                 ),

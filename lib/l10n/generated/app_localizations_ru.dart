@@ -268,4 +268,39 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get checkNow => 'Проверить сейчас';
+
+  @override
+  String get updateChecking => 'Проверяем…';
+
+  @override
+  String get updateCurrent => 'У вас последняя версия';
+
+  @override
+  String updateFound(String version) {
+    return 'Доступна версия $version';
+  }
+
+  @override
+  String updateDownload(String size) {
+    return 'Скачать ($size МБ)';
+  }
+
+  @override
+  String get updateDownloading => 'Скачиваем…';
+
+  @override
+  String get updateInstalling => 'Передано установщику';
+
+  @override
+  String get updateNeedsPermission =>
+      'Android должен разрешить Caelo устанавливать обновления.';
+
+  @override
+  String get updateOpenSettings => 'Открыть настройки';
+
+  @override
+  String get updateNotOurs => 'Скачанный файл не подписан Caelo и был удалён.';
+
+  @override
+  String get updateFailed => 'Скачивание не завершилось.';
 }

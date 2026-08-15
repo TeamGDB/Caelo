@@ -283,5 +283,58 @@
   "checkNow": "Check now",
   "@checkNow": {
     "description": "Settings row that asks for an update check immediately."
+  },
+  "updateChecking": "Checking…",
+  "@updateChecking": {
+    "description": "Settings row while an update check is in flight."
+  },
+  "updateCurrent": "Caelo is up to date",
+  "@updateCurrent": {
+    "description": "Result of a check that found nothing newer."
+  },
+  "updateFound": "Version {version} is available",
+  "@updateFound": {
+    "description": "Title of the dialog offering an update.",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownload": "Download ({size} MB)",
+  "@updateDownload": {
+    "description": "Button that starts fetching the update.",
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownloading": "Downloading…",
+  "@updateDownloading": {
+    "description": "Row text while the update is being fetched."
+  },
+  "updateInstalling": "Handed to the installer",
+  "@updateInstalling": {
+    "description": "Shown once Android has been asked to install; the outcome is not ours to know."
+  },
+  "updateNeedsPermission": "Android needs permission to install updates from Caelo.",
+  "@updateNeedsPermission": {
+    "description": "Shown when REQUEST_INSTALL_PACKAGES has not been granted."
+  },
+  "updateOpenSettings": "Open Settings",
+  "@updateOpenSettings": {
+    "description": "Button that opens the Android screen granting install permission."
+  },
+  "updateNotOurs": "That download was not signed by Caelo, so it was discarded.",
+  "@updateNotOurs": {
+    "description": "Shown when signature verification failed. Deliberately does not speculate about why."
+  },
+  "updateFailed": "The download did not finish.",
+  "@updateFailed": {
+    "description": "Shown when the update could not be fetched."
+  },
+  "@cancel": {
+    "description": "Dismisses a dialog without doing anything."
   }
 }

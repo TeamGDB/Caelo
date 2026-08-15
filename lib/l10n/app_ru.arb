@@ -105,5 +105,29 @@
   "updates": "Обновления",
   "checkForUpdates": "Проверять обновления",
   "updateCheckNote": "Caelo спрашивает у статического файла, есть ли версия новее. Запрос не содержит идентификаторов и одинаков у всех установок, а когда поднят туннель — идёт через него. Выключатель прекращает отправку, а не прячет ответ.",
-  "checkNow": "Проверить сейчас"
+  "checkNow": "Проверить сейчас",
+  "updateChecking": "Проверяем…",
+  "updateCurrent": "У вас последняя версия",
+  "updateFound": "Доступна версия {version}",
+  "@updateFound": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownload": "Скачать ({size} МБ)",
+  "@updateDownload": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "updateDownloading": "Скачиваем…",
+  "updateInstalling": "Передано установщику",
+  "updateNeedsPermission": "Android должен разрешить Caelo устанавливать обновления.",
+  "updateOpenSettings": "Открыть настройки",
+  "updateNotOurs": "Скачанный файл не подписан Caelo и был удалён.",
+  "updateFailed": "Скачивание не завершилось."
 }
