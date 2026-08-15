@@ -12,6 +12,8 @@ typedef _ConnectFd = Pointer<Utf8> Function(int, Pointer<Utf8>);
 typedef _CheckNative = Pointer<Utf8> Function(Pointer<Utf8>, Int32);
 typedef _ProbeNative =
     Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, Int32);
+typedef _VerifyNative =
+    Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>);
 typedef _Probe = Pointer<Utf8> Function(Pointer<Utf8>, Pointer<Utf8>, int);
 typedef _SetFlagNative = Pointer<Utf8> Function(Int32);
 typedef _SetFlag = Pointer<Utf8> Function(int);
@@ -260,6 +262,41 @@ abstract final class CoreLibrary {
       } finally {
         malloc.free(config);
         malloc.free(target);
+      }
+    });
+  }
+
+  /// Whether a downloaded file was signed by one of the keys this build trusts.
+  ///
+  /// Throws [CoreFailure] when it was not, and the message deliberately does not
+  /// say which way it failed: a wrong signature, an unknown key and a truncated
+  /// download are the same event to somebody deciding whether to install, and
+  /// distinguishing them helps whoever is trying combinations more than it helps
+  /// anyone else.
+  static Future<void> verifyRelease({
+    required String path,
+    required String signature,
+    required List<String> trustedKeys,
+  }) {
+    final keysJson = jsonEncode(trustedKeys);
+    return Isolate.run(() {
+      final library = _open();
+      final pathC = path.toNativeUtf8();
+      final signatureC = signature.toNativeUtf8();
+      final keysC = keysJson.toNativeUtf8();
+      try {
+        _require(
+          _consume(
+            library,
+            library.lookupFunction<_VerifyNative, _VerifyNative>(
+              'caelo_verify_release',
+            )(pathC, signatureC, keysC),
+          ),
+        );
+      } finally {
+        malloc.free(pathC);
+        malloc.free(signatureC);
+        malloc.free(keysC);
       }
     });
   }
