@@ -34,6 +34,40 @@ PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 
+; The running application holds this; see windows/runner/main.cpp. Without it an
+; upgrade meets a locked caelo.exe and either fails or schedules a reboot, which
+; is a poor answer to somebody who just clicked "update".
+AppMutex=Global\team.gdb.caelo.running
+CloseApplications=yes
+RestartApplications=no
+
+#ifdef WithService
+[Code]
+// Stopping the service before the files are replaced, not after.
+//
+// caelo-service.exe and wintun.dll are held open while a tunnel is up, and the
+// Restart Manager does not reach a service the way it reaches an application.
+// Left running, the upgrade meets locked files.
+//
+// Stopping it also restores the machine's routing, which the service does on its
+// way out -- so this is what prevents an upgrade from leaving a machine pointed
+// at an interface that is about to be replaced.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Result := '';
+  NeedsRestart := False;
+
+  // Failure is ignored on purpose: on a first install there is no service to
+  // stop, and that is not an error. A service that refuses to stop shows up
+  // immediately afterwards as a file that cannot be replaced, which says more
+  // than anything this could report.
+  Exec(ExpandConstant('{sys}\net.exe'), 'stop Caelo', '', SW_HIDE,
+       ewWaitUntilTerminated, ResultCode);
+end;
+#endif
+
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"

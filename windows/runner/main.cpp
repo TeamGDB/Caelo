@@ -13,6 +13,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     CreateAndAttachConsole();
   }
 
+  // Held for the life of the process, and never closed: Windows releases it
+  // when we exit, which is exactly the signal the installer waits for.
+  //
+  // The installer names this mutex and refuses to replace files while it is
+  // held. Without it, an upgrade over a running Caelo meets a locked
+  // caelo.exe and either fails or schedules a reboot -- a poor outcome for
+  // something the person started by clicking "update".
+  //
+  // Global\ rather than a session-local name so that the installer, running
+  // elevated in a different session, can see it at all.
+  ::CreateMutexW(nullptr, FALSE, L"Global\\team.gdb.caelo.running");
+
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
