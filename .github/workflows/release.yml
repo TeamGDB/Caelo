@@ -12,6 +12,15 @@ permissions:
 # built so that the packaging itself is exercised on every run rather than
 # discovered to be broken on the day of a release.
 
+env:
+  # One switch, read in two places: whether the release is a draft, and whether
+  # the update manifest may be served. They have to agree. A served manifest
+  # pointing into a draft release offers every installed copy an update whose
+  # download 404s, because GitHub does not serve a draft's assets.
+  #
+  # Stays "true" until #42 -- signed artifacts -- lands.
+  RELEASE_IS_DRAFT: "true"
+
 jobs:
   version:
     runs-on: ubuntu-latest
@@ -177,18 +186,49 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      publishable: ${{ steps.gate.outputs.value }}
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           path: incoming
           merge-multiple: true
+
+      - name: Build the update manifests
+        env:
+          # Absent until the key exists. The script says so and carries on, so
+          # that the shape of the manifest is exercised on every run rather than
+          # first attempted on the day it has to work.
+          APPCAST_KEY: ${{ secrets.APPCAST_ED25519_KEY }}
+        run: |
+          ./scripts/make-appcast.sh "${{ needs.version.outputs.value }}" incoming pages
+          cp pages/appcast.xml pages/latest.json incoming/
+
+      # Uploaded whether or not it will be served, so that a draft run can be
+      # read by a person before anything is promised to a machine.
+      - uses: actions/upload-artifact@v7
+        with: { name: update-manifests, path: pages/*, if-no-files-found: error }
+
+      - id: gate
+        # Whether these manifests may be served. A draft release does not serve
+        # its assets, so publishing a manifest that points into one would offer
+        # every installed copy an update it then cannot download. Flip
+        # RELEASE_IS_DRAFT when #42 lands and the artifacts are signed.
+        run: |
+          if [[ "$RELEASE_IS_DRAFT" != "true" && "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Manifests built but not served: the release is a draft."
+          fi
 
       - name: Draft, not published
         uses: softprops/action-gh-release@v3
         with:
           # A draft either way. Nothing here is signed, and a release that
           # anyone can find is a release someone will install.
-          draft: true
+          draft: ${{ env.RELEASE_IS_DRAFT }}
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.version.outputs.value) }}
           name: Caelo ${{ needs.version.outputs.value }}
           files: incoming/*
@@ -203,3 +243,26 @@ jobs:
             | Linux | `.deb`, `.rpm`, AppImage, or the tarball |
             | macOS | `.dmg` to drag, `.pkg` to install |
             | Windows | installer, or the portable zip to run from a stick |
+
+  pages:
+    # Serving the manifest is a separate job from writing it, because it happens
+    # only when there is something to serve. It runs after publish rather than
+    # beside it: the manifest names files that must already be downloadable, and
+    # the ordering is the whole guarantee.
+    needs: publish
+    if: needs.publish.outputs.publishable == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with: { name: update-manifests, path: pages }
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with: { path: pages }
+      - id: deploy
+        uses: actions/deploy-pages@v4
