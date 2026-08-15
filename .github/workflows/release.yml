@@ -323,6 +323,11 @@ jobs:
           APPCAST_KEY: ${{ secrets.APPCAST_ED25519_KEY }}
         run: |
           ./scripts/make-appcast.sh "${{ needs.version.outputs.value }}" incoming pages
+          # Rendered from the manifest rather than from the artifacts again, so
+          # the page and the manifest cannot disagree about what exists or what
+          # it hashes to -- and the page is the half a person reads before
+          # deciding whether to trust a download.
+          ./scripts/make-page.sh pages
           cp pages/appcast.xml pages/latest.json incoming/
 
       # Uploaded whether or not it will be served, so that a draft run can be
