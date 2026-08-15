@@ -20,6 +20,14 @@ fi
 # Deleting a group also silently frees its gid for reuse, which is how files
 # owned by a group that no longer exists end up belonging to a different one.
 if [ "$final" = yes ]; then
+    # The package source goes, unlike the group. Leaving a repository configured
+    # for software that is no longer installed means a machine still fetching
+    # metadata from us indefinitely, which is both rude and a signal we have no
+    # business collecting.
+    rm -f /etc/apt/sources.list.d/caelo.list
+    rm -f /usr/share/keyrings/caelo-archive-keyring.gpg
+    rm -f /etc/yum.repos.d/caelo.repo
+
     echo "Caelo: the caelo group was left in place; remove it with 'groupdel caelo' if you want it gone."
 fi
 
