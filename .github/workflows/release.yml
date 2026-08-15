@@ -8,9 +8,12 @@ on:
 permissions:
   contents: read
 
-# Nothing here is signed or notarised. These are the shapes people install,
-# built so that the packaging itself is exercised on every run rather than
-# discovered to be broken on the day of a release.
+# The shapes people install, built so that the packaging itself is exercised on
+# every run rather than discovered to be broken on the day of a release.
+#
+# macOS is signed and notarised here (#42); the system extension will not load
+# without it, so there is no useful unsigned build to fall back to. Windows and
+# Android are not yet -- when they are, RELEASE_IS_DRAFT below can go.
 
 env:
   # One switch, read in two places: whether the release is a draft, and whether
@@ -152,8 +155,6 @@ jobs:
         env:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          MACOS_INSTALLER_P12: ${{ secrets.MACOS_INSTALLER_P12 }}
-          MACOS_INSTALLER_PASSWORD: ${{ secrets.MACOS_INSTALLER_PASSWORD }}
           MACOS_PROVISIONING_PROFILES: ${{ secrets.MACOS_PROVISIONING_PROFILES }}
         run: |
           if [[ -z "$MACOS_CERTIFICATE_P12" ]]; then
@@ -176,15 +177,13 @@ jobs:
 
       - run: ./packaging/macos/package.sh "${{ needs.version.outputs.value }}"
 
-      - name: Notarise what people download
+      - name: Notarise the disk image
         env:
           MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
           MACOS_NOTARY_ISSUER: ${{ secrets.MACOS_NOTARY_ISSUER }}
         run: |
-          for file in dist/*.dmg dist/*.pkg; do
-            ./scripts/notarize-macos.sh "$file"
-          done
+          ./scripts/notarize-macos.sh dist/*.dmg
 
       # Proof rather than assumption. Both of these have passed while the thing
       # they describe was wrong: stapler validates a ticket that was attached to
@@ -199,8 +198,6 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with: { name: macos-dmg, path: dist/*.dmg, if-no-files-found: error }
-      - uses: actions/upload-artifact@v7
-        with: { name: macos-pkg, path: dist/*.pkg, if-no-files-found: error }
 
       - name: Take the signing material back off the runner
         if: always()
@@ -298,7 +295,7 @@ jobs:
             | --- | --- |
             | Android | one APK per architecture, or the universal one if unsure |
             | Linux | `.deb`, `.rpm`, AppImage, or the tarball |
-            | macOS | `.dmg` to drag, `.pkg` to install |
+            | macOS | `.dmg` — drag Caelo into Applications |
             | Windows | installer, or the portable zip to run from a stick |
 
   pages:

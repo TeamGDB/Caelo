@@ -20,8 +20,6 @@
 #
 #   MACOS_CERTIFICATE_P12        Developer ID Application, exported from Keychain Access
 #   MACOS_CERTIFICATE_PASSWORD   the password set during that export
-#   MACOS_INSTALLER_P12          Developer ID Installer (only needed to sign the .pkg)
-#   MACOS_INSTALLER_PASSWORD     the password set during that export
 #   MACOS_PROVISIONING_PROFILES  base64 of a zip of the .provisionprofile files
 #
 # base64 because a GitHub secret is a string and a .p12 is not text. Read them
@@ -89,16 +87,14 @@ setup() {
   security unlock-keychain -p "$password" "$KEYCHAIN"
 
   import_identity "$work" application "$MACOS_CERTIFICATE_P12" "$MACOS_CERTIFICATE_PASSWORD"
-  if [[ -n "${MACOS_INSTALLER_P12:-}" ]]; then
-    import_identity "$work" installer "$MACOS_INSTALLER_P12" "${MACOS_INSTALLER_PASSWORD:-}"
-  else
-    echo "!! no Developer ID Installer certificate; the .pkg will be unsigned" >&2
-  fi
+
+  # There is deliberately no Developer ID Installer identity here: the release
+  # ships a .dmg and no .pkg, so nothing needs one. See packaging/macos/package.sh.
 
   # Without this, codesign finds the key and then blocks on a UI prompt that
   # nobody is there to answer, and the job hangs until it times out rather than
   # failing with anything that explains itself.
-  security set-key-partition-list -S apple-tool:,apple:,codesign:,productbuild: \
+  security set-key-partition-list -S apple-tool:,apple:,codesign: \
     -s -k "$password" "$KEYCHAIN" >/dev/null
 
   # Prepend rather than replace: dropping the system roots would leave nothing
@@ -148,9 +144,9 @@ import_identity() {
 
   echo "==> Importing the $what identity"
   # -A is deliberately not used: it would let every tool on the machine use the
-  # key. The two that need it are named instead.
+  # key. The one that needs it is named instead.
   security import "$file" -k "$KEYCHAIN" -P "$password" \
-    -T /usr/bin/codesign -T /usr/bin/productsign >/dev/null
+    -T /usr/bin/codesign >/dev/null
   rm -f "$file"
 }
 

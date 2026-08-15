@@ -131,7 +131,7 @@ endpoint's rather than yours, it worked.
 | --- | --- |
 | Android | one APK per ABI, a universal APK for sideloading, and an `.aab` |
 | Linux | `.deb`, `.rpm`, AppImage, `.tar.gz` |
-| macOS | `.dmg`, `.pkg` |
+| macOS | `.dmg` |
 | Windows | installer, portable `.zip` |
 
 Four Linux formats because "Linux" is not one thing. Nothing produced is signed or

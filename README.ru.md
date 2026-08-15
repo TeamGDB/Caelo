@@ -132,7 +132,7 @@ cd core && go run ./cmd/caelo-probe -config /путь/к/tunnel.conf
 | --- | --- |
 | Android | по APK на ABI, универсальный APK для сайдлоада и `.aab` |
 | Linux | `.deb`, `.rpm`, AppImage, `.tar.gz` |
-| macOS | `.dmg`, `.pkg` |
+| macOS | `.dmg` |
 | Windows | установщик, портативный `.zip` |
 
 Четыре формата для Linux, потому что «Linux» — это не одна вещь. Ничего из этого пока не
