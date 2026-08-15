@@ -7,6 +7,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Caelo is distributed outside Play as well, and a build people sideload
+         has to be able to offer them the next one. Android grants this per app
+         in Settings rather than at install time, so it is asked for rather than
+         assumed. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
 
     <application
         android:label="Caelo"
@@ -34,6 +39,19 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Since Android 7 a file:// URI cannot be handed to another process,
+             so the downloaded update is shared as content:// instead. Scoped to
+             the one directory downloads land in: a provider covering the whole
+             files directory would expose the stored configurations. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_paths" />
+        </provider>
         <service
             android:name=".CaeloVpnService"
             android:permission="android.permission.BIND_VPN_SERVICE"

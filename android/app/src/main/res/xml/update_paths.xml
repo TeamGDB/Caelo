@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the FileProvider is allowed to share, which is one directory and nothing
+  else. A provider scoped to the whole files directory would let any component
+  that obtained a URI read the stored configurations, which are the one thing in
+  here worth taking.
+-->
+<paths>
+    <files-path name="updates" path="caelo/" />
+</paths>
