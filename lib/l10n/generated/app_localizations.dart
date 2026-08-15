@@ -649,6 +649,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The download did not finish.'**
   String get updateFailed;
+
+  /// Shown when the file downloaded and verified but the system installer could not be started. Deliberately says the download is not the problem.
+  ///
+  /// In en, this message translates to:
+  /// **'Caelo could not start the installer. The download is fine; Android would not open it.'**
+  String get updateHandOverFailed;
 }
 
 class _AppLocalizationsDelegate

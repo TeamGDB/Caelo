@@ -84,6 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // dismiss to learn nothing.
     if (updates.stage == UpdateStage.found ||
         updates.stage == UpdateStage.needsPermission ||
+        updates.stage == UpdateStage.handOverFailed ||
         updates.stage == UpdateStage.failed) {
       unawaited(_showUpdateDialog());
     }

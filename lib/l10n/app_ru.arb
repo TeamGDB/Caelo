@@ -129,5 +129,6 @@
   "updateNeedsPermission": "Android должен разрешить Caelo устанавливать обновления.",
   "updateOpenSettings": "Открыть настройки",
   "updateNotOurs": "Скачанный файл не подписан Caelo и был удалён.",
-  "updateFailed": "Скачивание не завершилось."
+  "updateFailed": "Скачивание не завершилось.",
+  "updateHandOverFailed": "Не удалось запустить установщик. Файл скачан и проверен — его не открыл Android."
 }

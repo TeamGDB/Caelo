@@ -304,4 +304,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateFailed => 'The download did not finish.';
+
+  @override
+  String get updateHandOverFailed =>
+      'Caelo could not start the installer. The download is fine; Android would not open it.';
 }

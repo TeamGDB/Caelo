@@ -145,4 +145,23 @@ void main() {
       expect(file.path, endsWith('.apk'));
     },
   );
+
+  // The default path, which no other test takes because they all inject a
+  // verifier -- which is exactly how a call that could never work shipped. It
+  // fails here without a core to talk to, and the point is *how*: a rejection,
+  // not a NoSuchMethodError from calling a named-parameter function
+  // positionally.
+  test('the built-in verifier is called the way it is declared', () async {
+    await expectLater(
+      UpdateDownload.fetch(update(url: url(), size: 65536)),
+      throwsA(
+        isA<DownloadFailed>().having(
+          (e) => e.reason,
+          'reason',
+          DownloadFailure.untrusted,
+        ),
+      ),
+    );
+    expect(directory.listSync(), isEmpty);
+  });
 }

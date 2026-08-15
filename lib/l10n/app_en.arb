@@ -336,5 +336,9 @@
   },
   "@cancel": {
     "description": "Dismisses a dialog without doing anything."
+  },
+  "updateHandOverFailed": "Caelo could not start the installer. The download is fine; Android would not open it.",
+  "@updateHandOverFailed": {
+    "description": "Shown when the file downloaded and verified but the system installer could not be started. Deliberately says the download is not the problem."
   }
 }
