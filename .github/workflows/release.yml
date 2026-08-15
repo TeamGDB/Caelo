@@ -336,21 +336,45 @@ jobs:
         name: Is there anything to sign with
         env:
           IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_PROFILES: ${{ secrets.IOS_PROVISIONING_PROFILES }}
+          IOS_ASC_KEY: ${{ secrets.IOS_ASC_KEY }}
+          IOS_ASC_KEY_ID: ${{ secrets.IOS_ASC_KEY_ID }}
+          IOS_ASC_ISSUER: ${{ secrets.IOS_ASC_ISSUER }}
         run: |
-          # Unlike macOS, a missing certificate is a notice rather than an
-          # error. macOS has had one since #42 and its absence would mean
-          # something broke; iOS has never had one, and a job that is red on
-          # every run is a job people stop reading. This goes away with #78.
-          # The length, because "the secret is missing" and "the secret is there
-          # and empty" look identical from here and are fixed differently -- one
-          # needs setting, the other needs setting again, by someone who thinks
-          # they already did. A base64 blob's length gives nothing away.
-          echo "certificate secret: ${#IOS_CERTIFICATE_P12} characters"
-          if [[ -n "$IOS_CERTIFICATE_P12" ]]; then
-            echo "value=true" >> "$GITHUB_OUTPUT"
-          else
+          # Sizes, not values. A secret that exists and holds nothing looks
+          # exactly like one that was never set, and the two are fixed
+          # differently -- the second by somebody certain they already did it.
+          # Not hypothetical: all six were set, and the certificate arrived
+          # empty, because `base64 -i` on a file that is not there prints its
+          # complaint to one stream and nothing to the other, and `gh secret
+          # set` stores the nothing.
+          empty=()
+          for name in IOS_CERTIFICATE_P12 IOS_CERTIFICATE_PASSWORD \
+                      IOS_PROVISIONING_PROFILES IOS_ASC_KEY \
+                      IOS_ASC_KEY_ID IOS_ASC_ISSUER; do
+            value="${!name}"
+            printf '  %-28s %s\n' "$name" "${#value} characters"
+            [[ -n "$value" ]] || empty+=("$name")
+          done
+
+          # None of them is where this repository was before iOS signing
+          # existed, and it is a notice rather than an error: macOS has had a
+          # certificate since #42 so its absence means something broke, while a
+          # job that is red on every run is a job people stop reading.
+          #
+          # Some of them is a different thing -- somebody is part way through
+          # docs/signing.md -- and discovering it at the export is discovering
+          # it ten minutes late.
+          if [[ ${#empty[@]} -eq 6 ]]; then
             echo "value=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Archive built but not signed: no iOS certificate yet. See #78."
+            echo "::notice::Archive built but not signed: no iOS signing material yet. See #78."
+          elif [[ ${#empty[@]} -gt 0 ]]; then
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Signing is half configured. Empty: ${empty[*]}. See docs/signing.md."
+            exit 1
+          else
+            echo "value=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Put the signing identity on the runner

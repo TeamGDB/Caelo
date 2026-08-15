@@ -214,6 +214,16 @@ gh secret set IOS_ASC_ISSUER --repo TeamGDB/Caelo
 The App Store Connect key can be the same one that notarises macOS. App Manager
 is enough authority to upload; it does not need Admin.
 
+**Check the paths before running these.** `base64 -i` on a file that is not
+there prints its complaint to stderr and nothing to stdout, and `gh secret set`
+stores the nothing — leaving a secret that exists, has a fresh timestamp, and is
+empty. That happened on the first attempt here and cost a pipeline run to find.
+The job prints the size of each secret at the start, which is where to look:
+
+```
+IOS_CERTIFICATE_P12          0 characters
+```
+
 ### Which Xcode
 
 App Store Connect rejects a build made against an SDK it considers old, and a
