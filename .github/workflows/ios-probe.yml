@@ -1,0 +1,29 @@
+name: iOS probe
+
+# Temporary. Answers one question -- which Xcode on the runner can actually
+# build for an iOS device -- and is deleted once #78 knows the answer.
+
+on: workflow_dispatch
+
+jobs:
+  probe:
+    runs-on: macos-latest
+    steps:
+      - run: |
+          echo "default: $(xcode-select -p)"
+          echo
+          for candidate in /Applications/Xcode*.app; do
+            version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' \
+              "$candidate/Contents/Info.plist" 2>/dev/null || echo '?')"
+            echo "=== $candidate ($version)"
+            sdks="$candidate/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs"
+            ls "$sdks" 2>/dev/null | sed 's/^/    sdk dir: /' || echo "    sdk dir: none"
+            DEVELOPER_DIR="$candidate/Contents/Developer" xcodebuild -showsdks 2>&1 |
+              grep -i "ios\|iphoneos" | sed 's/^/    showsdks: /' || true
+            DEVELOPER_DIR="$candidate/Contents/Developer" \
+              xcodebuild -version -sdk iphoneos SDKVersion 2>&1 | head -2 | sed 's/^/    -sdk iphoneos: /'
+            echo
+          done
+          echo "=== installed platforms"
+          xcodebuild -showComponentsAvailable 2>&1 | head -20 || true
+          ls /Library/Developer/CoreSimulator/Profiles/Runtimes 2>/dev/null | sed 's/^/    runtime: /' || true
