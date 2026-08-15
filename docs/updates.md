@@ -138,9 +138,21 @@ Separate from the appcast key and from anything Apple issued — this one signs
 package metadata and nothing else.
 
 ```bash
-gpg --batch --quick-generate-key "Caelo Archive <you@example.com>" ed25519 sign never
-gpg --armor --export-secret-keys "Caelo Archive" | gh secret set REPO_GPG_KEY --repo TeamGDB/Caelo
+gpg --batch --pinentry-mode loopback --passphrase '' \
+    --quick-generate-key "Caelo Archive <you@example.com>" ed25519 sign never
+
+gpg --batch --pinentry-mode loopback --passphrase '' \
+    --armor --export-secret-keys "Caelo Archive" |
+  gh secret set REPO_GPG_KEY --repo TeamGDB/Caelo
 ```
+
+`--pinentry-mode loopback` with an empty passphrase, and both are needed:
+`--batch` alone does not stop gpg asking, it only stops it asking *nicely*, and
+the prompt reappears on every invocation.
+
+No passphrase, deliberately. This key is used by CI with nobody present, so a
+passphrase would either be absent or sit in a second secret beside the first,
+which protects nothing. What protects it is being a repository secret.
 
 Without the secret the repositories are built unsigned, and apt refuses them.
 That is the right failure: an unsigned package repository serving a VPN client is
