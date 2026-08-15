@@ -57,6 +57,13 @@ class MainActivity : FlutterActivity() {
         val methods = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
         channel = methods
         methods.setMethodCallHandler { call, result -> handle(call, result) }
+
+        // Its own channel and its own object: handing a downloaded file to the
+        // system installer has nothing to do with running a tunnel, and the
+        // tunnel's handler is already the longest thing in this file.
+        val installer = Installer(applicationContext)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, Installer.CHANNEL)
+            .setMethodCallHandler { call, result -> installer.handle(call, result) }
     }
 
     override fun onDestroy() {
