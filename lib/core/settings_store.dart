@@ -108,4 +108,22 @@ abstract final class SettingsStore {
     settings['diagnostics'] = on;
     await _save(settings);
   }
+
+  /// Whether Caelo may ask whether a newer build exists.
+  ///
+  /// On by default, and that default is the arguable part. A VPN client that
+  /// contacts a server on a timer is reporting when it runs and from where, so
+  /// the case for defaulting it on has to be earned: it is earned because the
+  /// alternative is people running a version with a known hole in it because
+  /// nothing told them. The request is made worth as little as possible instead
+  /// — see UpdateCheck — and this switch genuinely stops it rather than
+  /// discarding the answer.
+  static Future<bool> updateChecks() async =>
+      (await _load())['update_checks'] != false;
+
+  static Future<void> setUpdateChecks(bool on) async {
+    final settings = Map<String, dynamic>.from(await _load());
+    settings['update_checks'] = on;
+    await _save(settings);
+  }
 }

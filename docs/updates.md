@@ -101,10 +101,38 @@ version is available, and the command to get it. No download button.
 
 ## What the check may not do
 
-Set out in full in #51. In short: no identifiers of any kind, an identical
-request from every installation, through the tunnel when one is up, and an off
-switch that genuinely stops the timer.
-
 A client that contacts a server on a schedule is a client that reports when it is
 running and from where. In most software that is a footnote. Here it is the thing
-people installed us to avoid.
+people installed us to avoid, so these are properties of the feature rather than
+a hardening pass over it. `lib/core/update_check.dart` holds them and
+`test/update_check_test.dart` pins them.
+
+**Nothing identifies the installation.** No identifier, no query string, no
+header that varies. Two copies on the same platform send byte-identical requests,
+which is what makes the request worthless as a beacon rather than merely small.
+
+**The version is not sent.** It is the obvious design — the server could then
+answer "you are current" in a line — and it is rejected, because a request
+carrying a version sorts installations into groups for anyone counting. The whole
+manifest is fetched and the comparison happens on the device.
+
+**Not the GitHub API.** Sixty unauthenticated requests an hour per IP, and this
+check goes through the tunnel, so everyone behind one exit node would share a
+quota. The busier the node, the more broken updates would become.
+
+**Through the tunnel when there is one.** Where the platform routes the whole
+machine, this happens by itself. Where it does not — the in-process tunnel on a
+Linux box with no privileged service — the caller passes a fetch that goes
+through it.
+
+**The switch stops the request, not the result.** Turning checks off in Settings
+means nothing is sent. A check that fetched and then discarded would still have
+announced that this copy is running, which is the whole thing being avoided.
+
+**Checking is not downloading.** The check decides whether something newer
+exists. Fetching it is a separate act somebody agrees to: it is large, and their
+connection may be metered.
+
+The remaining item on #51 is a packet capture proving the second-to-last point on
+a real Linux machine with the in-process tunnel up. It cannot be done from a Mac
+and has not been done.
