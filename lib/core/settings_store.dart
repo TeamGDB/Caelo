@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 
@@ -27,16 +28,28 @@ abstract final class SettingsStore {
 
   static Map<String, dynamic>? _cache;
 
+  /// Where the file lives. Replaceable so that tests do not write into the real
+  /// application container, the same seam ConfigStore has and for the same
+  /// reason: a test that leaves settings behind changes the next run of the app
+  /// on the machine it ran on.
+  @visibleForTesting
+  static Future<File> Function(String) file = AppStorage.file;
+
+  /// Forgets what was read, so a test that replaced [file] is not answered from
+  /// the previous file's contents.
+  @visibleForTesting
+  static void forgetCache() => _cache = null;
+
   static Future<Map<String, dynamic>> _load() async {
     final cached = _cache;
     if (cached != null) return cached;
 
-    final file = await AppStorage.file(_fileName);
-    if (!await file.exists()) return _cache = {};
+    final settings = await file(_fileName);
+    if (!await settings.exists()) return _cache = {};
 
     try {
       return _cache =
-          jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+          jsonDecode(await settings.readAsString()) as Map<String, dynamic>;
     } on Object {
       // A corrupt settings file is not worth failing to start over. Defaults
       // are all recoverable by changing them again.
@@ -44,10 +57,10 @@ abstract final class SettingsStore {
     }
   }
 
-  static Future<void> _save(Map<String, dynamic> settings) async {
-    _cache = settings;
-    final file = await AppStorage.file(_fileName);
-    await file.writeAsString(jsonEncode(settings), flush: true);
+  static Future<void> _save(Map<String, dynamic> values) async {
+    _cache = values;
+    final settings = await file(_fileName);
+    await settings.writeAsString(jsonEncode(values), flush: true);
   }
 
   static Future<CaeloThemeMode> themeMode() async {

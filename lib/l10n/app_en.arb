@@ -267,5 +267,17 @@
   "logDisabled": "Recording is off",
   "@logDisabled": {
     "description": "Shown when recording is off."
+  },
+  "updates": "Updates",
+  "@updates": {
+    "description": "Settings section header for update behaviour."
+  },
+  "checkForUpdates": "Check for updates",
+  "@checkForUpdates": {
+    "description": "Settings switch that allows Caelo to ask whether a newer build exists."
+  },
+  "updateCheckNote": "Caelo asks a static file whether a newer version exists. The request carries no identifier and is the same from every installation, and it goes through the tunnel when one is up. Turning this off stops it being sent at all.",
+  "@updateCheckNote": {
+    "description": "Footer under the update switch, describing exactly what is sent."
   }
 }

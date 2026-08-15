@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/cupertino.dart';
 
 import '../core/config_store.dart';
 import '../core/diagnostics.dart';
 import '../core/ffi/core_library.dart';
+import '../core/build_info.dart';
 import '../core/settings_store.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../main.dart' show AccessScope, LocaleModeScope, ThemeModeScope;
@@ -47,10 +49,21 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   List<StoredConfig> configs = const [];
 
+  /// Null until it has been read. Rendering a switch before then would show it
+  /// off for a frame and then move it, which reads as the app changing the
+  /// setting by itself.
+  bool? updateChecks;
+
   @override
   void initState() {
     super.initState();
     onConfigChanged();
+    unawaited(_loadUpdateChecks());
+  }
+
+  Future<void> _loadUpdateChecks() async {
+    final on = await SettingsStore.updateChecks();
+    if (mounted) setState(() => updateChecks = on);
   }
 
   Future<void> onConfigChanged() async {
@@ -209,6 +222,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
                 _Section(
+                  header: l10n.updates,
+                  footer: l10n.updateCheckNote,
+                  children: [
+                    _Row(
+                      label: l10n.checkForUpdates,
+                      trailing: CupertinoSwitch(
+                        value: updateChecks ?? false,
+                        activeTrackColor: palette.accent,
+                        onChanged: updateChecks == null
+                            ? null
+                            : (on) async {
+                                await SettingsStore.setUpdateChecks(on);
+                                if (mounted) setState(() => updateChecks = on);
+                              },
+                      ),
+                    ),
+                  ],
+                ),
+                _Section(
                   header: l10n.diagnostics,
                   footer: l10n.diagnosticLogNote,
                   children: [
@@ -236,7 +268,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _Section(
                   header: l10n.about,
                   children: [
-                    const _Row(label: 'Caelo', value: '0.1.0'),
+                    const _Row(
+                      label: 'Caelo',
+                      value: '$appVersion ($appBuild)',
+                    ),
                     _Row(label: l10n.core, value: _coreSummary(l10n)),
                     _Row(label: l10n.licence, value: 'GPL-3.0-or-later'),
                     _Row(

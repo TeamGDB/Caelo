@@ -565,6 +565,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recording is off'**
   String get logDisabled;
+
+  /// Settings section header for update behaviour.
+  ///
+  /// In en, this message translates to:
+  /// **'Updates'**
+  String get updates;
+
+  /// Settings switch that allows Caelo to ask whether a newer build exists.
+  ///
+  /// In en, this message translates to:
+  /// **'Check for updates'**
+  String get checkForUpdates;
+
+  /// Footer under the update switch, describing exactly what is sent.
+  ///
+  /// In en, this message translates to:
+  /// **'Caelo asks a static file whether a newer version exists. The request carries no identifier and is the same from every installation, and it goes through the tunnel when one is up. Turning this off stops it being sent at all.'**
+  String get updateCheckNote;
 }
 
 class _AppLocalizationsDelegate
