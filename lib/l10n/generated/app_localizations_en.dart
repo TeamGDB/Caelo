@@ -268,4 +268,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get checkNow => 'Check now';
+
+  @override
+  String get updateChecking => 'Checking…';
+
+  @override
+  String get updateCurrent => 'Caelo is up to date';
+
+  @override
+  String updateFound(String version) {
+    return 'Version $version is available';
+  }
+
+  @override
+  String updateDownload(String size) {
+    return 'Download ($size MB)';
+  }
+
+  @override
+  String get updateDownloading => 'Downloading…';
+
+  @override
+  String get updateInstalling => 'Handed to the installer';
+
+  @override
+  String get updateNeedsPermission =>
+      'Android needs permission to install updates from Caelo.';
+
+  @override
+  String get updateOpenSettings => 'Open Settings';
+
+  @override
+  String get updateNotOurs =>
+      'That download was not signed by Caelo, so it was discarded.';
+
+  @override
+  String get updateFailed => 'The download did not finish.';
 }

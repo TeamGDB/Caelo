@@ -146,7 +146,7 @@ abstract class AppLocalizations {
   /// **'Continue'**
   String get continueAction;
 
-  /// No description provided for @cancel.
+  /// Dismisses a dialog without doing anything.
   ///
   /// In en, this message translates to:
   /// **'Cancel'**
@@ -589,6 +589,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Check now'**
   String get checkNow;
+
+  /// Settings row while an update check is in flight.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking…'**
+  String get updateChecking;
+
+  /// Result of a check that found nothing newer.
+  ///
+  /// In en, this message translates to:
+  /// **'Caelo is up to date'**
+  String get updateCurrent;
+
+  /// Title of the dialog offering an update.
+  ///
+  /// In en, this message translates to:
+  /// **'Version {version} is available'**
+  String updateFound(String version);
+
+  /// Button that starts fetching the update.
+  ///
+  /// In en, this message translates to:
+  /// **'Download ({size} MB)'**
+  String updateDownload(String size);
+
+  /// Row text while the update is being fetched.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading…'**
+  String get updateDownloading;
+
+  /// Shown once Android has been asked to install; the outcome is not ours to know.
+  ///
+  /// In en, this message translates to:
+  /// **'Handed to the installer'**
+  String get updateInstalling;
+
+  /// Shown when REQUEST_INSTALL_PACKAGES has not been granted.
+  ///
+  /// In en, this message translates to:
+  /// **'Android needs permission to install updates from Caelo.'**
+  String get updateNeedsPermission;
+
+  /// Button that opens the Android screen granting install permission.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings'**
+  String get updateOpenSettings;
+
+  /// Shown when signature verification failed. Deliberately does not speculate about why.
+  ///
+  /// In en, this message translates to:
+  /// **'That download was not signed by Caelo, so it was discarded.'**
+  String get updateNotOurs;
+
+  /// Shown when the update could not be fetched.
+  ///
+  /// In en, this message translates to:
+  /// **'The download did not finish.'**
+  String get updateFailed;
 }
 
 class _AppLocalizationsDelegate
