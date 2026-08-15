@@ -302,39 +302,30 @@ jobs:
       # explicitly turns "rejected after a ten-minute upload" into a failure in
       # the first seconds, naming what it found.
       #
-      # The SDK is what is looked at, not the Xcode version. Picking the newest
-      # Xcode chose one whose iOS platform had never been downloaded, and the
-      # build failed six minutes later with "iOS 26.0 is not installed" -- an
-      # Xcode can be the newest on the machine and unable to build for iOS at
-      # all.
-      - name: Choose an Xcode that can build for iOS
+      # Which Xcode is not chosen here, only checked. Two attempts at choosing
+      # one both landed on Xcode 26.0.1, which reports an iOS 26.0 SDK and then
+      # refuses to archive for a device with "iOS 26.0 is not installed" -- so
+      # neither the version nor the SDK on disk predicts whether a build will
+      # work. The runner image's own default does, and on the image that failed
+      # it was Xcode 26.6, a version newer than anything the search picked.
+      #
+      # What is left is the part worth failing on: whether that default is new
+      # enough for App Store Connect to accept what it builds.
+      - name: Check the runner's Xcode is new enough
         env:
           REQUIRED_MAJOR: "26"
         run: |
-          best="" ; best_sdk=0 ; best_sdk_name=""
-          for candidate in /Applications/Xcode*.app; do
-            sdks="$candidate/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs"
-            [[ -d "$sdks" ]] || continue
-            for sdk in "$sdks"/iPhoneOS*.sdk; do
-              [[ -d "$sdk" ]] || continue
-              version="$(basename "$sdk")"; version="${version#iPhoneOS}"; version="${version%.sdk}"
-              major="${version%%.*}"
-              [[ "$major" =~ ^[0-9]+$ ]] || continue
-              if (( major > best_sdk )); then
-                best_sdk=$major; best=$candidate; best_sdk_name="$version"
-              fi
-            done
-          done
-          if [[ -z "$best" ]]; then
-            echo "::error::No Xcode on this runner has an iOS SDK installed. See #78."
+          sdk="$(xcodebuild -version -sdk iphoneos SDKVersion 2>/dev/null | head -1)"
+          major="${sdk%%.*}"
+          if [[ ! "$major" =~ ^[0-9]+$ ]]; then
+            echo "::error::No iOS SDK in $(xcode-select -p). See #78."
             exit 1
           fi
-          if (( best_sdk < REQUIRED_MAJOR )); then
-            echo "::error::The newest iOS SDK here is $best_sdk_name, and App Store Connect wants $REQUIRED_MAJOR. See #78."
+          if (( major < REQUIRED_MAJOR )); then
+            echo "::error::This runner's Xcode has iOS SDK $sdk, and App Store Connect wants $REQUIRED_MAJOR. See #78."
             exit 1
           fi
-          echo "DEVELOPER_DIR=$best/Contents/Developer" >> "$GITHUB_ENV"
-          echo "Using $best, iOS SDK $best_sdk_name"
+          echo "$(xcode-select -p), iOS SDK $sdk"
 
       # Unsigned, and useful unsigned: it proves the archive still builds on
       # every run, including the runs where there is nothing to sign it with.
