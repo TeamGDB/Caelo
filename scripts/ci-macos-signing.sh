@@ -145,9 +145,33 @@ import_identity() {
   echo "==> Importing the $what identity"
   # -A is deliberately not used: it would let every tool on the machine use the
   # key. The one that needs it is named instead.
-  security import "$file" -k "$KEYCHAIN" -P "$password" \
-    -T /usr/bin/codesign >/dev/null
+  if security import "$file" -k "$KEYCHAIN" -P "$password" \
+       -T /usr/bin/codesign >/dev/null 2>&1; then
+    rm -f "$file"
+    return
+  fi
+
+  # A secret that picked up a trailing newline on its way into the repository is
+  # common enough to be worth one retry -- but announced rather than silent,
+  # because a password that only works after being trimmed is a password someone
+  # should go and fix at the source.
+  local trimmed="$password"
+  while [[ "$trimmed" =~ [[:space:]]$ ]]; do trimmed="${trimmed%?}"; done
+  if [[ "$trimmed" != "$password" ]] &&
+     security import "$file" -k "$KEYCHAIN" -P "$trimmed" \
+       -T /usr/bin/codesign >/dev/null 2>&1; then
+    echo "!! the $what password only worked once trailing whitespace was removed;" >&2
+    echo "   re-set that secret so it does not depend on this" >&2
+    rm -f "$file"
+    return
+  fi
+
   rm -f "$file"
+  echo "error: the $what certificate would not import: wrong password." >&2
+  echo "       The password secret has to be the one set during the export," >&2
+  echo "       not a login password. Confirm the pair locally with:" >&2
+  echo "         openssl pkcs12 -in <file>.p12 -info -noout -legacy" >&2
+  exit 1
 }
 
 install_profiles() {
