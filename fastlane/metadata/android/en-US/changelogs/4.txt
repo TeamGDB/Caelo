@@ -1,0 +1,1 @@
+Android can now offer and install its own updates, checking the signature before the system installer is allowed near the file.

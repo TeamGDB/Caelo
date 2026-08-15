@@ -1,0 +1,1 @@
+A VPN client for subscription links. No account, no telemetry.

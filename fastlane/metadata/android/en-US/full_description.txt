@@ -1,0 +1,20 @@
+Caelo connects to a VPN using a subscription link — one address that carries every
+server your provider offers, and updates itself when that list changes. Paste the
+link once; there is no account to create and nothing to sign in to.
+
+It speaks AmneziaWG: WireGuard with the packets shaped so that a handshake does
+not look like a handshake. Where a connection is examined rather than merely
+routed, that is the difference between working and not.
+
+What it does not do:
+
+• No account, no email, no identifier of any kind.
+• No analytics, no crash reporting, no third-party SDKs.
+• The only thing it sends on its own is a request for one static file, to ask
+  whether a newer version exists. That request is identical from every
+  installation, carries nothing about you, goes through the tunnel when one is
+  up, and can be turned off in Settings.
+• Your keys and configurations stay on the device.
+
+Free software under the GNU General Public License, version 3 or later. All of
+it readable, and the releases are built in the open.
