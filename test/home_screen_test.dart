@@ -452,4 +452,70 @@ void main() {
     expect(find.text('Подключить'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  // A failure the person can act on has to say so where they are looking. Left
+  // as a bare "could not connect" they would press the button again, which for
+  // a version mismatch is the one thing guaranteed not to work.
+  testWidgets('names the half that is out of date', (tester) async {
+    await pumpHome(tester, locale: const Locale('en'));
+
+    client.emit(
+      const TunnelStatus(
+        phase: TunnelPhase.failed,
+        failure: TunnelFailure.serviceOlderThanApp,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Reinstall Caelo'), findsOneWidget);
+  });
+
+  testWidgets('says the opposite thing when the app is the old half', (
+    tester,
+  ) async {
+    await pumpHome(tester, locale: const Locale('en'));
+
+    client.emit(
+      const TunnelStatus(
+        phase: TunnelPhase.failed,
+        failure: TunnelFailure.appOlderThanService,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Update Caelo'), findsOneWidget);
+  });
+
+  // Most failures are worth retrying and have nothing useful to add. An
+  // explanation under every one of them would train people to ignore the place
+  // the useful ones appear.
+  testWidgets('stays quiet about failures it cannot explain', (tester) async {
+    await pumpHome(tester, locale: const Locale('en'));
+    final resting = tester.getCenter(find.text('Connect'));
+
+    client.emit(const TunnelStatus(phase: TunnelPhase.failed));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Could not connect'), findsOneWidget);
+    expect(find.textContaining('Reinstall'), findsNothing);
+    expect(find.textContaining('Update'), findsNothing);
+    // And with nothing to say, the button stays exactly where it was.
+    expect(tester.getCenter(find.text('Could not connect')), resting);
+  });
+
+  // The clients that raise these run below the interface and have no locale, so
+  // this is the join that would silently leave English in a Russian window.
+  testWidgets('explains itself in the chosen language', (tester) async {
+    await pumpHome(tester, locale: const Locale('ru'));
+
+    client.emit(
+      const TunnelStatus(
+        phase: TunnelPhase.failed,
+        failure: TunnelFailure.serviceOlderThanApp,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Переустановите Caelo'), findsOneWidget);
+  });
 }

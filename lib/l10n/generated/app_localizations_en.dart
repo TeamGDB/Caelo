@@ -75,6 +75,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get statusFailed => 'Could not connect';
 
   @override
+  String get serviceOlderThanApp =>
+      'The Caelo background service is older than this app. Reinstall Caelo to update it.';
+
+  @override
+  String get appOlderThanService =>
+      'This app is older than the Caelo background service. Update Caelo.';
+
+  @override
   String get connect => 'Connect';
 
   @override

@@ -39,6 +39,14 @@
   "@statusFailed": {
     "description": "Main screen status, the attempt failed and we gave up."
   },
+  "serviceOlderThanApp": "The Caelo background service is older than this app. Reinstall Caelo to update it.",
+  "@serviceOlderThanApp": {
+    "description": "Shown under the main button when the privileged service speaks an older protocol than the app. Retrying will not help; the service is replaced by installing."
+  },
+  "appOlderThanService": "This app is older than the Caelo background service. Update Caelo.",
+  "@appOlderThanService": {
+    "description": "Shown under the main button when the privileged service was updated and the app was not, which happens when a package manager upgraded one half."
+  },
   "connect": "Connect",
   "@connect": {
     "description": "Accessibility label for the main button when disconnected."

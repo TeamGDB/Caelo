@@ -224,6 +224,18 @@ abstract class AppLocalizations {
   /// **'Could not connect'**
   String get statusFailed;
 
+  /// Shown under the main button when the privileged service speaks an older protocol than the app. Retrying will not help; the service is replaced by installing.
+  ///
+  /// In en, this message translates to:
+  /// **'The Caelo background service is older than this app. Reinstall Caelo to update it.'**
+  String get serviceOlderThanApp;
+
+  /// Shown under the main button when the privileged service was updated and the app was not, which happens when a package manager upgraded one half.
+  ///
+  /// In en, this message translates to:
+  /// **'This app is older than the Caelo background service. Update Caelo.'**
+  String get appOlderThanService;
+
   /// Accessibility label for the main button when disconnected.
   ///
   /// In en, this message translates to:

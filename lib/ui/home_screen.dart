@@ -5,6 +5,7 @@ import '../core/tunnel.dart';
 import '../core/tunnel_controller.dart';
 import '../core/server_catalog.dart';
 import '../l10n/generated/app_localizations.dart';
+import '../theme/app_theme.dart';
 import '../theme/palette.dart';
 import 'settings_screen.dart';
 import 'server_picker_sheet.dart';
@@ -45,15 +46,44 @@ class HomeScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                       horizontal: CaeloSpace.gutter,
                     ),
-                    child: PowerButton(
-                      phase: status.phase,
-                      label: buttonLabel,
-                      onPressed: controller.toggle,
-                      semanticLabel:
-                          status.phase == TunnelPhase.connected ||
-                              status.phase == TunnelPhase.connecting
-                          ? l10n.disconnect
-                          : l10n.connect,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        PowerButton(
+                          phase: status.phase,
+                          label: buttonLabel,
+                          onPressed: controller.toggle,
+                          semanticLabel:
+                              status.phase == TunnelPhase.connected ||
+                                  status.phase == TunnelPhase.connecting
+                              ? l10n.disconnect
+                              : l10n.connect,
+                        ),
+                        // Only when there is something to say beyond "it did
+                        // not work". Pressing the button again is the obvious
+                        // move and the right one for most failures; these are
+                        // the ones where it would waste somebody's afternoon.
+                        //
+                        // This does lift the button, which the rest of the
+                        // screen goes out of its way to avoid. Accepted here
+                        // rather than reserving the space: an empty slot under
+                        // the button for everyone, forever, to spare a shift in
+                        // a state almost nobody reaches is the worse trade, and
+                        // the movement is doing the same work as the colour.
+                        if (_explain(status.failure, l10n) case final note?)
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              top: CaeloSpace.gutter,
+                            ),
+                            child: Text(
+                              note,
+                              textAlign: TextAlign.center,
+                              style: CaeloTheme.caption(
+                                palette,
+                              ).copyWith(color: palette.danger),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -95,6 +125,18 @@ class HomeScreen extends StatelessWidget {
     );
   }
 }
+
+/// The sentence for a failure worth naming, or null for the ones that are not.
+///
+/// Lives here rather than on [TunnelFailure] because the clients that raise
+/// these run below the interface and have no locale; an English sentence built
+/// down there would surface untranslated in a Russian window.
+String? _explain(TunnelFailure? failure, AppLocalizations l10n) =>
+    switch (failure) {
+      TunnelFailure.serviceOlderThanApp => l10n.serviceOlderThanApp,
+      TunnelFailure.appOlderThanService => l10n.appOlderThanService,
+      null => null,
+    };
 
 class _SettingsButton extends StatelessWidget {
   const _SettingsButton();
