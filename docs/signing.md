@@ -165,3 +165,51 @@ security find-certificate -c "Developer ID Application" -p |
 ```
 
 and put it in a calendar rather than meeting it as a surprise.
+
+## Windows: deliberately unsigned, for now
+
+Decided 15 August 2026, while the project has no users to speak of.
+
+Windows ships without an Authenticode certificate. This is a decision, not an
+oversight, and the reasoning should be re-read before anyone spends money
+reversing it.
+
+**It works.** Unlike macOS, where an unsigned build cannot load its system
+extension and therefore cannot tunnel at all, an unsigned Windows build is fully
+functional: Wintun carries its own Microsoft-attested driver signature, so the
+tunnel comes up regardless of who signed the installer around it. What is lost is
+trust, not capability.
+
+**What people see.** SmartScreen's "Windows protected your PC" on first run, a
+browser warning on download, and — worst of the three — "Publisher: unknown" on
+the elevation prompt, which Caelo needs because it installs a privileged service.
+An application that circumvents censorship, asks for administrator rights, and
+cannot say who wrote it is asking for exactly the habit that malware relies on.
+
+**Why not simply buy one.** Three reasons, in order of weight:
+
+1. There is nothing worth signing yet. #22 is open: the Windows tunnel has never
+   run on a real machine. A certificate bought today would spend its first months
+   accruing SmartScreen reputation for a binary that may not work.
+2. Since 2023 the private key must live on hardware or in a cloud signing
+   service, so a certificate cannot simply be handed to a hosted runner. Either a
+   self-hosted machine with the token, or a service such as Azure Trusted
+   Signing, which has its own eligibility and geography constraints.
+3. An individual, as opposed to a company, can hold only an OV certificate, and
+   the publisher line then reads as a person's name rather than an organisation.
+
+For reference, AmneziaVPN — same space, established, with an Estonian company
+behind it — signs by subject name from the Windows certificate store and does not
+sign on its public runners either. The constraint is structural, not a matter of
+diligence.
+
+**What is done instead.** Every artifact is listed in `latest.json` with its
+SHA-256 and an Ed25519 signature, so a download can be checked without
+Authenticode, and the Windows updater (#45) verifies that signature rather than
+relying on the operating system's opinion. The release notes say plainly that
+Windows will warn and why, rather than telling anyone to click through warnings.
+
+**When to revisit.** When there are enough users for the drop-off at the
+SmartScreen dialog to be worth measuring, and after #22 proves there is something
+to sign. Note that reputation accrues per certificate and never starts without
+one — this does not improve on its own with time.
