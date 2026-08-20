@@ -586,7 +586,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with: { name: update-manifests, path: pages }
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with: { path: pages }
       - id: deploy
         uses: actions/deploy-pages@v4
