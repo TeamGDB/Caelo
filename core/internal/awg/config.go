@@ -46,6 +46,55 @@ var obfuscationKeys = map[string]bool{
 	"s1": true, "s2": true, "s3": true, "s4": true,
 	"h1": true, "h2": true, "h3": true, "h4": true,
 	"i1": true, "i2": true, "i3": true, "i4": true, "i5": true,
+
+	// 3.1. A server with RandomTrailers on appends random bytes to every
+	// handshake message, and a client that does not know to expect them
+	// identifies the packet by its size and does not recognise it at all --
+	// which is not weaker obfuscation but no connection.
+	"headerprotectionkey": true, "contentpaddingaddition": true,
+	"rekeyaftertime": true, "rekeytimeout": true, "rejectaftertime": true,
+	"keepalivetimeout": true, "maxhandshakeattempts": true,
+	"randomtrailers": true, "disablecookies": true,
+}
+
+// uapiValue converts a value written the way a .conf writes it into the way the
+// device reads it.
+//
+// Only the flags need it, and they need it badly: a file says "on", the device
+// parses with strconv.ParseBool, and ParseBool does not accept "on". Passed
+// through unchanged, a perfectly ordinary configuration is rejected with
+// "failed to parse random trailers" and nothing connects.
+func uapiValue(key, value string) string {
+	if key != "randomtrailers" && key != "disablecookies" {
+		return value
+	}
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "on", "true", "1", "yes":
+		return "true"
+	case "off", "false", "0", "no":
+		return "false"
+	}
+	// Anything else is passed on for the device to reject: guessing at a value
+	// nobody wrote is how a tunnel comes up with obfuscation quietly disabled.
+	return value
+}
+
+// uapiNames maps what a .conf calls a parameter to what the device calls it.
+//
+// The two disagree for everything added in 3.x: a file says
+// HeaderProtectionKey and the device wants header_protection_key. The 2.x
+// parameters are spelled the same in both, so they are absent here and pass
+// through under their own name.
+var uapiNames = map[string]string{
+	"headerprotectionkey":    "header_protection_key",
+	"contentpaddingaddition": "content_padding_addition",
+	"rekeyaftertime":         "rekey_after_time",
+	"rekeytimeout":           "rekey_timeout",
+	"rejectaftertime":        "reject_after_time",
+	"keepalivetimeout":       "keepalive_timeout",
+	"maxhandshakeattempts":   "max_handshake_attempts",
+	"randomtrailers":         "random_trailers",
+	"disablecookies":         "disable_cookies",
 }
 
 // ParseConfig reads the `.conf` format Amnezia and WireGuard both use.
@@ -100,6 +149,18 @@ func ParseConfig(text string) (*Config, error) {
 
 func (c *Config) setInterface(key, value string) error {
 	if obfuscationKeys[key] {
+		// Ключ защиты заголовков в файле записан base64, как и все ключи
+		// WireGuard, а устройство читает его hex — как и все ключи WireGuard в
+		// UAPI. Без перевода настройка падает на "invalid byte" и туннель не
+		// поднимается вовсе.
+		if key == "headerprotectionkey" {
+			hexKey, err := keyToHex(value)
+			if err != nil {
+				return fmt.Errorf("HeaderProtectionKey: %w", err)
+			}
+			c.Obfuscation[key] = hexKey
+			return nil
+		}
 		c.Obfuscation[key] = value
 		return nil
 	}
@@ -188,9 +249,19 @@ func (c *Config) IPC() string {
 		"s1", "s2", "s3", "s4",
 		"h1", "h2", "h3", "h4",
 		"i1", "i2", "i3", "i4", "i5",
+
+		// 3.1, in the order amneziawg-tools parses them.
+		"headerprotectionkey", "contentpaddingaddition",
+		"rekeyaftertime", "rekeytimeout", "rejectaftertime",
+		"keepalivetimeout", "maxhandshakeattempts",
+		"randomtrailers", "disablecookies",
 	} {
 		if value, ok := c.Obfuscation[key]; ok {
-			fmt.Fprintf(&b, "%s=%s\n", key, value)
+			name := key
+			if mapped, ok := uapiNames[key]; ok {
+				name = mapped
+			}
+			fmt.Fprintf(&b, "%s=%s\n", name, uapiValue(key, value))
 		}
 	}
 

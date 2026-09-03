@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/Microsoft/go-winio v0.6.2
-	github.com/amnezia-vpn/amneziawg-go/v3 v3.0.20260805
+	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260814
 	golang.org/x/sys v0.47.0
 	golang.zx2c4.com/wireguard/windows v1.0.1
 )
