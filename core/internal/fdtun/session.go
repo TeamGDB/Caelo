@@ -73,6 +73,9 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 	if err != nil {
 		return nil, fmt.Errorf("adopting the tun descriptor: %w", err)
 	}
+	// Не выставляем, но сообщаем. См. mtu.go: с 3.1 от этого числа зависит
+	// размер довеска к каждому пакету, и при нуле довесок не ограничен ничем.
+	tunDevice = withMTU(tunDevice, cfg.MTU)
 
 	bind := conn.NewDefaultBind()
 	dev := device.NewDevice(tunDevice, bind, diag.DeviceLogger())
