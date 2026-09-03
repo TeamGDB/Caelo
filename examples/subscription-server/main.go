@@ -22,12 +22,15 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -156,7 +159,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	http.HandleFunc("/sub/", store.serve)
+	// The optional half of the contract. A server may implement neither and be
+	// correct; these exist because a client cannot solve either problem alone.
+	http.HandleFunc("/sub/", store.route)
 	log.Printf("listening on %s with %d subscribers", *listen, store.count())
 
 	server := &http.Server{
@@ -309,4 +314,74 @@ func userinfo(who subscriber) string {
 	}
 	return fmt.Sprintf("upload=0; download=%d; total=%d; expire=%d",
 		who.UsedBytes, who.QuotaBytes, expire)
+}
+
+// route sends /sub/<token> to the document and /sub/<token>/state to the cheap
+// summary. Written by hand rather than with a router so that the example brings
+// in nothing a reader has to go and learn.
+func (s *store) route(w http.ResponseWriter, r *http.Request) {
+	rest := strings.TrimPrefix(r.URL.Path, "/sub/")
+	if token, ok := strings.CutSuffix(rest, "/state"); ok {
+		s.serveState(w, r, token)
+		return
+	}
+	s.serve(w, r)
+}
+
+// serveState answers "has anything changed" without sending the keys.
+//
+// The versions are hashes of the content rather than counters kept beside it. A
+// counter has to be incremented by every piece of code that changes a node, and
+// the day somebody forgets, a client keeps a configuration that no longer works
+// and has no way to find out. A hash cannot be forgotten.
+func (s *store) serveState(w http.ResponseWriter, r *http.Request, token string) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", http.MethodGet)
+		http.Error(w, "", http.StatusMethodNotAllowed)
+		return
+	}
+
+	s.mu.RLock()
+	loaded := s.loaded
+	who, known := loaded.Subscribers[token]
+	s.mu.RUnlock()
+
+	if !known || (!who.Expires.IsZero() && time.Now().After(who.Expires)) {
+		http.NotFound(w, r)
+		return
+	}
+
+	// Devices, if this server keeps per-device sets. Here the header only
+	// changes what is hashed, because the example serves one set; a real server
+	// would look up that device's own nodes. What matters for the contract is
+	// that an unknown header is ignored rather than rejected.
+	device := r.Header.Get("X-Caelo-Device")
+
+	type nodeState struct {
+		ID      string `json:"id"`
+		Version string `json:"version"`
+		Server  string `json:"server"`
+	}
+	states := make([]nodeState, 0, len(who.Nodes))
+	parts := make([]string, 0, len(who.Nodes))
+	for _, name := range who.Nodes {
+		node := loaded.Nodes[name]
+		raw, err := json.Marshal(node)
+		if err != nil {
+			continue
+		}
+		sum := sha256.Sum256(append([]byte(device), raw...))
+		version := hex.EncodeToString(sum[:8])
+		states = append(states, nodeState{ID: name, Version: version, Server: node.Tag})
+		parts = append(parts, name+":"+version)
+	}
+	sort.Strings(parts)
+	whole := sha256.Sum256([]byte(strings.Join(parts, "\n")))
+
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"version": hex.EncodeToString(whole[:8]),
+		"nodes":   states,
+	})
 }

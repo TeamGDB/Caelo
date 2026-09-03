@@ -190,6 +190,102 @@ it.
 **Local choices survive an update.** A node the user picked by hand stays picked if it is
 still in the list; nothing the server sends silently overrides a decision the person made.
 
+## Optional extensions
+
+Everything above is the whole contract. What follows is optional on both sides: a client
+that ignores it works, and a server that does not implement it works. They exist because
+two problems cannot be solved by the document alone.
+
+### One device per set of keys
+
+A WireGuard peer is identified by its public key, and the server remembers exactly one
+endpoint address for it. Two devices carrying the same configuration take that peer from
+each other with every handshake, and the connection drops on both, alternately. It does
+not look like a conflict; it looks like the internet failing.
+
+So a subscription cannot hand the same nodes to a phone and a laptop. A client that
+wants one link to work on several devices sends an identifier of its own:
+
+```
+X-Caelo-Device: <opaque string, stable for this installation>
+```
+
+A server that understands it keeps a separate set of nodes per device. A server that does
+not ignores an unknown header, and the client gets what it always got — so sending it is
+safe against every existing server.
+
+The value is the client's to invent and to keep. It is not a fingerprint of the machine:
+a random string generated once and stored is exactly right, and anything derived from
+hardware is both less stable and more identifying than the job needs.
+
+A server may cap how many devices one link serves. Over the cap it answers `409` rather
+than handing out a set that would fight with another device — a refusal a person can act
+on, where a broken tunnel is not.
+
+### Asking what changed without downloading it
+
+`profile-update-interval` says how often to come back for the whole document. It cannot
+answer "has anything changed" cheaply, and the document carries the private keys of every
+node, which is a lot to fetch to discover that nothing moved.
+
+```
+GET https://example.com/sub/<token>/state
+```
+
+```json
+{
+  "version": "9f2a1c4b8e0d3a71",
+  "refresh_after_days": 7,
+  "nodes": [
+    {"id": "fra-01", "version": "1a2b3c4d5e6f7a8b", "server": "Frankfurt",
+     "created_at": "2026-08-30T09:12:00Z", "stale": false}
+  ]
+}
+```
+
+`version` covers the whole set: it changes when a node is added, removed, or altered.
+A client that stored the previous one and sees the same value knows there is nothing to
+fetch, and can ask as often as it likes.
+
+Each node's `version` covers what that node contains — keys, address, port, obfuscation.
+It is what tells a client that *this* node changed rather than some other, and it is what
+a client compares against the copy it is holding.
+
+`id` is the same identity the Caelo document uses, so the two line up. **A node absent
+from `state` has been withdrawn**, and a client holding it should drop it rather than keep
+trying a configuration the server no longer knows about.
+
+`stale` is the server saying this node's keys are old enough to be worth replacing;
+`refresh_after_days` is the threshold it used, so a client can show or schedule rather
+than only react.
+
+Versions are opaque. A client compares them for equality and nothing else — length,
+alphabet and derivation are the server's business and may change.
+
+### Asking for a node to be reissued
+
+A node can stop working while the server still lists it: the server's protocol was
+upgraded, its keys were rotated underneath, its peer was removed by hand. The client
+knows something the server does not — that this configuration does not connect.
+
+```
+POST https://example.com/sub/<token>/nodes/<id>/rotate
+```
+
+The server issues a fresh configuration for the same node, revokes the old one, and
+answers with the new `{"id", "version", "server"}`. The id changes: it is a new
+configuration, not a repaired one.
+
+This is expensive — it provisions on a real server — so a server will rate-limit it and
+answer `429` with `Retry-After`. **A client must obey that rather than retry**, because
+the failure it is reacting to may not be the node's fault at all: a device with no
+network cannot connect to anything, and a client that responds by rotating every node in
+the list will burn through a subnet before the wifi comes back.
+
+Rotate on evidence, not on a single failure. A handshake that never completes on a node
+that used to work, after other nodes have also failed, is a network problem. The same
+failure on one node while another carries traffic is the node.
+
 ## Revocation
 
 Stop serving the token: return `404` or `403`, and the client reports the subscription as
