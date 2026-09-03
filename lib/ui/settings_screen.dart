@@ -38,7 +38,11 @@ String _coreSummary(AppLocalizations l10n) {
 
   final core = _core;
   if (core == null) return l10n.coreUnavailable;
-  return '${core.core} · AmneziaWG ${core.amneziaWg}';
+  // Версия AmneziaWG первой. Строка не помещается в ряд и обрезается с
+  // многоточием, а из двух половин интересна именно эта: собственная версия
+  // ядра совпадает с версией приложения строкой выше, а вот какой AmneziaWG
+  // внутри — единственное, что здесь нельзя узнать иначе.
+  return 'AmneziaWG ${core.amneziaWg} · ${core.core}';
 }
 
 /// Settings exist for the cases the automatic choice cannot cover. They are not

@@ -142,6 +142,19 @@ abstract final class SubscriptionFetcher {
   ///
   /// Returns true if the server issued a new one.
   static Future<bool> rotate(SubscriptionNode node) async {
+    // Nothing here may throw. NodeChooser calls it without awaiting, while a
+    // person is waiting to be connected, so an exception would surface as an
+    // unhandled asynchronous error somewhere else entirely — and the thing it
+    // was trying to repair is not worth breaking the connection over.
+    try {
+      return await _rotate(node);
+    } on Object catch (error) {
+      Diagnostics.record('node reissue failed', error: error);
+      return false;
+    }
+  }
+
+  static Future<bool> _rotate(SubscriptionNode node) async {
     Subscription? owner;
     for (final subscription in await SubscriptionStore.all()) {
       if (subscription.nodes.any((candidate) => candidate.id == node.id)) {

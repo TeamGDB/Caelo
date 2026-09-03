@@ -31,6 +31,31 @@ class _Server {
 }
 
 void main() {
+  // Узел, пропавший из ответа сервера, отозван: держать его — значит пробовать
+  // конфигурацию, о которой сервер уже не знает. Список заменяется целиком,
+  // поэтому проверять надо именно то, что старый узел исчез, а не то, что
+  // новый добавился.
+  test('узел, которого сервер больше не отдаёт, исчезает', () {
+    const document =
+        '{"endpoints":[{"type":"amneziawg","tag":"Amber",'
+        '"address":["10.0.0.2/32"],'
+        '"private_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",'
+        '"peers":[{"address":"198.51.100.4","port":51820,'
+        '"public_key":"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="}]}]}';
+
+    final before = const Subscription(id: 's', url: 'https://example.com/sub/x')
+        .copyWith(
+          nodes: readNodes(document) + readNodes(document.replaceAll('Amber', 'Mett')),
+        );
+    expect(before.nodes.length, 2);
+
+    // Сервер отдаёт только один узел — второй он отозвал.
+    final after = before.copyWith(nodes: readNodes(document));
+
+    expect(after.nodes.map((node) => node.tag), ['Amber']);
+    expect(after.nodes.any((node) => node.tag == 'Mett'), isFalse);
+  });
+
   test('the state check sends the device and reads the version', () async {
     final server = _Server((request) {
       request.response
