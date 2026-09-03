@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'build_info.dart';
+import 'device_identity.dart';
 import 'diagnostics.dart';
 import 'subscription.dart';
 import 'subscription_store.dart';
@@ -53,6 +54,10 @@ abstract final class SubscriptionFetcher {
   }) async {
     try {
       final fetched = await _fetch(subscription.url);
+      // Спрашиваем версию после того, как забрали список: она описывает то, что
+      // мы только что получили, и записывать её раньше значило бы запомнить
+      // состояние, которого у нас нет.
+      final version = await peek(subscription);
 
       final updated = subscription.copyWith(
         nodes: fetched.nodes,
@@ -66,6 +71,7 @@ abstract final class SubscriptionFetcher {
         clearPin:
             subscription.pinnedId != null &&
             !fetched.nodes.any((node) => node.id == subscription.pinnedId),
+        stateVersion: version,
       );
 
       await SubscriptionStore.save(updated);
@@ -82,6 +88,99 @@ abstract final class SubscriptionFetcher {
     }
   }
 
+  /// Asks whether anything changed, without fetching the keys.
+  ///
+  /// Returns the server's opaque version, or null if it does not offer the
+  /// state endpoint — which is most of them, and not a failure. The whole point
+  /// is that this is cheap enough to ask often: the document carries the
+  /// private key of every node, and downloading all of it to discover that
+  /// nothing moved is what the interval exists to limit.
+  static Future<String?> peek(Subscription subscription) async {
+    final client = HttpClient()..connectionTimeout = timeout;
+    try {
+      final url = '${subscription.url.replaceAll(RegExp(r'/+$'), '')}/state';
+      final request = await client.getUrl(Uri.parse(url)).timeout(timeout);
+      request.headers.set(HttpHeaders.userAgentHeader, 'Caelo/$appVersion');
+      request.headers.set('X-Caelo-Device', await DeviceIdentity.get());
+      final response = await request.close().timeout(timeout);
+
+      if (response.statusCode != 200) {
+        // 404 from a server that does not implement this, 409 from one that
+        // has too many devices on the link. Neither is worth reporting here:
+        // the caller falls back to fetching the document, which says the same
+        // thing properly.
+        await response.drain<void>();
+        return null;
+      }
+
+      final decoded = jsonDecode(await _read(response));
+      if (decoded is! Map) return null;
+      final version = decoded['version'];
+      return version is String && version.isNotEmpty ? version : null;
+    } on Object {
+      // Any failure means "we do not know", and not knowing sends the caller
+      // to the full fetch — which is exactly what it did before this existed.
+      return null;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// Asks the server to issue a node again, because it does not connect.
+  ///
+  /// A node can stop working while the server still lists it: its keys were
+  /// rotated underneath, the server's protocol was upgraded, its peer was
+  /// removed by hand. The client knows something the server does not — that
+  /// this configuration does not connect.
+  ///
+  /// Expensive on the far side: it provisions on a real server. Servers
+  /// rate-limit it and answer 429, and that answer is obeyed rather than
+  /// retried, because the failure being reacted to may not be the node's fault
+  /// at all — a device with no network cannot connect to anything, and a client
+  /// that answers by rotating every node burns through a subnet before the
+  /// wifi comes back.
+  ///
+  /// Returns true if the server issued a new one.
+  static Future<bool> rotate(SubscriptionNode node) async {
+    Subscription? owner;
+    for (final subscription in await SubscriptionStore.all()) {
+      if (subscription.nodes.any((candidate) => candidate.id == node.id)) {
+        owner = subscription;
+        break;
+      }
+    }
+    if (owner == null) return false;
+
+    final client = HttpClient()..connectionTimeout = timeout;
+    try {
+      final base = owner.url.replaceAll(RegExp(r'/+$'), '');
+      final url = '$base/nodes/${Uri.encodeComponent(node.id)}/rotate';
+      final request = await client.postUrl(Uri.parse(url)).timeout(timeout);
+      request.headers.set(HttpHeaders.userAgentHeader, 'Caelo/$appVersion');
+      request.headers.set('X-Caelo-Device', await DeviceIdentity.get());
+      final response = await request.close().timeout(timeout);
+      await response.drain<void>();
+
+      if (response.statusCode == 429) {
+        Diagnostics.record('node reissue refused: asked too soon');
+        return false;
+      }
+      if (response.statusCode != 200) {
+        // 404 from a server that does not offer this, which is most of them.
+        return false;
+      }
+
+      Diagnostics.record('node reissued by the server');
+      await refresh(owner);
+      return true;
+    } on Object catch (error) {
+      Diagnostics.record('node reissue failed', error: error);
+      return false;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   /// Refreshes every subscription the server has asked us to come back to.
   ///
   /// One at a time rather than together: several requests leaving at once from
@@ -90,11 +189,27 @@ abstract final class SubscriptionFetcher {
   static Future<List<Subscription>> refreshDue({bool force = false}) async {
     final results = <Subscription>[];
     for (final subscription in await SubscriptionStore.all()) {
-      if (!force && !subscription.isDue) {
+      if (force || subscription.isDue) {
+        results.add(await refresh(subscription));
+        continue;
+      }
+
+      // Не пришло время по расписанию — но список мог поменяться раньше, чем
+      // сервер просил вернуться. Сервер, который умеет отвечать версией,
+      // говорит об этом за несколько сотен байт, и ждать полсуток, зная, что
+      // конфиг уже не тот, незачем.
+      final known = subscription.stateVersion;
+      if (known == null) {
         results.add(subscription);
         continue;
       }
-      results.add(await refresh(subscription));
+      final now = await peek(subscription);
+      if (now != null && now != known) {
+        Diagnostics.record('subscription changed ahead of schedule');
+        results.add(await refresh(subscription));
+        continue;
+      }
+      results.add(subscription);
     }
     return results;
   }
@@ -122,6 +237,14 @@ abstract final class SubscriptionFetcher {
       // client and which build and nothing else: a user agent goes to every
       // server, including one that is only pretending to be a subscription.
       request.headers.set(HttpHeaders.userAgentHeader, 'Caelo/$appVersion');
+      // Which installation is asking. A subscription cannot hand the same keys
+      // to a phone and a laptop: a WireGuard peer is identified by its public
+      // key and the server remembers one address for it, so two devices on one
+      // configuration take that peer from each other with every handshake and
+      // the connection drops on both. A server that understands this header
+      // keeps a set per device; one that does not ignores it and answers
+      // exactly as before, which is why sending it is safe everywhere.
+      request.headers.set('X-Caelo-Device', await DeviceIdentity.get());
       // Offered, not demanded. A server that understands it answers with the
       // richer document; one that does not answers with plain sing-box JSON,
       // and which arrived is decided by the response rather than by this.

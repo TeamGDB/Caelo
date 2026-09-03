@@ -667,6 +667,18 @@
 				DEVELOPMENT_TEAM = BM4788UD8M;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-force_load",
+					"$(CAELO_LIB)",
+					"-Wl,-export_dynamic",
+					"-lresolv",
+					"-framework",
+					CoreFoundation,
+					"-framework",
+					Security,
+				);
+				STRIP_STYLE = "non-global";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -850,6 +862,18 @@
 				DEVELOPMENT_TEAM = BM4788UD8M;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-force_load",
+					"$(CAELO_LIB)",
+					"-Wl,-export_dynamic",
+					"-lresolv",
+					"-framework",
+					CoreFoundation,
+					"-framework",
+					Security,
+				);
+				STRIP_STYLE = "non-global";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -875,6 +899,18 @@
 				DEVELOPMENT_TEAM = BM4788UD8M;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-force_load",
+					"$(CAELO_LIB)",
+					"-Wl,-export_dynamic",
+					"-lresolv",
+					"-framework",
+					CoreFoundation,
+					"-framework",
+					Security,
+				);
+				STRIP_STYLE = "non-global";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

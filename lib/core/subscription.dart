@@ -202,6 +202,7 @@ class Subscription {
     this.lastFetched,
     this.lastError,
     this.pinnedId,
+    this.stateVersion,
   });
 
   /// Stable across refreshes and renames, so that a pinned node and a
@@ -227,6 +228,14 @@ class Subscription {
   /// rather than replacing them: both are true at once, and an interface that
   /// showed only the error would suggest there is nothing to connect to.
   final String? lastError;
+
+  /// What the server called the state of this list last time we looked.
+  ///
+  /// Opaque: compared for equality and nothing else. It is what makes checking
+  /// cheap — the state endpoint answers with it in a few hundred bytes, while
+  /// the document itself carries the private key of every node, which is a lot
+  /// to fetch in order to learn that nothing moved.
+  final String? stateVersion;
 
   /// A node the person chose by hand, by [SubscriptionNode.id].
   ///
@@ -295,6 +304,7 @@ class Subscription {
     bool clearError = false,
     String? pinnedId,
     bool clearPin = false,
+    String? stateVersion,
   }) {
     return Subscription(
       id: id,
@@ -306,6 +316,7 @@ class Subscription {
       lastFetched: lastFetched ?? this.lastFetched,
       lastError: clearError ? null : (lastError ?? this.lastError),
       pinnedId: clearPin ? null : (pinnedId ?? this.pinnedId),
+      stateVersion: stateVersion ?? this.stateVersion,
     );
   }
 
@@ -320,6 +331,7 @@ class Subscription {
     if (lastFetched != null) 'lastFetched': lastFetched!.toIso8601String(),
     if (lastError != null) 'lastError': lastError,
     if (pinnedId != null) 'pinnedId': pinnedId,
+    if (stateVersion != null) 'stateVersion': stateVersion,
   };
 
   static Subscription fromJson(Map<String, dynamic> json) {
@@ -338,6 +350,7 @@ class Subscription {
       lastFetched: fetched == null ? null : DateTime.tryParse(fetched),
       lastError: json['lastError'] as String?,
       pinnedId: json['pinnedId'] as String?,
+      stateVersion: json['stateVersion'] as String?,
     );
   }
 }
