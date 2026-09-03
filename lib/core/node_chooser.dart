@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'config_store.dart';
 import 'diagnostics.dart';
 import 'ffi/core_library.dart';
@@ -62,17 +64,41 @@ abstract final class NodeChooser {
   /// at all — connecting each candidate for real would raise and drop a system
   /// tunnel per candidate, and on iOS and Android that restarts the tunnel
   /// extension and drops every connection on the device, once per candidate.
+  /// [probe] and [reissue] exist so the rule below can be tested without a
+  /// network and without the core. They are written out rather than passed as
+  /// tear-offs of differing shapes: `a ?? b` over two functions with no common
+  /// type infers plain `Function`, the call becomes dynamic, and it compiles
+  /// perfectly and throws on a device (#71).
   static Future<ChosenNode> choose({
     List<SubscriptionNode>? among,
     Duration perNode = perNode,
+    Future<Map<String, dynamic>> Function(
+      String endpoint, {
+      String url,
+      Duration timeout,
+    })?
+    probe,
+    Future<bool> Function(SubscriptionNode node)? reissue,
   }) async {
+    final askCore =
+        probe ??
+        (
+          String endpoint, {
+          String url = probeUrl,
+          Duration timeout = const Duration(seconds: 8),
+        }) => CoreLibrary.probe(endpoint, url: url, timeout: timeout);
+    final askForReissue =
+        reissue ?? (SubscriptionNode node) => SubscriptionFetcher.rotate(node);
+
     final candidates = among ?? await SubscriptionFetcher.candidates();
     if (candidates.isEmpty) throw const NoNodeWorked(0);
+
+    final failed = <SubscriptionNode>[];
 
     for (final node in candidates) {
       final name = node.tag.isEmpty ? 'node ${node.position}' : node.tag;
       try {
-        final result = await CoreLibrary.probe(
+        final result = await askCore(
           node.endpoint,
           url: probeUrl,
           timeout: perNode,
@@ -83,14 +109,31 @@ abstract final class NodeChooser {
         Diagnostics.record(
           'probe: $name answered in ${elapsed.inMilliseconds}ms',
         );
+        // Something worked, so the ones that did not are the nodes rather than
+        // the network — which is the only evidence that justifies asking the
+        // server to issue one again. A node can be listed and unusable: its
+        // keys rotated underneath, its peer removed by hand, its server's
+        // protocol upgraded past what this configuration says.
+        //
+        // One per pass, and never awaited: this is repair, and the person is
+        // waiting to be connected. The server rate-limits it and answers 429,
+        // which SubscriptionFetcher.rotate obeys rather than retries.
+        if (failed.isNotEmpty) {
+          unawaited(askForReissue(failed.first));
+        }
         return ChosenNode(node: node, latency: elapsed);
       } on Object catch (error) {
         // Recorded and moved past. A node that does not answer is the ordinary
         // case this exists to handle, not a failure worth stopping for.
         Diagnostics.record('probe: $name did not answer', error: error);
+        failed.add(node);
       }
     }
 
+    // Every one of them failed, so nothing here is evidence about any node. A
+    // device with no network cannot connect to anything, and a client that
+    // answered by reissuing the whole list would burn through a subnet the
+    // first time somebody walked into a lift.
     throw NoNodeWorked(candidates.length);
   }
 

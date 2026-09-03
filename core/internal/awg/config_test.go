@@ -2,6 +2,7 @@ package awg
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"strings"
 	"testing"
 )
@@ -170,4 +171,92 @@ func TestRejections(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Конфиг 3.1-сервера должен доезжать до устройства целиком и под теми именами,
+// которые оно понимает. Взято с живого сервера Sima.
+func TestIPCCarriesAmnezia31(t *testing.T) {
+	cfg, err := Parse(`[Interface]
+PrivateKey = ` + fakeKey(1) + `
+Address = 10.8.1.4/32
+Jc = 4
+S1 = 79
+H1 = 1
+HeaderProtectionKey = ` + fakeKey(3) + `
+ContentPaddingAddition = 10-100
+RekeyAfterTime = 100-120
+RekeyTimeout = 3-7
+RejectAfterTime = 150-180
+KeepaliveTimeout = 5-15
+MaxHandshakeAttempts = 15-20
+RandomTrailers = on
+DisableCookies = on
+
+[Peer]
+PublicKey = ` + fakeKey(2) + `
+Endpoint = 198.51.100.4:48881
+AllowedIPs = 0.0.0.0/0
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ipc := cfg.IPC()
+	for _, want := range []string{
+		"header_protection_key=" + hexOf(fakeKey(3)),
+		"content_padding_addition=10-100",
+		"rekey_after_time=100-120",
+		"reject_after_time=150-180",
+		"keepalive_timeout=5-15",
+		"max_handshake_attempts=15-20",
+	} {
+		if !strings.Contains(ipc, want) {
+			t.Errorf("в IPC нет %q:\n%s", want, ipc)
+		}
+	}
+
+	// "on" из файла и strconv.ParseBool в устройстве не совпадают: ParseBool
+	// не знает такого слова, и параметр, переданный как есть, обрушил бы
+	// настройку целиком с "failed to parse random trailers".
+	for _, want := range []string{"random_trailers=true", "disable_cookies=true"} {
+		if !strings.Contains(ipc, want) {
+			t.Errorf("флаг не переведён в то, что читает устройство: нет %q:\n%s", want, ipc)
+		}
+	}
+	if strings.Contains(ipc, "=on") {
+		t.Error("в IPC осталось значение из файла вместо значения для устройства")
+	}
+}
+
+// 2.x-сервер после этого выдаёт ровно то же, что и раньше.
+func TestIPCUnchangedFor20(t *testing.T) {
+	cfg, err := Parse(`[Interface]
+PrivateKey = ` + fakeKey(1) + `
+Address = 10.10.10.2/32
+Jc = 4
+
+[Peer]
+PublicKey = ` + fakeKey(2) + `
+Endpoint = 198.51.100.4:51820
+AllowedIPs = 0.0.0.0/0
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ipc := cfg.IPC()
+	for _, unwanted := range []string{"random_trailers", "header_protection_key", "keepalive_timeout"} {
+		if strings.Contains(ipc, unwanted) {
+			t.Errorf("у 2.x-конфига появился %q:\n%s", unwanted, ipc)
+		}
+	}
+}
+
+// hexOf — то же преобразование, что делает разбор конфига: ключи в файле
+// base64, в UAPI hex.
+func hexOf(key string) string {
+	raw, err := base64.StdEncoding.DecodeString(key)
+	if err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(raw)
 }

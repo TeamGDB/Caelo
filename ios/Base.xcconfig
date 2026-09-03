@@ -34,4 +34,17 @@ CAELO_LIB[sdk=iphonesimulator*] = $(SRCROOT)/Frameworks/caelo.xcframework/ios-ar
 //
 // resolv and the two frameworks are what the Go runtime needs on Apple
 // platforms: DNS, and the system trust store for TLS.
-OTHER_LDFLAGS = $(inherited) -force_load $(CAELO_LIB) -Wl,-export_dynamic -lresolv -framework CoreFoundation -framework Security
+// Сами флаги живут в project.pbxproj, у конфигураций таргета Runner, и это не
+// вкусовщина.
+//
+// Flutter/Release.xcconfig подключает этот файл первым, а конфиг Pods — вторым.
+// В xcconfig более позднее присваивание затирает раннее, а $(inherited) берёт
+// значение нижележащего слоя, а не предыдущего #include в том же файле. Строка
+// Pods с её -framework молча стирала отсюда и -force_load, и -export_dynamic:
+// приложение собиралось, ядро в него не попадало, а DynamicLibrary.process()
+// не находил ни одного caelo_-символа. В собранном бинарнике оставался ровно
+// один экспортируемый символ против 37 у расширения, которое свои флаги держит
+// в проекте — потому и работало.
+//
+// В pbxproj настройки таргета старше всей цепочки xcconfig, и $(inherited) там
+// подхватывает Pods, а не отменяет его.
