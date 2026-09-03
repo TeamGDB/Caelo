@@ -7,6 +7,7 @@ import 'ffi/core_library.dart';
 import 'node_chooser.dart';
 import 'settings_store.dart';
 import 'subscription.dart';
+import 'subscription_fetcher.dart';
 import 'subscription_store.dart';
 
 @immutable
@@ -20,6 +21,7 @@ class ServerOption {
     this.configId,
     this.subscriptionId,
     this.nodeId,
+    this.serverId,
     this.available = true,
   });
 
@@ -31,7 +33,16 @@ class ServerOption {
   final String? configId;
   final String? subscriptionId;
   final String? nodeId;
+
+  /// Set when the subscription offers this server but has no keys for it yet.
+  /// Choosing it asks for them; until then there is nothing to connect with and
+  /// nothing to measure.
+  final String? serverId;
+
   final bool available;
+
+  /// Whether picking this costs a round trip to the subscription.
+  bool get needsKeys => nodeId == null && serverId != null;
 
   ServerOption withLatency(int latencyMs) => ServerOption(
     id: id,
@@ -42,6 +53,7 @@ class ServerOption {
     configId: configId,
     subscriptionId: subscriptionId,
     nodeId: nodeId,
+    serverId: serverId,
     available: available,
   );
 }
@@ -95,6 +107,19 @@ class SubscriptionServerCatalog implements ServerCatalog {
             nodeId: node.id,
             available: !node.maintenance,
           ),
+      // Серверы, которые подписка может выдать, но ещё не выдала. Ключей у них
+      // нет, поэтому и узла нет: он появится, когда его выберут.
+      for (final subscription in subscriptions)
+        for (final server in subscription.available)
+          if (!server.ready)
+            ServerOption(
+              id: 'offer:${subscription.id}:${server.id}',
+              name: server.name,
+              description: server.description,
+              flag: server.flag.isEmpty ? '🌐' : server.flag,
+              subscriptionId: subscription.id,
+              serverId: server.id,
+            ),
       for (final config in configs)
         ServerOption(
           id: 'user-${config.id}',
@@ -137,6 +162,7 @@ class ServerSelectionController extends ChangeNotifier {
     this.readSelected = SettingsStore.selectedServerId,
     this.writeSelected = SettingsStore.setSelectedServerId,
     this.activateConfiguration = ConfigStore.select,
+    this.grantServer = SubscriptionFetcher.enable,
     this.activateNode = _activateNode,
     this.latencyRefreshInterval = const Duration(seconds: 5),
   });
@@ -145,6 +171,9 @@ class ServerSelectionController extends ChangeNotifier {
   final Future<String?> Function() readSelected;
   final Future<void> Function(String) writeSelected;
   final Future<void> Function(String) activateConfiguration;
+
+  /// Asks a subscription for keys on one of the servers it offers.
+  final Future<Subscription?> Function(Subscription, String) grantServer;
   final Future<void> Function(String, String) activateNode;
   final Duration? latencyRefreshInterval;
   List<ServerOption> servers = const [];
@@ -189,6 +218,24 @@ class ServerSelectionController extends ChangeNotifier {
 
   Future<void> select(ServerOption server) async {
     if (!servers.contains(server) || !server.available) return;
+
+    // Ключей ещё нет — просим их и перечитываем список: узел появляется только
+    // после того, как сервер его выдал.
+    if (server.needsKeys) {
+      final granted = await requestKeys(server);
+      if (!granted) return;
+      await load();
+      final now = servers.firstWhere(
+        (candidate) =>
+            candidate.subscriptionId == server.subscriptionId &&
+            candidate.name == server.name &&
+            candidate.nodeId != null,
+        orElse: () => server,
+      );
+      if (now.nodeId == null) return;
+      return select(now);
+    }
+
     if (server.configId case final id?) {
       await activateConfiguration(id);
     } else if ((server.subscriptionId, server.nodeId) case (
@@ -200,6 +247,23 @@ class ServerSelectionController extends ChangeNotifier {
     await writeSelected(server.id);
     selected = server;
     notifyListeners();
+  }
+
+  /// Asks the subscription for keys on a server it offers.
+  ///
+  /// Separate and injectable so the picker can be driven in a test without a
+  /// network, and written out rather than passed as a tear-off: `a ?? b` over
+  /// two functions with no common type infers plain Function and goes dynamic,
+  /// which compiles and then throws on a device (#71).
+  Future<bool> requestKeys(ServerOption server) async {
+    final subscriptionId = server.subscriptionId;
+    final serverId = server.serverId;
+    if (subscriptionId == null || serverId == null) return false;
+
+    final subscription = await SubscriptionStore.byId(subscriptionId);
+    if (subscription == null) return false;
+
+    return await grantServer(subscription, serverId) != null;
   }
 
   static Future<void> _activateNode(

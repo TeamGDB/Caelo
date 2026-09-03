@@ -58,7 +58,11 @@ class SubscriptionNode {
   /// Regional indicators are the letters offset into a block of their own, so
   /// this is arithmetic rather than a table of two hundred entries that would
   /// go out of date.
-  String get flag {
+  String get flag => flagFor(country);
+
+  /// Shared with [AvailableServer], which needs the same arithmetic for the
+  /// same reason and should not carry a second copy of it.
+  static String flagFor(String country) {
     if (country.length != 2) return '';
     final upper = country.toUpperCase();
     const base = 0x1F1E6;
@@ -191,6 +195,47 @@ class SubscriptionUsage {
 /// returned. A subscription that is unreachable, or that answers with something
 /// unparseable, leaves this untouched and the client keeps working. Whatever
 /// else is failing, the VPN is what somebody is trying to use to fix it.
+/// A server the subscription can hand out but has not yet.
+///
+/// No keys: until a configuration exists there is nothing to carry. The client
+/// shows it in the list and asks for it when somebody picks it — which is what
+/// stops a subscription provisioning every server on a link nobody will use.
+class AvailableServer {
+  const AvailableServer({
+    required this.id,
+    required this.name,
+    this.country = '',
+    this.description = '',
+    this.ready = false,
+  });
+
+  final String id;
+  final String name;
+  final String country;
+  final String description;
+
+  /// Whether this device already has keys for it.
+  final bool ready;
+
+  String get flag => SubscriptionNode.flagFor(country);
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    if (country.isNotEmpty) 'country': country,
+    if (description.isNotEmpty) 'description': description,
+    'ready': ready,
+  };
+
+  static AvailableServer fromJson(Map<String, dynamic> json) => AvailableServer(
+    id: json['id'] as String? ?? '',
+    name: json['name'] as String? ?? '',
+    country: json['country'] as String? ?? '',
+    description: json['description'] as String? ?? '',
+    ready: json['ready'] as bool? ?? false,
+  );
+}
+
 class Subscription {
   const Subscription({
     required this.id,
@@ -203,6 +248,7 @@ class Subscription {
     this.lastError,
     this.pinnedId,
     this.stateVersion,
+    this.available = const [],
   });
 
   /// Stable across refreshes and renames, so that a pinned node and a
@@ -236,6 +282,11 @@ class Subscription {
   /// the document itself carries the private key of every node, which is a lot
   /// to fetch in order to learn that nothing moved.
   final String? stateVersion;
+
+  /// Everything this subscription can hand out, whether or not it has. Empty
+  /// against a server that does not offer the catalogue, and then the node list
+  /// is the whole of what there is.
+  final List<AvailableServer> available;
 
   /// A node the person chose by hand, by [SubscriptionNode.id].
   ///
@@ -305,6 +356,7 @@ class Subscription {
     String? pinnedId,
     bool clearPin = false,
     String? stateVersion,
+    List<AvailableServer>? available,
   }) {
     return Subscription(
       id: id,
@@ -317,6 +369,7 @@ class Subscription {
       lastError: clearError ? null : (lastError ?? this.lastError),
       pinnedId: clearPin ? null : (pinnedId ?? this.pinnedId),
       stateVersion: stateVersion ?? this.stateVersion,
+      available: available ?? this.available,
     );
   }
 
@@ -332,6 +385,8 @@ class Subscription {
     if (lastError != null) 'lastError': lastError,
     if (pinnedId != null) 'pinnedId': pinnedId,
     if (stateVersion != null) 'stateVersion': stateVersion,
+    if (available.isNotEmpty)
+      'available': available.map((server) => server.toJson()).toList(),
   };
 
   static Subscription fromJson(Map<String, dynamic> json) {
@@ -351,6 +406,10 @@ class Subscription {
       lastError: json['lastError'] as String?,
       pinnedId: json['pinnedId'] as String?,
       stateVersion: json['stateVersion'] as String?,
+      available: (json['available'] as List? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(AvailableServer.fromJson)
+          .toList(),
     );
   }
 }
