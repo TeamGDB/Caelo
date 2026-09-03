@@ -45,7 +45,9 @@ void main() {
 
     final before = const Subscription(id: 's', url: 'https://example.com/sub/x')
         .copyWith(
-          nodes: readNodes(document) + readNodes(document.replaceAll('Amber', 'Mett')),
+          nodes:
+              readNodes(document) +
+              readNodes(document.replaceAll('Amber', 'Mett')),
         );
     expect(before.nodes.length, 2);
 
@@ -93,17 +95,20 @@ void main() {
     await server.stop();
   });
 
-  test('the version is remembered so the next check has something to compare', () {
-    const before = Subscription(id: 's', url: 'https://example.com/sub/x');
-    expect(before.stateVersion, isNull);
+  test(
+    'the version is remembered so the next check has something to compare',
+    () {
+      const before = Subscription(id: 's', url: 'https://example.com/sub/x');
+      expect(before.stateVersion, isNull);
 
-    final after = before.copyWith(stateVersion: 'v1');
-    expect(after.stateVersion, 'v1');
+      final after = before.copyWith(stateVersion: 'v1');
+      expect(after.stateVersion, 'v1');
 
-    // Through storage as well: a version kept only in memory would send the
-    // client for the whole document on every launch.
-    expect(Subscription.fromJson(after.toJson()).stateVersion, 'v1');
-  });
+      // Through storage as well: a version kept only in memory would send the
+      // client for the whole document on every launch.
+      expect(Subscription.fromJson(after.toJson()).stateVersion, 'v1');
+    },
+  );
 }
 
 extension on Subscription {
