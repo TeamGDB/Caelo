@@ -173,7 +173,6 @@ func ParseConfig(text string) (*Config, error) {
 func (c *Config) setInterface(key, value string) error {
 	if obfuscationKeys[key] {
 		return c.SetObfuscation(key, value)
-		return nil
 	}
 
 	switch key {
