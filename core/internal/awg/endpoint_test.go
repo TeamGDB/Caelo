@@ -3,6 +3,7 @@ package awg
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -156,5 +157,54 @@ func TestLooksLikeJSON(t *testing.T) {
 	}
 	if LooksLikeJSON("") {
 		t.Error("nothing at all was taken for JSON")
+	}
+}
+
+// Регрессия, которую видно было только на живом сервере: подписка отдавала
+// endpoint без параметров 3.1, и сервер с RandomTrailers не отвечал на
+// рукопожатия. Из .conf тот же сервер подключался, из ссылки — нет.
+func TestEndpointCarriesAmnezia31(t *testing.T) {
+	cfg, err := ParseEndpoint([]byte(`{
+		"type": "amneziawg",
+		"tag": "Sima",
+		"address": ["10.8.1.4/32"],
+		"private_key": "` + fakeKey(1) + `",
+		"peers": [{
+			"address": "198.51.100.4", "port": 48881,
+			"public_key": "` + fakeKey(2) + `"
+		}],
+		"jc": 4, "s1": 79, "h1": "1",
+		"header_protection_key": "` + fakeKey(3) + `",
+		"content_padding_addition": "10-100",
+		"rekey_after_time": "100-120",
+		"reject_after_time": "150-180",
+		"keepalive_timeout": "5-15",
+		"max_handshake_attempts": "15-20",
+		"random_trailers": "on",
+		"disable_cookies": "on"
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ipc := cfg.IPC()
+	for _, want := range []string{
+		"content_padding_addition=10-100",
+		"reject_after_time=150-180",
+		"keepalive_timeout=5-15",
+		"max_handshake_attempts=15-20",
+		"random_trailers=true",
+		"disable_cookies=true",
+	} {
+		if !strings.Contains(ipc, want) {
+			t.Errorf("в IPC нет %q:\n%s", want, ipc)
+		}
+	}
+
+	// Ключ защиты заголовков едет base64 и там, и там, а устройство читает hex.
+	// Перевод должен случиться на обоих путях одинаково, иначе сервер работает
+	// из файла и молчит по ссылке.
+	if !strings.Contains(ipc, "header_protection_key="+hexOf(fakeKey(3))) {
+		t.Errorf("ключ защиты заголовков не переведён в hex:\n%s", ipc)
 	}
 }

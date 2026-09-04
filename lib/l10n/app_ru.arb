@@ -45,6 +45,10 @@
     }
   },
   "currentConnection": "Текущее подключение",
+  "serverPreparing": "Готовим…",
+  "@serverPreparing": {
+    "description": "Shown while the subscription is issuing keys for a server somebody just chose."
+  },
   "latency": "{ping} мс",
   "@latency": {
     "placeholders": {

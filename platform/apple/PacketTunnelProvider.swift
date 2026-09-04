@@ -82,6 +82,19 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
 
         protectSockets()
+
+        // Ждём настоящего рукопожатия, а не поднятого интерфейса.
+        //
+        // iOS считает туннель подключённым, как только startTunnel вернулся, и
+        // человек видит «подключено» до того, как хоть один пакет дошёл до
+        // сервера. Если связи нет, единственный способ это узнать — что ничего
+        // не грузится. Лучше не вернуться отсюда и дать системе сказать правду.
+        let shook = call { caelo_wait_handshake_fd(12_000) }
+        guard shook?["handshake"] as? Bool == true else {
+            fault("no handshake with the peer within 12s")
+            throw NEVPNError(.connectionFailed)
+        }
+
         note("tunnel up")
 
         // The core's own account of the handshake, folded into the same file so

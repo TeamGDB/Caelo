@@ -15,6 +15,8 @@ package fdtun
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -73,6 +75,9 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 	if err != nil {
 		return nil, fmt.Errorf("adopting the tun descriptor: %w", err)
 	}
+	// Не выставляем, но сообщаем. См. mtu.go: с 3.1 от этого числа зависит
+	// размер довеска к каждому пакету, и при нуле довесок не ограничен ничем.
+	tunDevice = withMTU(tunDevice, cfg.MTU)
 
 	bind := conn.NewDefaultBind()
 	dev := device.NewDevice(tunDevice, bind, diag.DeviceLogger())
@@ -127,6 +132,47 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 // The sockets only exist once the device is up, so this cannot happen before
 // Start. The handshake is retried, so protecting immediately afterwards is in
 // time: the first attempt may be lost, and the second will not be.
+// WaitForHandshake ждёт, пока с пиром состоится рукопожатие.
+//
+// Существует, потому что «интерфейс поднят» и «связь есть» — разные вещи, а
+// снаружи их не различить. iOS считает туннель подключённым, как только
+// startTunnel вернулся, и человек видит «подключено» до того, как хоть один
+// пакет дошёл до сервера. Ждать здесь честнее: пока рукопожатия нет, говорить
+// не о чем.
+//
+// Опрос, а не подписка: устройство не сообщает о рукопожатии наружу, а время
+// последнего лежит в его же состоянии и читается через тот же IPC, которым мы
+// его настраивали.
+func (s *Session) WaitForHandshake(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		s.mu.Lock()
+		dev := s.device
+		s.mu.Unlock()
+		if dev == nil {
+			return false
+		}
+
+		var out strings.Builder
+		if err := dev.IpcGetOperation(&out); err == nil {
+			for _, line := range strings.Split(out.String(), "\n") {
+				value, ok := strings.CutPrefix(line, "last_handshake_time_sec=")
+				if !ok || value == "0" {
+					continue
+				}
+				if seconds, err := strconv.ParseInt(value, 10, 64); err == nil && seconds > 0 {
+					return true
+				}
+			}
+		}
+
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
 func (s *Session) SocketFds() (v4 int, v6 int) {
 	s.mu.Lock()
 	bind := s.bind

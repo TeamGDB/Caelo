@@ -8,6 +8,10 @@
 //
 // Included rather than duplicated so the extension cannot drift to a different
 // version from the app it ships inside.
+// Base даёт CAELO_LIB — путь к нужному срезу ядра, выбранный по SDK. Без него
+// расширению приходилось называть срез вручную, и оно называло устройство:
+// сборка под симулятор падала на «linking in object file built for iOS».
+#include "../Base.xcconfig"
 #include "Generated.xcconfig"
 
 DEVELOPMENT_TEAM = BM4788UD8M

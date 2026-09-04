@@ -102,6 +102,9 @@ class AppLocalizationsRu extends AppLocalizations {
   String get currentConnection => 'Текущее подключение';
 
   @override
+  String get serverPreparing => 'Готовим…';
+
+  @override
   String latency(int ping) {
     return '$ping мс';
   }

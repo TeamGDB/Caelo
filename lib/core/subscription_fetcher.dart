@@ -57,7 +57,7 @@ abstract final class SubscriptionFetcher {
       // Спрашиваем версию после того, как забрали список: она описывает то, что
       // мы только что получили, и записывать её раньше значило бы запомнить
       // состояние, которого у нас нет.
-      final version = await peek(subscription);
+      final seen = await look(subscription);
 
       final updated = subscription.copyWith(
         nodes: fetched.nodes,
@@ -71,7 +71,8 @@ abstract final class SubscriptionFetcher {
         clearPin:
             subscription.pinnedId != null &&
             !fetched.nodes.any((node) => node.id == subscription.pinnedId),
-        stateVersion: version,
+        stateVersion: seen.version,
+        available: seen.servers,
       );
 
       await SubscriptionStore.save(updated);
@@ -95,7 +96,21 @@ abstract final class SubscriptionFetcher {
   /// is that this is cheap enough to ask often: the document carries the
   /// private key of every node, and downloading all of it to discover that
   /// nothing moved is what the interval exists to limit.
-  static Future<String?> peek(Subscription subscription) async {
+  static Future<({String? version, List<AvailableServer> servers})> look(
+    Subscription subscription,
+  ) async {
+    final version = await peek(subscription, catalogue: _catalogue);
+    return (version: version, servers: _catalogue.toList());
+  }
+
+  /// Filled by the last [peek]. A field rather than a return value because the
+  /// version is what most callers want and the catalogue is the exception.
+  static final List<AvailableServer> _catalogue = [];
+
+  static Future<String?> peek(
+    Subscription subscription, {
+    List<AvailableServer>? catalogue,
+  }) async {
     final client = HttpClient()..connectionTimeout = timeout;
     try {
       final url = '${subscription.url.replaceAll(RegExp(r'/+$'), '')}/state';
@@ -115,6 +130,18 @@ abstract final class SubscriptionFetcher {
 
       final decoded = jsonDecode(await _read(response));
       if (decoded is! Map) return null;
+
+      if (catalogue != null) {
+        catalogue
+          ..clear()
+          ..addAll(
+            (decoded['servers'] as List? ?? const [])
+                .whereType<Map<String, dynamic>>()
+                .map(AvailableServer.fromJson)
+                .where((server) => server.id.isNotEmpty),
+          );
+      }
+
       final version = decoded['version'];
       return version is String && version.isNotEmpty ? version : null;
     } on Object {
@@ -189,6 +216,51 @@ abstract final class SubscriptionFetcher {
     } on Object catch (error) {
       Diagnostics.record('node reissue failed', error: error);
       return false;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// Asks the server for keys on one of the servers it offers.
+  ///
+  /// The subscription hands out what somebody actually picked rather than
+  /// everything it could: provisioning happens on a real server over SSH, and
+  /// doing it for every server on a link is how one subscription ended up with
+  /// twenty-eight configurations nobody used and a minute and a half of waiting
+  /// on the first launch.
+  ///
+  /// Returns the refreshed subscription, with the new node in it.
+  static Future<Subscription?> enable(
+    Subscription subscription,
+    String serverId,
+  ) async {
+    final client = HttpClient()..connectionTimeout = timeout;
+    try {
+      final base = subscription.url.replaceAll(RegExp(r'/+$'), '');
+      final url = '$base/servers/${Uri.encodeComponent(serverId)}';
+      // Longer than the rest: this provisions on a live server, which is
+      // seconds rather than milliseconds, and giving up early would leave the
+      // peer created and the client not knowing about it.
+      final request = await client
+          .postUrl(Uri.parse(url))
+          .timeout(const Duration(seconds: 60));
+      request.headers.set(HttpHeaders.userAgentHeader, 'Caelo/$appVersion');
+      request.headers.set('X-Caelo-Device', await DeviceIdentity.get());
+      final response = await request.close().timeout(
+        const Duration(seconds: 60),
+      );
+      await response.drain<void>();
+
+      if (response.statusCode != 200) {
+        Diagnostics.record('server not granted: ${response.statusCode}');
+        return null;
+      }
+
+      Diagnostics.record('server granted, refreshing the list');
+      return await refresh(subscription);
+    } on Object catch (error) {
+      Diagnostics.record('asking for a server failed', error: error);
+      return null;
     } finally {
       client.close(force: true);
     }

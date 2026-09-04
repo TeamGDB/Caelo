@@ -266,6 +266,12 @@ abstract class AppLocalizations {
   /// **'Current connection'**
   String get currentConnection;
 
+  /// Shown while the subscription is issuing keys for a server somebody just chose.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing…'**
+  String get serverPreparing;
+
   /// Measured round-trip latency reported by the core.
   ///
   /// In en, this message translates to:

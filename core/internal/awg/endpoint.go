@@ -53,6 +53,25 @@ type Endpoint struct {
 	I3   Scalar `json:"i3,omitempty"`
 	I4   Scalar `json:"i4,omitempty"`
 	I5   Scalar `json:"i5,omitempty"`
+
+	// Added by AmneziaWG 3.1. A server on 3.0 sends none of them and behaves
+	// exactly as before; a server that turned RandomTrailers on and did not
+	// send them would be one this client cannot talk to at all, because a
+	// handshake is identified by its size and one with random bytes appended
+	// is not recognised.
+	//
+	// The flags travel as "on"/"off", the way a .conf writes them, rather than
+	// as JSON booleans: everything else here is text, and one field with a
+	// different convention is one more thing to get wrong at both ends.
+	HeaderProtectionKey    Scalar `json:"header_protection_key,omitempty"`
+	ContentPaddingAddition Scalar `json:"content_padding_addition,omitempty"`
+	RekeyAfterTime         Scalar `json:"rekey_after_time,omitempty"`
+	RekeyTimeout           Scalar `json:"rekey_timeout,omitempty"`
+	RejectAfterTime        Scalar `json:"reject_after_time,omitempty"`
+	KeepaliveTimeout       Scalar `json:"keepalive_timeout,omitempty"`
+	MaxHandshakeAttempts   Scalar `json:"max_handshake_attempts,omitempty"`
+	RandomTrailers         Scalar `json:"random_trailers,omitempty"`
+	DisableCookies         Scalar `json:"disable_cookies,omitempty"`
 }
 
 // EndpointPeer is the far end. AmneziaWG describes exactly one, but the field
@@ -197,9 +216,26 @@ func (e Endpoint) Config() (*Config, error) {
 		"s1": e.S1, "s2": e.S2, "s3": e.S3, "s4": e.S4,
 		"h1": e.H1, "h2": e.H2, "h3": e.H3, "h4": e.H4,
 		"i1": e.I1, "i2": e.I2, "i3": e.I3, "i4": e.I4, "i5": e.I5,
+
+		"headerprotectionkey":    e.HeaderProtectionKey,
+		"contentpaddingaddition": e.ContentPaddingAddition,
+		"rekeyaftertime":         e.RekeyAfterTime,
+		"rekeytimeout":           e.RekeyTimeout,
+		"rejectaftertime":        e.RejectAfterTime,
+		"keepalivetimeout":       e.KeepaliveTimeout,
+		"maxhandshakeattempts":   e.MaxHandshakeAttempts,
+		"randomtrailers":         e.RandomTrailers,
+		"disablecookies":         e.DisableCookies,
 	} {
-		if value != "" {
-			cfg.Obfuscation[key] = string(value)
+		if value == "" {
+			continue
+		}
+		// Через общую запись, а не присваиванием в карту: ключ защиты
+		// заголовков надо перевести в тот вид, который читает устройство, и
+		// делать это в двух местах по-разному — как раз то, из-за чего сервер
+		// 3.1 работал из файла и не работал по подписке.
+		if err := cfg.SetObfuscation(key, string(value)); err != nil {
+			return nil, err
 		}
 	}
 
