@@ -57,6 +57,29 @@ var obfuscationKeys = map[string]bool{
 	"randomtrailers": true, "disablecookies": true,
 }
 
+// SetObfuscation записывает параметр обфускации, приводя значение к тому виду,
+// в котором его читает устройство.
+//
+// Общая для обоих путей — файла .conf и endpoint'а из подписки. Раньше перевод
+// жил только в разборе файла, и параметр, пришедший подпиской, доезжал до
+// устройства в другом виде: сервер 3.1 подключался из .conf и не подключался по
+// ссылке, чего снаружи не объяснить ничем.
+func (c *Config) SetObfuscation(key, value string) error {
+	if key == "headerprotectionkey" {
+		// В файле и в подписке ключ записан base64, как все ключи WireGuard, а
+		// устройство читает его hex — как все ключи WireGuard в UAPI. Без
+		// перевода настройка падает на "invalid byte".
+		hexKey, err := keyToHex(value)
+		if err != nil {
+			return fmt.Errorf("HeaderProtectionKey: %w", err)
+		}
+		c.Obfuscation[key] = hexKey
+		return nil
+	}
+	c.Obfuscation[key] = value
+	return nil
+}
+
 // uapiValue converts a value written the way a .conf writes it into the way the
 // device reads it.
 //
@@ -149,19 +172,7 @@ func ParseConfig(text string) (*Config, error) {
 
 func (c *Config) setInterface(key, value string) error {
 	if obfuscationKeys[key] {
-		// Ключ защиты заголовков в файле записан base64, как и все ключи
-		// WireGuard, а устройство читает его hex — как и все ключи WireGuard в
-		// UAPI. Без перевода настройка падает на "invalid byte" и туннель не
-		// поднимается вовсе.
-		if key == "headerprotectionkey" {
-			hexKey, err := keyToHex(value)
-			if err != nil {
-				return fmt.Errorf("HeaderProtectionKey: %w", err)
-			}
-			c.Obfuscation[key] = hexKey
-			return nil
-		}
-		c.Obfuscation[key] = value
+		return c.SetObfuscation(key, value)
 		return nil
 	}
 

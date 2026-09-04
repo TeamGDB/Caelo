@@ -209,6 +209,11 @@ final class VpnManager {
 
     @objc private func statusChanged(_ notification: Notification) {
         guard let connection = notification.object as? NEVPNConnection else { return }
+        // Только наше соединение. Уведомление приходит от каждого объекта
+        // NEVPNConnection, который сейчас жив, а loadAllFromPreferences каждый
+        // раз создаёт новые: в логе одно изменение статуса приходило по девять
+        // раз, по числу накопившихся менеджеров.
+        guard connection === manager?.connection else { return }
         DispatchQueue.main.async {
             self.channel.invokeMethod("status", arguments: Self.name(for: connection.status))
         }

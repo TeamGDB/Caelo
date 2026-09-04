@@ -8,6 +8,8 @@ package main
 import "C"
 
 import (
+	"time"
+
 	"github.com/TeamGDB/Caelo/core/internal/fdtun"
 )
 
@@ -29,6 +31,21 @@ func caelo_connect_fd(tunFd C.int, configText *C.char) *C.char {
 		return failure(err)
 	}
 	return success(status)
+}
+
+// caelo_wait_handshake_fd waits until the tunnel has actually spoken to its
+// peer, or until the timeout runs out.
+//
+// The distinction matters to a person: iOS calls a tunnel connected the moment
+// startTunnel returns, which is before a single packet has reached the server.
+// The app then says "connected" over a tunnel that may never carry anything,
+// and the only way to find out is that nothing loads. Waiting for the handshake
+// moves that discovery to where it belongs.
+//
+//export caelo_wait_handshake_fd
+func caelo_wait_handshake_fd(timeoutMs C.int) *C.char {
+	ok := hosted.WaitForHandshake(time.Duration(timeoutMs) * time.Millisecond)
+	return marshal(map[string]any{"ok": true, "handshake": ok})
 }
 
 // caelo_socket_fds reports the sockets carrying tunnel traffic, so the host can
