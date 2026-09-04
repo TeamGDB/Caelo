@@ -163,6 +163,7 @@ class ServerSelectionController extends ChangeNotifier {
     this.writeSelected = SettingsStore.setSelectedServerId,
     this.activateConfiguration = ConfigStore.select,
     this.grantServer = SubscriptionFetcher.enable,
+    this.readSubscription = SubscriptionStore.byId,
     this.activateNode = _activateNode,
     this.latencyRefreshInterval = const Duration(seconds: 5),
   });
@@ -174,10 +175,26 @@ class ServerSelectionController extends ChangeNotifier {
 
   /// Asks a subscription for keys on one of the servers it offers.
   final Future<Subscription?> Function(Subscription, String) grantServer;
+
+  /// Reads a stored subscription. A seam so the picker can be driven without
+  /// storage, which is what a test has instead of a filesystem.
+  final Future<Subscription?> Function(String) readSubscription;
   final Future<void> Function(String, String) activateNode;
   final Duration? latencyRefreshInterval;
   List<ServerOption> servers = const [];
   ServerOption? selected;
+
+  /// The server being prepared, if one is.
+  ///
+  /// Asking a subscription for keys takes seconds -- it provisions on a real
+  /// server over SSH. Without somewhere to say so, the list went on showing the
+  /// previous choice for all of it, and the obvious thing to do with a list
+  /// that has not reacted is to tap something else, which connected through
+  /// whatever was tapped second.
+  ServerOption? preparing;
+
+  /// Whether a choice is waiting on the subscription.
+  bool get isPreparing => preparing != null;
   int _loadGeneration = 0;
   Timer? _latencyRefreshTimer;
 
@@ -222,9 +239,23 @@ class ServerSelectionController extends ChangeNotifier {
     // Ключей ещё нет — просим их и перечитываем список: узел появляется только
     // после того, как сервер его выдал.
     if (server.needsKeys) {
-      final granted = await requestKeys(server);
-      if (!granted) return;
-      await load();
+      // Один запрос за раз. Пока идёт выдача, второе нажатие означало бы второй
+      // peer на другом сервере — и подключение к тому, что нажали позже, а не к
+      // тому, что выбрали.
+      if (isPreparing) return;
+
+      // Отмечаем выбранным сразу: человек нажал, и список обязан это показать,
+      // не дожидаясь чужого сервера.
+      preparing = server;
+      notifyListeners();
+      try {
+        final granted = await requestKeys(server);
+        if (!granted) return;
+        await load();
+      } finally {
+        preparing = null;
+        notifyListeners();
+      }
       final now = servers.firstWhere(
         (candidate) =>
             candidate.subscriptionId == server.subscriptionId &&
@@ -260,7 +291,7 @@ class ServerSelectionController extends ChangeNotifier {
     final serverId = server.serverId;
     if (subscriptionId == null || serverId == null) return false;
 
-    final subscription = await SubscriptionStore.byId(subscriptionId);
+    final subscription = await readSubscription(subscriptionId);
     if (subscription == null) return false;
 
     return await grantServer(subscription, serverId) != null;

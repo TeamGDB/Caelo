@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:caelo/core/server_catalog.dart';
 import 'package:caelo/core/subscription.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,6 +35,8 @@ void main() {
     expect(amber.flag, '🇱🇻');
   });
 
+  _preparingTests();
+
   test('выданный сервер ключей не просит', () async {
     final catalog = SubscriptionServerCatalog(
       loadSubscriptions: () async => [withOffer(ready: true)],
@@ -42,5 +46,46 @@ void main() {
     // ready означает, что конфиг уже есть и придёт узлом; предлагать его
     // второй раз значило бы попросить сервер выдать то, что уже выдано.
     expect(await catalog.load(), isEmpty);
+  });
+}
+
+// Пока идёт выдача ключей, список обязан показывать выбранным именно тот
+// сервер, который нажали. Иначе он секунды подряд показывает прежний, это
+// читается как «не нажалось», и человек жмёт другой — подключаясь к тому, что
+// нажал позже.
+void _preparingTests() {
+  test('нажатый сервер отмечается сразу, а не после выдачи', () async {
+    final released = Completer<Subscription?>();
+    ServerOption? seenWhileWaiting;
+
+    late final ServerSelectionController controller;
+    controller = ServerSelectionController(
+      SubscriptionServerCatalog(
+        loadSubscriptions: () async => [withOffer(ready: false)],
+        loadConfigurations: () async => const [],
+      ),
+      readSelected: () async => null,
+      writeSelected: (_) async {},
+      activateConfiguration: (_) async {},
+      activateNode: (_, _) async {},
+      readSubscription: (_) async => withOffer(ready: false),
+      grantServer: (subscription, serverId) {
+        seenWhileWaiting = controller.preparing;
+        return released.future;
+      },
+    );
+
+    await controller.load();
+    final amber = controller.servers.firstWhere((s) => s.name == 'Amber');
+
+    final selecting = controller.select(amber);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(seenWhileWaiting?.name, 'Amber', reason: 'отмечен, пока ещё ждём');
+    expect(controller.isPreparing, isTrue);
+
+    released.complete(null);
+    await selecting;
+    expect(controller.isPreparing, isFalse, reason: 'ожидание закончилось');
   });
 }

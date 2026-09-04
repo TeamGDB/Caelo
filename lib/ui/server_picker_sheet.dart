@@ -190,11 +190,21 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                       itemBuilder: (context, index) {
                                         final server =
                                             widget.controller.servers[index];
+                                        final preparing =
+                                            server ==
+                                            widget.controller.preparing;
                                         return _ServerRow(
                                           server: server,
+                                          // Готовящийся показывается выбранным
+                                          // сразу: выдача ключей идёт секундами,
+                                          // и список, который всё это время
+                                          // показывает прежний выбор, читается
+                                          // как «не нажалось».
                                           selected:
+                                              preparing ||
                                               server ==
-                                              widget.controller.selected,
+                                                  widget.controller.selected,
+                                          preparing: preparing,
                                           latencyMs:
                                               server ==
                                                       widget
@@ -205,10 +215,23 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                               ? widget.selectedLatencyMs
                                               : server.latencyMs,
                                           onPressed:
-                                              widget.locked || !server.available
+                                              widget.locked ||
+                                                  !server.available ||
+                                                  // Пока один сервер готовится,
+                                                  // остальные не нажимаются:
+                                                  // иначе второе нажатие
+                                                  // подключит то, что нажали
+                                                  // позже, а первый выданный
+                                                  // конфиг останется висеть.
+                                                  (widget
+                                                          .controller
+                                                          .isPreparing &&
+                                                      !preparing)
                                               ? null
                                               : () async {
-                                                  collapse();
+                                                  if (!server.needsKeys) {
+                                                    collapse();
+                                                  }
                                                   await widget.controller
                                                       .select(server);
                                                 },
@@ -377,10 +400,14 @@ class _ServerRow extends StatelessWidget {
     required this.selected,
     required this.onPressed,
     required this.latencyMs,
+    this.preparing = false,
   });
 
   final ServerOption server;
   final bool selected;
+
+  /// Keys for this server are being asked for right now.
+  final bool preparing;
   final VoidCallback? onPressed;
   final int? latencyMs;
 
@@ -434,7 +461,9 @@ class _ServerRow extends StatelessWidget {
                     ).copyWith(fontSize: 20, fontWeight: FontWeight.w600),
                   ),
                   Text(
-                    _description(server, AppLocalizations.of(context)),
+                    preparing
+                        ? AppLocalizations.of(context).serverPreparing
+                        : _description(server, AppLocalizations.of(context)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: CaeloTheme.body(
@@ -451,15 +480,22 @@ class _ServerRow extends StatelessWidget {
                   SizedBox(
                     key: ValueKey('server-latency-${server.id}'),
                     width: 76,
-                    child: Text(
-                      latencyMs != null
-                          ? AppLocalizations.of(context).latency(latencyMs!)
-                          : '',
-                      textAlign: TextAlign.right,
-                      style: CaeloTheme.body(
-                        palette,
-                      ).copyWith(color: palette.muted, fontSize: 18),
-                    ),
+                    child: preparing
+                        ? const Align(
+                            alignment: Alignment.centerRight,
+                            child: CupertinoActivityIndicator(radius: 9),
+                          )
+                        : Text(
+                            latencyMs != null
+                                ? AppLocalizations.of(
+                                    context,
+                                  ).latency(latencyMs!)
+                                : '',
+                            textAlign: TextAlign.right,
+                            style: CaeloTheme.body(
+                              palette,
+                            ).copyWith(color: palette.muted, fontSize: 18),
+                          ),
                   ),
                   const SizedBox(width: CaeloSpace.md),
                   SizedBox(
