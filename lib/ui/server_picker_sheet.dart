@@ -488,7 +488,10 @@ class _ServerRow extends StatelessWidget {
                 child: Text(
                   server.flag,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 36),
+                  // Opaque on purpose: a disabled button tints emoji through the
+                  // default text colour, and every flag paled while another
+                  // row was being prepared (#130).
+                  style: TextStyle(fontSize: 36, color: palette.foreground),
                 ),
               ),
               const SizedBox(width: CaeloSpace.md),

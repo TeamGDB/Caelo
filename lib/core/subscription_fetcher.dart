@@ -316,12 +316,25 @@ abstract final class SubscriptionFetcher {
 
   /// One key request at a time, whoever asks. Two at once for the same
   /// server each found no config yet and each made one (#127).
-  static Future<void> _granting = Future<void>.value();
+  ///
+  /// Per server, not global: a global queue made a tap wait behind the
+  /// background pass over every other server, each up to a minute against
+  /// one the backend cannot reach (#130).
+  static final _granting = <String, Future<void>>{};
 
   /// Asks the server for keys on one server. True if it issued them.
   static Future<bool> _grant(Subscription subscription, String serverId) {
-    final result = _granting.then((_) => _grantNow(subscription, serverId));
-    _granting = result.then((_) {}, onError: (_) {});
+    final key = '${subscription.id}:$serverId';
+    final result = (_granting[key] ?? Future<void>.value()).then(
+      (_) => _grantNow(subscription, serverId),
+    );
+    final done = result.then((_) {}, onError: (_) {});
+    _granting[key] = done;
+    unawaited(
+      done.whenComplete(() {
+        if (identical(_granting[key], done)) _granting.remove(key);
+      }),
+    );
     return result;
   }
 
@@ -338,6 +351,8 @@ abstract final class SubscriptionFetcher {
         )) {
       return true;
     }
+    // Refused while this request waited its turn: the answer is already in.
+    if (isRefused('${subscription.id}:$serverId')) return false;
     final client = HttpClient()..connectionTimeout = timeout;
     try {
       final base = subscription.url.replaceAll(RegExp(r'/+$'), '');
