@@ -43,7 +43,10 @@ install -d "$STAGE/opt/$APP" "$STAGE/usr/bin" "$STAGE/usr/share/applications" \
 cp -r "$BUNDLE/." "$STAGE/opt/$APP/"
 ln -sf "/opt/$APP/$APP" "$STAGE/usr/bin/$APP"
 
-cat > "$STAGE/usr/share/applications/$APP.desktop" <<DESKTOP
+# Named after the application id, which is what GNOME matches a window to.
+# Under any other name the dock shows the window without its icon (#122).
+DESKTOP_ID="team.gdb.caelo"
+cat > "$STAGE/usr/share/applications/$DESKTOP_ID.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=$NAME
@@ -52,6 +55,7 @@ Exec=/opt/$APP/$APP
 Icon=$APP
 Terminal=false
 Categories=Network;
+StartupWMClass=$DESKTOP_ID
 DESKTOP
 
 if [[ -f "$ROOT/packaging/linux/$APP.png" ]]; then
@@ -116,7 +120,7 @@ if command -v appimagetool >/dev/null; then
   APPDIR="$STAGE/$NAME.AppDir"
   install -d "$APPDIR"
   cp -r "$STAGE/opt/$APP/." "$APPDIR/"
-  cp "$STAGE/usr/share/applications/$APP.desktop" "$APPDIR/"
+  cp "$STAGE/usr/share/applications/$DESKTOP_ID.desktop" "$APPDIR/$APP.desktop"
   sed -i "s|^Exec=.*|Exec=$APP|" "$APPDIR/$APP.desktop"
   [[ -f "$ROOT/packaging/linux/$APP.png" ]] && cp "$ROOT/packaging/linux/$APP.png" "$APPDIR/$APP.png"
   ln -sf "$APP" "$APPDIR/AppRun"

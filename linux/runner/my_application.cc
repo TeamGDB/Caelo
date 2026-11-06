@@ -55,6 +55,16 @@ static void my_application_activate(GApplication* application) {
   // Phone-shaped, and kept that way (#119). The interface is a single column
   // laid out for a phone; a wide window only adds empty space beside it.
   gtk_window_set_default_size(window, 420, 860);
+
+  // The icon for sessions that take it from the window rather than from the
+  // desktop entry (X11). Beside the executable, wherever the bundle lives (#122).
+  g_autofree gchar* exe = g_file_read_link("/proc/self/exe", nullptr);
+  if (exe != nullptr) {
+    g_autofree gchar* dir = g_path_get_dirname(exe);
+    g_autofree gchar* icon = g_build_filename(
+        dir, "data", "flutter_assets", "docs", "caelo.png", nullptr);
+    gtk_window_set_icon_from_file(window, icon, nullptr);
+  }
   GdkGeometry geometry = {};
   geometry.min_width = 360;
   geometry.min_height = 640;

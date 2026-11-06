@@ -17,6 +17,7 @@ import 'core/apple_tunnel_client.dart';
 import 'core/settings_store.dart';
 import 'core/server_catalog.dart';
 import 'core/subscription_fetcher.dart';
+import 'core/subscription_store.dart';
 import 'core/tunnel.dart';
 import 'core/tunnel_controller.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -115,6 +116,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   DateTime _lastRefresh = DateTime.now();
   static const _refreshOnResumeAfter = Duration(minutes: 15);
   Timer? _periodicRefresh;
+  Timer? _connectedCheck;
 
   /// The system tunnel wherever there is one, and the in-process tunnel where
   /// there is not.
@@ -149,6 +151,26 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     _servers.onActiveRemoved = (_) => unawaited(_controller.reconnect());
     // Somebody who keeps the app on screen should see servers come and go as
     // well as somebody who reopens it (#111).
+    // While connected, look at the subscription every minute: spidernet cuts
+    // a removed server's peers at once, and the app should move off it within
+    // a minute rather than a quarter of an hour (#121). /state is a few
+    // hundred bytes; the document is fetched only when it changed.
+    _connectedCheck = Timer.periodic(const Duration(minutes: 1), (_) async {
+      if (!_accessGranted || _controller.value.phase != TunnelPhase.connected) {
+        return;
+      }
+      try {
+        final before = await SubscriptionStore.all();
+        final after = await SubscriptionFetcher.refreshDue();
+        final changed = [
+          for (var i = 0; i < after.length && i < before.length; i++)
+            if (!identical(after[i], before[i])) i,
+        ].isNotEmpty;
+        if (changed) await _servers.load();
+      } on Object catch (error) {
+        Diagnostics.record('checking the subscription failed', error: error);
+      }
+    });
     _periodicRefresh = Timer.periodic(_refreshOnResumeAfter, (_) {
       final state = WidgetsBinding.instance.lifecycleState;
       if (_accessGranted && state == AppLifecycleState.resumed) {
@@ -252,6 +274,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _periodicRefresh?.cancel();
+    _connectedCheck?.cancel();
     _controller.removeListener(_onTunnelChanged);
     _controller.dispose();
     _servers.dispose();
