@@ -54,4 +54,17 @@ void main() {
     expect(appVersion, isNotEmpty);
     expect(appBuild, greaterThan(0));
   });
+
+  test('a server saved under the old behaviour goes back to automatic once '
+      '(#109)', () async {
+    await SettingsStore.setSelectedServerId('node:sub:mett');
+    await SettingsStore.migrateSelection();
+    expect(await SettingsStore.selectedServerId(), isEmpty);
+
+    // A choice made after that is the person's and survives.
+    await SettingsStore.setSelectedServerId('node:sub:neo');
+    await SettingsStore.migrateSelection();
+    SettingsStore.forgetCache();
+    expect(await SettingsStore.selectedServerId(), 'node:sub:neo');
+  });
 }

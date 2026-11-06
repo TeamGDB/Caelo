@@ -455,6 +455,41 @@ void main() {
       expect(servers.servers.last.latencyMs, 5);
     });
 
+    test('marks a server that did not answer, so the list has a verdict '
+        'for every one', () async {
+      catalog = _ScriptedCatalog([_node('a'), _node('b')], answers: {'a': 5});
+      servers = ServerSelectionController(
+        catalog,
+        readSelected: () async => null,
+        writeSelected: (_) async {},
+        latencyRefreshInterval: null,
+      );
+      await servers.load();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      final a = servers.servers.firstWhere((s) => s.id == 'a');
+      final b = servers.servers.firstWhere((s) => s.id == 'b');
+      expect(a.latencyMs, 5);
+      expect(b.unreachable, isTrue);
+      expect(b.measured, isTrue);
+    });
+
+    test('measurements survive a reload', () async {
+      catalog = _ScriptedCatalog([_node('a')], answers: {'a': 5});
+      servers = ServerSelectionController(
+        catalog,
+        readSelected: () async => null,
+        writeSelected: (_) async {},
+        latencyRefreshInterval: null,
+      );
+      await servers.load();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      servers.tunnelActive = true;
+      await servers.load();
+
+      expect(servers.servers.last.latencyMs, 5);
+    });
+
     test('never measures the automatic entry', () async {
       catalog = _ScriptedCatalog([_node('a')], answers: {'a': 5});
       servers = ServerSelectionController(

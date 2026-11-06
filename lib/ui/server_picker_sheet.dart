@@ -133,6 +133,18 @@ class _ServerDrawerState extends State<ServerDrawer> {
                 ),
                 child: LayoutBuilder(
                   builder: (context, sheetConstraints) {
+                    // Latency for every server or for none (#109). A column
+                    // with gaps reads as servers that are broken, when they
+                    // are only not measured yet.
+                    // Counted over servers that can be dialled: one the
+                    // subscription offers and would not issue keys for has
+                    // nothing to measure, and must not hide everyone else's.
+                    final measurable = widget.controller.servers.where(
+                      (server) => server.connectable,
+                    );
+                    final showLatency =
+                        measurable.isNotEmpty &&
+                        measurable.every((server) => server.measured);
                     final showsServerList =
                         sheetConstraints.maxHeight >= 152 + CaeloSpace.xl * 2;
                     return Column(
@@ -146,7 +158,9 @@ class _ServerDrawerState extends State<ServerDrawer> {
                           limitedScope: widget.limitedScope,
                           latencyMs: widget.showActive
                               ? widget.selectedLatencyMs
-                              : widget.controller.selected?.latencyMs,
+                              : showLatency
+                              ? widget.controller.selected?.latencyMs
+                              : null,
                           onDragUpdate: updateExtent,
                           onDragEnd: settleExtent,
                           onTap: toggleFromTap,
@@ -213,7 +227,8 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                               server ==
                                                   widget.controller.selected,
                                           preparing: preparing,
-                                          latencyMs: server.latencyMs,
+                                          showLatency:
+                                              showLatency && server.connectable,
                                           onPressed:
                                               widget.locked ||
                                                   !server.available ||
@@ -358,17 +373,23 @@ class _PeekHeader extends StatelessWidget {
                                     palette,
                                   ).copyWith(fontSize: 24),
                                 ),
+                                // Two lines fit the header; a description
+                                // longer than that is not a description.
                                 Text(
                                   limitedScope
                                       ? l10n.localTunnelOnly
                                       : pickedForYou
                                       ? l10n.automaticallyChosen
                                       : _description(server, l10n),
-                                  maxLines: 1,
+                                  key: const ValueKey(
+                                    'selected-server-description',
+                                  ),
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: CaeloTheme.body(palette).copyWith(
                                     color: palette.muted,
-                                    fontSize: 17,
+                                    fontSize: 15,
+                                    height: 1.2,
                                   ),
                                 ),
                               ],
@@ -410,7 +431,7 @@ class _ServerRow extends StatelessWidget {
     required this.server,
     required this.selected,
     required this.onPressed,
-    required this.latencyMs,
+    this.showLatency = false,
     this.preparing = false,
   });
 
@@ -420,7 +441,10 @@ class _ServerRow extends StatelessWidget {
   /// Keys for this server are being asked for right now.
   final bool preparing;
   final VoidCallback? onPressed;
-  final int? latencyMs;
+
+  /// Whether this row shows its measurement: a latency, or a dash for a
+  /// server that did not answer.
+  final bool showLatency;
 
   @override
   Widget build(BuildContext context) {
@@ -471,12 +495,13 @@ class _ServerRow extends StatelessWidget {
                       palette,
                     ).copyWith(fontSize: 20, fontWeight: FontWeight.w600),
                   ),
+                  // Wraps rather than ends in an ellipsis: the description
+                  // is how somebody tells two servers in one country apart.
                   Text(
                     preparing
                         ? AppLocalizations.of(context).serverPreparing
                         : _description(server, AppLocalizations.of(context)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    key: ValueKey('server-description-${server.id}'),
                     style: CaeloTheme.body(
                       palette,
                     ).copyWith(color: palette.muted, fontSize: 17),
@@ -484,43 +509,34 @@ class _ServerRow extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(
-              width: 120,
-              child: Row(
-                children: [
-                  SizedBox(
-                    key: ValueKey('server-latency-${server.id}'),
-                    width: 76,
-                    child: preparing
-                        ? const Align(
-                            alignment: Alignment.centerRight,
-                            child: CupertinoActivityIndicator(radius: 9),
-                          )
-                        : Text(
-                            latencyMs != null
-                                ? AppLocalizations.of(
-                                    context,
-                                  ).latency(latencyMs!)
-                                : '',
-                            textAlign: TextAlign.right,
-                            style: CaeloTheme.body(
-                              palette,
-                            ).copyWith(color: palette.muted, fontSize: 18),
-                          ),
-                  ),
-                  const SizedBox(width: CaeloSpace.md),
-                  SizedBox(
-                    width: 28,
-                    child: selected
-                        ? Icon(
-                            CupertinoIcons.check_mark_circled_solid,
-                            color: palette.accent,
-                            size: 28,
-                          )
-                        : null,
-                  ),
-                ],
+            if (showLatency)
+              Padding(
+                padding: const EdgeInsets.only(left: CaeloSpace.sm),
+                child: Text(
+                  switch (server.latencyMs) {
+                    final latency? => AppLocalizations.of(
+                      context,
+                    ).latency(latency),
+                    null => '—',
+                  },
+                  key: ValueKey('server-latency-${server.id}'),
+                  style: CaeloTheme.body(
+                    palette,
+                  ).copyWith(color: palette.muted, fontSize: 17),
+                ),
               ),
+            const SizedBox(width: CaeloSpace.sm),
+            SizedBox(
+              width: 28,
+              child: preparing
+                  ? const CupertinoActivityIndicator(radius: 9)
+                  : selected
+                  ? Icon(
+                      CupertinoIcons.check_mark_circled_solid,
+                      color: palette.accent,
+                      size: 28,
+                    )
+                  : null,
             ),
           ],
         ),

@@ -10,6 +10,7 @@ import 'package:caelo/ui/widgets/caelo_surface.dart';
 import 'package:caelo/ui/widgets/power_button.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_tunnel_client.dart';
@@ -299,6 +300,149 @@ void main() {
     final first = find.byKey(const ValueKey('server-latency-test-helsinki'));
     final second = find.byKey(const ValueKey('server-latency-test-stockholm'));
     expect(tester.getTopRight(first).dx, tester.getTopRight(second).dx);
+  });
+
+  group('the list (#109)', () {
+    const measured = ServerOption(
+      id: 'a',
+      name: 'Amber',
+      description: 'Every day',
+      flag: '🇱🇻',
+      latencyMs: 30,
+      nodeId: 'a',
+      subscriptionId: 's',
+    );
+    const unmeasured = ServerOption(
+      id: 'b',
+      name: 'Buran',
+      description: 'For things in Russia',
+      flag: '🇷🇺',
+      nodeId: 'b',
+      subscriptionId: 's',
+    );
+
+    Future<void> open(WidgetTester tester) async {
+      await pumpHome(tester, locale: const Locale('en'));
+      await tester.tap(find.byKey(const ValueKey('server-drag-handle')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a server that did not answer shows a dash, and the rest '
+        'their latency', (tester) async {
+      serverController.servers = [
+        const ServerOption.automatic(),
+        measured,
+        unmeasured.withUnreachable(),
+      ];
+      serverController.selected = serverController.servers.first;
+      await open(tester);
+
+      expect(find.text('30 ms'), findsOneWidget);
+      final dash = tester.widget<Text>(
+        find.byKey(const ValueKey('server-latency-b')),
+      );
+      expect(dash.data, '—');
+    });
+
+    testWidgets('shows no latency while any server is still unmeasured', (
+      tester,
+    ) async {
+      serverController.servers = const [
+        ServerOption.automatic(),
+        measured,
+        unmeasured,
+      ];
+      serverController.selected = serverController.servers.first;
+      await open(tester);
+
+      expect(find.byKey(const ValueKey('server-latency-a')), findsNothing);
+      expect(find.text('30 ms'), findsNothing);
+    });
+
+    testWidgets('shows it for every server once all have one', (tester) async {
+      serverController.servers = [
+        const ServerOption.automatic(),
+        measured,
+        unmeasured.withLatency(55),
+      ];
+      serverController.selected = serverController.servers.first;
+      await open(tester);
+
+      expect(find.byKey(const ValueKey('server-latency-a')), findsOneWidget);
+      expect(find.byKey(const ValueKey('server-latency-b')), findsOneWidget);
+    });
+
+    testWidgets('a server without keys does not hide everyone else\'s', (
+      tester,
+    ) async {
+      serverController.servers = const [
+        ServerOption.automatic(),
+        measured,
+        ServerOption(
+          id: 'offer',
+          name: 'Truffle',
+          description: 'Every day',
+          flag: '🇫🇷',
+          subscriptionId: 's',
+          serverId: 'truffle',
+        ),
+      ];
+      serverController.selected = serverController.servers.first;
+      await open(tester);
+
+      expect(find.byKey(const ValueKey('server-latency-a')), findsOneWidget);
+      expect(find.byKey(const ValueKey('server-latency-offer')), findsNothing);
+    });
+
+    testWidgets('automatic is the default and needs no latency of its own', (
+      tester,
+    ) async {
+      serverController.servers = [
+        const ServerOption.automatic(),
+        measured,
+        unmeasured.withLatency(55),
+      ];
+      serverController.selected = serverController.servers.first;
+      await open(tester);
+
+      expect(find.byKey(const ValueKey('server-latency-auto')), findsNothing);
+      expect(find.text('Automatic'), findsWidgets);
+    });
+
+    testWidgets('a long description wraps instead of being cut off', (
+      tester,
+    ) async {
+      const wordy = ServerOption(
+        id: 'k',
+        name: 'Kazy',
+        description:
+            'A long description that will not fit on one line of the list',
+        flag: '🇰🇿',
+        latencyMs: 238,
+        nodeId: 'k',
+        subscriptionId: 's',
+      );
+      serverController.servers = const [ServerOption.automatic(), wordy];
+      serverController.selected = serverController.servers.first;
+      await open(tester);
+
+      final text = tester.widget<Text>(
+        find.byKey(const ValueKey('server-description-k')),
+      );
+      expect(text.maxLines, isNull);
+      expect(text.overflow, isNot(TextOverflow.ellipsis));
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.byKey(const ValueKey('server-description-k')),
+      );
+      expect(paragraph.didExceedMaxLines, isFalse);
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('server-description-k')))
+            .height,
+        greaterThan(30),
+        reason: 'it should take more than one line',
+      );
+    });
   });
 
   testWidgets('scrolling the server list cannot close the section', (

@@ -109,6 +109,20 @@ abstract final class SettingsStore {
     await _save(settings);
   }
 
+  /// Puts a server chosen under the old behaviour back to automatic, once.
+  ///
+  /// Before automatic existed, picking a server by hand was the only way to
+  /// connect at all, so a saved choice says nothing about a preference (#109).
+  static Future<void> migrateSelection() async {
+    final settings = Map<String, dynamic>.from(await _load());
+    if (settings['selectionVersion'] == _selectionVersion) return;
+    settings['selectionVersion'] = _selectionVersion;
+    settings['selectedServerId'] = '';
+    await _save(settings);
+  }
+
+  static const _selectionVersion = 2;
+
   /// The build last handed to the system installer, until it is known whether
   /// it installed (#73).
   static Future<int?> pendingUpdateBuild() async =>

@@ -27,6 +27,7 @@ class ServerOption {
     this.serverId,
     this.available = true,
     this.automatic = false,
+    this.unreachable = false,
   });
 
   /// The entry that stands for "pick one that works". Not a server: it has no
@@ -42,7 +43,8 @@ class ServerOption {
       nodeId = null,
       serverId = null,
       available = true,
-      automatic = true;
+      automatic = true,
+      unreachable = false;
 
   static const automaticId = 'auto';
 
@@ -65,6 +67,12 @@ class ServerOption {
   /// Whether this is the automatic entry rather than a server.
   final bool automatic;
 
+  /// Measured, and nothing came back. A result, as much as a latency is.
+  final bool unreachable;
+
+  /// Whether the last measurement reached a verdict either way.
+  bool get measured => latencyMs != null || unreachable;
+
   /// Whether this can be dialled as it stands.
   bool get connectable =>
       !automatic &&
@@ -75,7 +83,11 @@ class ServerOption {
   /// Whether picking this costs a round trip to the subscription.
   bool get needsKeys => nodeId == null && serverId != null;
 
-  ServerOption withLatency(int latencyMs) => ServerOption(
+  ServerOption withLatency(int latencyMs) => _measured(latencyMs, false);
+
+  ServerOption withUnreachable() => _measured(null, true);
+
+  ServerOption _measured(int? latencyMs, bool unreachable) => ServerOption(
     id: id,
     name: name,
     description: description,
@@ -87,6 +99,7 @@ class ServerOption {
     serverId: serverId,
     available: available,
     automatic: automatic,
+    unreachable: unreachable,
   );
 }
 
@@ -148,7 +161,10 @@ class SubscriptionServerCatalog implements ServerCatalog {
       // нет, поэтому и узла нет: он появится, когда его выберут.
       for (final subscription in subscriptions)
         for (final server in subscription.available)
-          if (!server.ready)
+          if (!server.ready &&
+              !SubscriptionFetcher.refused.contains(
+                '${subscription.id}:${server.id}',
+              ))
             ServerOption(
               id: 'offer:${subscription.id}:${server.id}',
               name: server.name,
@@ -299,9 +315,21 @@ class ServerSelectionController extends ChangeNotifier {
     final loaded = await catalog.load();
     final savedId = await readSelected();
     if (generation != _loadGeneration) return;
+    // What was measured survives a reload: the list is rebuilt from storage
+    // every time keys arrive, and wiping the column each time would flicker.
+    final previous = {for (final server in servers) server.id: server};
+    ServerOption carry(ServerOption server) {
+      final before = previous[server.id];
+      if (before == null || server.latencyMs != null) return server;
+      if (before.latencyMs case final latency?) {
+        return server.withLatency(latency);
+      }
+      return before.unreachable ? server.withUnreachable() : server;
+    }
+
     servers = [
       if (loaded.isNotEmpty) const ServerOption.automatic(),
-      ...loaded,
+      ...loaded.map(carry),
     ];
     selected =
         servers.where((server) => server.id == savedId).firstOrNull ??
@@ -331,12 +359,30 @@ class ServerSelectionController extends ChangeNotifier {
       if (generation != _measureGeneration || _tunnelActive) return;
       if (!server.connectable) continue;
       final latency = await catalog.measureLatency(server);
-      if (generation != _measureGeneration || latency == null) continue;
-      _recordLatency(server.id, latency);
+      if (generation != _measureGeneration) continue;
+      Diagnostics.record(
+        latency == null
+            ? 'measure: ${server.name} did not answer'
+            : 'measure: ${server.name} ${latency}ms',
+      );
+      if (latency == null) {
+        _recordUnreachable(server.id);
+      } else {
+        _recordLatency(server.id, latency);
+      }
     }
     if (generation != _measureGeneration) return;
     final interval = latencyRefreshInterval;
     if (interval != null) _scheduleMeasurement(interval);
+  }
+
+  void _recordUnreachable(String id) {
+    servers = [
+      for (final current in servers)
+        if (current.id == id) current.withUnreachable() else current,
+    ];
+    if (selected?.id == id) selected = selected!.withUnreachable();
+    notifyListeners();
   }
 
   void _recordLatency(String id, int latency) {

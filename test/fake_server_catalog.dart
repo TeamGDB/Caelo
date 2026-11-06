@@ -6,6 +6,8 @@ class FakeServerCatalog implements ServerCatalog {
   static const servers = [
     ServerOption(
       id: 'test-helsinki',
+      subscriptionId: 'test',
+      nodeId: 'helsinki',
       name: 'Helsinki',
       description: 'Primary test server',
       flag: '🇫🇮',
@@ -13,6 +15,8 @@ class FakeServerCatalog implements ServerCatalog {
     ),
     ServerOption(
       id: 'test-stockholm',
+      subscriptionId: 'test',
+      nodeId: 'stockholm',
       name: 'Stockholm',
       description: 'Stable test server',
       flag: '🇸🇪',
@@ -20,6 +24,8 @@ class FakeServerCatalog implements ServerCatalog {
     ),
     ServerOption(
       id: 'test-frankfurt',
+      subscriptionId: 'test',
+      nodeId: 'frankfurt',
       name: 'Frankfurt',
       description: 'Testing server',
       flag: '🇩🇪',

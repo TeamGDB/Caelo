@@ -234,6 +234,66 @@ abstract final class SubscriptionFetcher {
     Subscription subscription,
     String serverId,
   ) async {
+    if (!await _grant(subscription, serverId)) return null;
+    Diagnostics.record('server granted, refreshing the list');
+    return refresh(subscription);
+  }
+
+  /// Asks for keys on every offered server that has none yet, and refreshes
+  /// each subscription once at the end (#110).
+  ///
+  /// One request at a time: each provisions a peer on a real server, and a
+  /// burst of them is how a provisioning service falls over. A refresh per
+  /// grant would fetch every private key eight times to learn one new one.
+  ///
+  /// Only one pass runs at a time; a second caller gets the first's answer.
+  /// Returns how many servers were granted.
+  static Future<int> enableAll({
+    Future<List<Subscription>> Function()? subscriptions,
+    Future<bool> Function(Subscription, String)? grant,
+    Future<Subscription> Function(Subscription)? refreshOne,
+  }) {
+    final running = _enablingAll;
+    if (running != null) return running;
+    final pass = _enableAll(
+      subscriptions ?? SubscriptionStore.all,
+      grant ?? _grant,
+      refreshOne ?? refresh,
+    );
+    _enablingAll = pass;
+    return pass.whenComplete(() => _enablingAll = null);
+  }
+
+  static Future<int>? _enablingAll;
+
+  /// Offered servers the subscription answered 404 for when asked for keys,
+  /// as `subscriptionId:serverId`. For this run only.
+  static final refused = <String>{};
+
+  static Future<int> _enableAll(
+    Future<List<Subscription>> Function() subscriptions,
+    Future<bool> Function(Subscription, String) grant,
+    Future<Subscription> Function(Subscription) refreshOne,
+  ) async {
+    var granted = 0;
+    for (final subscription in await subscriptions()) {
+      if (subscription.isGone) continue;
+      final missing = subscription.available.where((server) => !server.ready);
+      var any = false;
+      for (final server in missing) {
+        if (await grant(subscription, server.id)) {
+          granted++;
+          any = true;
+        }
+      }
+      if (any) await refreshOne(subscription);
+    }
+    if (granted > 0) Diagnostics.record('keys issued for $granted servers');
+    return granted;
+  }
+
+  /// Asks the server for keys on one server. True if it issued them.
+  static Future<bool> _grant(Subscription subscription, String serverId) async {
     final client = HttpClient()..connectionTimeout = timeout;
     try {
       final base = subscription.url.replaceAll(RegExp(r'/+$'), '');
@@ -251,16 +311,21 @@ abstract final class SubscriptionFetcher {
       );
       await response.drain<void>();
 
+      if (response.statusCode == 404) {
+        // The subscription lists it and will not issue it. Nothing about
+        // asking again in a minute will change that; leave it out of the
+        // list until the next launch asks afresh.
+        refused.add('${subscription.id}:$serverId');
+      }
       if (response.statusCode != 200) {
         Diagnostics.record('server not granted: ${response.statusCode}');
-        return null;
+        return false;
       }
-
-      Diagnostics.record('server granted, refreshing the list');
-      return await refresh(subscription);
+      refused.remove('${subscription.id}:$serverId');
+      return true;
     } on Object catch (error) {
       Diagnostics.record('asking for a server failed', error: error);
-      return null;
+      return false;
     } finally {
       client.close(force: true);
     }

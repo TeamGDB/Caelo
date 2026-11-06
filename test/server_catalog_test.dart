@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:caelo/core/server_catalog.dart';
 import 'package:caelo/core/subscription.dart';
+import 'package:caelo/core/subscription_fetcher.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_server_catalog.dart';
@@ -52,6 +53,8 @@ void main() {
         const FakeServerCatalog(),
         readSelected: () async => saved,
         writeSelected: (id) async => saved = id,
+        activateConfiguration: (_) async {},
+        activateNode: (_, _) async {},
       );
       addTearDown(controller.dispose);
 
@@ -183,4 +186,24 @@ void main() {
       expect(activatedNode, 'north');
     },
   );
+
+  test('an offer the subscription would not issue is left out', () async {
+    const subscription = Subscription(
+      id: 'account',
+      url: 'https://example.invalid/subscription',
+      available: [
+        AvailableServer(id: 'truffle', name: 'Truffle'),
+        AvailableServer(id: 'neo', name: 'Neo'),
+      ],
+    );
+    SubscriptionFetcher.refused.add('account:truffle');
+    addTearDown(SubscriptionFetcher.refused.clear);
+    final catalog = SubscriptionServerCatalog(
+      loadSubscriptions: () async => const [subscription],
+      loadConfigurations: () async => const [],
+    );
+
+    final names = (await catalog.load()).map((server) => server.name);
+    expect(names, ['Neo']);
+  });
 }

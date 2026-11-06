@@ -50,6 +50,11 @@ void main() async {
     // Locale failure is independent of theme failure and falls back to the OS.
   }
   try {
+    await SettingsStore.migrateSelection();
+  } on Object {
+    // A choice that stays manual is not worth refusing to start over.
+  }
+  try {
     accessGranted = await SettingsStore.accessGranted();
   } on Object {
     // A missing or unreadable setting means onboarding has not completed.
@@ -167,6 +172,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     try {
       await SubscriptionFetcher.refreshDue();
       await _servers.load();
+      await _provisionAll();
     } on Object catch (error) {
       Diagnostics.record('subscription startup refresh failed', error: error);
     }
@@ -177,6 +183,23 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     // exposing Home so its first frame already contains the real node list.
     await _servers.load();
     await setAccessGranted(true);
+    // Keys for every other server, behind Home rather than before it (#110).
+    unawaited(_provisionAll());
+  }
+
+  /// Asks for keys on every server the subscriptions offer and this device
+  /// has none for, then shows them.
+  Future<void> _provisionAll() async {
+    try {
+      final refusedBefore = SubscriptionFetcher.refused.length;
+      final granted = await SubscriptionFetcher.enableAll();
+      // New keys add servers; a refusal takes one out (#110).
+      if (granted > 0 || SubscriptionFetcher.refused.length != refusedBefore) {
+        await _servers.load();
+      }
+    } on Object catch (error) {
+      Diagnostics.record('asking for keys failed', error: error);
+    }
   }
 
   Future<void> setThemeMode(CaeloThemeMode mode) async {
