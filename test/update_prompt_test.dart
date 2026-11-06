@@ -96,4 +96,37 @@ void main() {
     await pump(tester, flow);
     expect(find.text('Обновление не установилось'), findsOneWidget);
   });
+
+  testWidgets('checks again on coming back, not only half a day later (#148)', (
+    tester,
+  ) async {
+    var looks = 0;
+    final flow = UpdateFlow(
+      look: () async {
+        looks++;
+        return null;
+      },
+      readPending: () async => null,
+      writePending: (_) async {},
+    );
+    await tester.pumpWidget(
+      CupertinoApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: UpdatePrompt(
+          flow: flow,
+          enabled: true,
+          every: Duration.zero,
+          child: const Text('home'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(looks, 1, reason: 'at launch');
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(looks, 2, reason: 'and on coming back');
+  });
 }
