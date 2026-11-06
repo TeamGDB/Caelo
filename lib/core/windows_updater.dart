@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'app_storage.dart';
 import 'diagnostics.dart';
 import 'update_check.dart';
 import 'update_download.dart';
@@ -23,6 +24,7 @@ import 'update_download.dart';
 /// every trusted key, hand over.
 abstract final class WindowsUpdater {
   static const _channel = MethodChannel('team.gdb.caelo/windows_updates');
+  static const installerLogName = 'windows-installer.log';
 
   @visibleForTesting
   static bool Function() isWindows = () => Platform.isWindows;
@@ -77,7 +79,16 @@ abstract final class WindowsUpdater {
   }) async {
     if (!isSupported) return;
     Diagnostics.record('starting the installer');
-    await (start ?? _start)(path, installerArguments);
+    try {
+      await (start ?? _start)(path, installerArguments);
+    } on PlatformException catch (error) {
+      // The loader cannot distinguish a declined UAC prompt from an early
+      // setup exit. Neither means the download failed or that the user erred.
+      if (error.code == 'installer_stopped') {
+        throw const WindowsInstallerStopped();
+      }
+      rethrow;
+    }
     // The installer has passed UAC and now waits for our mutex to disappear.
     // Only then can it replace the executable and start the new app (#152).
     (leave ?? () => exit(0))();
@@ -98,12 +109,17 @@ abstract final class WindowsUpdater {
   ];
 
   static Future<void> _start(String path, List<String> arguments) async {
+    final log = await AppStorage.file(installerLogName);
     final event = await _channel.invokeMethod<String>('prepare');
     if (event == null) throw StateError('no installer handover event');
     try {
       // The loader starts without elevation so Inno Setup retains the original
       // user for relaunch. Its elevated child acknowledges us after UAC.
-      final process = await launch(path, [...arguments, '/CAELOUPDATE=$event']);
+      final process = await launch(path, [
+        ...arguments,
+        '/LOG=${log.absolute.path}',
+        '/CAELOUPDATE=$event',
+      ]);
       final elapsed = Stopwatch()..start();
       while (true) {
         if (elapsed.elapsed >= readyTimeout) {
@@ -126,4 +142,13 @@ abstract final class WindowsUpdater {
         runInShell: false,
         mode: ProcessStartMode.detached,
       );
+}
+
+/// Setup exited before handover, possibly because the user declined UAC.
+/// The reason is unknown, so the interface must cover cancellation and failure.
+class WindowsInstallerStopped implements Exception {
+  const WindowsInstallerStopped();
+
+  @override
+  String toString() => 'the installer closed before handover';
 }

@@ -45,6 +45,9 @@ event. Only then does the app exit; setup waits up to 30 seconds for its mutex
 to disappear before Inno Setup's own mutex check and before replacing files.
 Cancelling UAC or an early installer failure leaves Caelo open. A missing
 acknowledgement times out after five minutes, also leaving it open.
+If setup exits before acknowledging, the app says that installation did not
+start: the permission prompt may have been cancelled, or setup could not
+continue. It offers a retry without calling this a failed download.
 
 Installation shows the UAC prompt and a progress bar without wizard pages or a
 system restart. After a successful in-app update, Inno Setup starts Caelo as the
@@ -53,6 +56,16 @@ not launch the app; interactive installations keep their "Launch Caelo"
 checkbox. A failure after the app has handed over, or cancelling installation
 at that point, can still require reopening Caelo manually. This flow is not a
 rollback mechanism.
+
+Each in-app attempt also passes `/LOG=<path>` to retain Inno Setup's log in
+Caelo's application-support directory as `windows-installer.log`. In the
+standard Windows build this is
+`%APPDATA%\team.gdb\caelo\caelo\windows-installer.log`. Setup overwrites this
+file when it opens the log for a new attempt; it remains available after Caelo
+exits, including after a later installation failure or cancellation. It records
+installer operations and local paths, separately from the optional connection
+diagnostics. Declining UAC before setup initializes may produce no new log;
+check the timestamp before treating an existing log as the latest attempt.
 
 On a real Windows machine, test accepting and declining UAC, updating with UAC
 disabled, installation failure/cancellation after handover, and relaunch without

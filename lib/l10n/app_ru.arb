@@ -154,6 +154,8 @@
   "qrPointCamera": "Наведите камеру на QR-код подписки в панели",
   "qrNotInvitation": "Это не QR-код приглашения Caelo. Откройте подписку в панели и отсканируйте её код.",
   "qrCameraUnavailable": "Камера недоступна. Разрешите Caelo пользоваться камерой в настройках телефона или вставьте ссылку приглашения.",
+  "updateInstallationNotStarted": "Установка не началась",
+  "updateWindowsInstallerStopped": "Возможно, вы отменили запрос разрешения Windows, или установщик не смог продолжить. Caelo остаётся открытым. Можно попробовать ещё раз.",
   "updateInstall": "Обновить",
   "updateInstallingNow": "Устанавливаем обновление…",
   "updateLinuxFailed": "Обновление не установилось. Можно обновить вручную: sudo apt upgrade (или sudo dnf upgrade caelo)."

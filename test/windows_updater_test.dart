@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:caelo/core/app_storage.dart';
 import 'package:caelo/core/update_check.dart';
 import 'package:caelo/core/update_download.dart';
 import 'package:caelo/core/windows_updater.dart';
@@ -77,8 +78,13 @@ void main() {
     final originalLaunch = WindowsUpdater.launch;
     late List<String> events;
     late bool left;
+    late Directory directory;
 
-    setUp(() {
+    setUp(() async {
+      directory = await Directory.systemTemp.createTemp(
+        'caelo installer-test-',
+      );
+      AppStorage.testDirectory = directory;
       WindowsUpdater.isWindows = () => true;
       events = [];
       left = false;
@@ -86,6 +92,7 @@ void main() {
         expect(path, 'setup.exe');
         expect(arguments, [
           ...WindowsUpdater.installerArguments,
+          '/LOG=${File('${directory.path}/${WindowsUpdater.installerLogName}').absolute.path}',
           r'/CAELOUPDATE=Local\Caelo.UpdateReady.test',
         ]);
         events.add('launch');
@@ -93,11 +100,13 @@ void main() {
       };
     });
 
-    tearDown(() {
+    tearDown(() async {
       messenger.setMockMethodCallHandler(channel, null);
       WindowsUpdater.isWindows = () => Platform.isWindows;
       WindowsUpdater.launch = originalLaunch;
       WindowsUpdater.readyTimeout = const Duration(minutes: 5);
+      AppStorage.testDirectory = null;
+      await directory.delete(recursive: true);
     });
 
     void handle(Future<bool> Function() ready) {
@@ -144,7 +153,7 @@ void main() {
       handle(() async => throw PlatformException(code: 'installer_stopped'));
       await expectLater(
         WindowsUpdater.install('setup.exe', leave: () => left = true),
-        throwsA(isA<PlatformException>()),
+        throwsA(isA<WindowsInstallerStopped>()),
       );
       expect(left, isFalse);
       expect(events.last, 'release');

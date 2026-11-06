@@ -99,6 +99,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     if (updates.stage == UpdateStage.found ||
         updates.stage == UpdateStage.needsPermission ||
         updates.stage == UpdateStage.handOverFailed ||
+        updates.stage == UpdateStage.installerStopped ||
         updates.stage == UpdateStage.notInstalled ||
         updates.stage == UpdateStage.failed) {
       unawaited(_showUpdateDialog());
@@ -117,12 +118,14 @@ class _SettingsScreenState extends State<SettingsScreen>
           UpdateStage.found => l10n.updateFound(update?.version ?? ''),
           UpdateStage.needsPermission => l10n.checkForUpdates,
           UpdateStage.notInstalled => l10n.updateNotInstalled,
+          UpdateStage.installerStopped => l10n.updateInstallationNotStarted,
           _ => l10n.updateFailed,
         }),
         content: Text(switch (stage) {
           UpdateStage.found => '',
           UpdateStage.needsPermission => l10n.updateNeedsPermission,
           UpdateStage.notInstalled => l10n.updateNotInstalledExplanation,
+          UpdateStage.installerStopped => l10n.updateWindowsInstallerStopped,
           UpdateStage.handOverFailed when !updates.needsDownload =>
             l10n.updateLinuxFailed,
           _ =>
@@ -153,7 +156,8 @@ class _SettingsScreenState extends State<SettingsScreen>
                     : l10n.updateInstall,
               ),
             ),
-          if (stage == UpdateStage.notInstalled)
+          if (stage == UpdateStage.notInstalled ||
+              stage == UpdateStage.installerStopped)
             CupertinoDialogAction(
               isDefaultAction: true,
               onPressed: () {

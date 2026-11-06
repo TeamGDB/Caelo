@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:caelo/core/update_check.dart';
 import 'package:caelo/core/update_download.dart';
 import 'package:caelo/core/update_flow.dart';
+import 'package:caelo/core/windows_updater.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 AvailableUpdate get _update => AvailableUpdate(
@@ -128,6 +129,43 @@ void main() {
     await first;
 
     expect(started, 1);
+  });
+
+  test(
+    'an early Windows installer exit has an uncertain, neutral outcome',
+    () async {
+      var pendingWritten = false;
+      final flow = UpdateFlow(
+        look: () async => _update,
+        fetch: (_, _) async => File('verified.exe'),
+        canInstall: () async => true,
+        install: (_) async => throw const WindowsInstallerStopped(),
+        writePending: (_) async => pendingWritten = true,
+      );
+      await flow.check();
+      await flow.download();
+
+      expect(flow.stage, UpdateStage.installerStopped);
+      expect(flow.failure, isNull);
+      expect(pendingWritten, isFalse, reason: 'nothing was handed over');
+      flow.dismiss();
+      expect(flow.stage, UpdateStage.idle);
+    },
+  );
+
+  test('a process launch error remains a handover failure', () async {
+    final flow = UpdateFlow(
+      look: () async => _update,
+      fetch: (_, _) async => File('verified.exe'),
+      canInstall: () async => true,
+      install: (_) async =>
+          throw ProcessException('setup.exe', [], 'cannot start'),
+    );
+    await flow.check();
+    await flow.download();
+
+    expect(flow.stage, UpdateStage.handOverFailed);
+    expect(flow.failure, isNull);
   });
 
   group('whether the update installed (#73)', () {

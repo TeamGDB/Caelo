@@ -36,6 +36,10 @@ enum UpdateStage {
   /// — whether it installs is between the person and Android.
   handedOver,
 
+  /// Windows setup exited before acknowledging handover. This can be a
+  /// declined UAC prompt or an early setup failure; the reason is unknown.
+  installerStopped,
+
   /// The file was fetched and proved ours, and handing it to the system
   /// installer failed.
   ///
@@ -250,6 +254,10 @@ class UpdateFlow extends ChangeNotifier {
 
       try {
         await _install(file.path);
+      } on WindowsInstallerStopped {
+        Diagnostics.record('update: installer closed before handover');
+        _to(UpdateStage.installerStopped);
+        return;
       } on Object catch (error) {
         // Deliberately not folded into the download's failure. They send
         // somebody to different places, and sharing one reported a complete,

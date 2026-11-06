@@ -382,6 +382,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'The camera is not available. Allow Caelo to use it in the system settings, or paste the invitation link instead.';
 
   @override
+  String get updateInstallationNotStarted => 'Installation did not start';
+
+  @override
+  String get updateWindowsInstallerStopped =>
+      'You may have cancelled the Windows permission prompt, or the installer could not continue. Caelo is still open. You can try again.';
+
+  @override
   String get updateInstall => 'Update';
 
   @override
