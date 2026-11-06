@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'build_info.dart';
-import 'device_identity.dart';
+import 'device_description.dart';
 import 'diagnostics.dart';
 import 'subscription.dart';
 import 'subscription_store.dart';
@@ -116,7 +116,7 @@ abstract final class SubscriptionFetcher {
       final url = '${subscription.url.replaceAll(RegExp(r'/+$'), '')}/state';
       final request = await client.getUrl(Uri.parse(url)).timeout(timeout);
       request.headers.set(HttpHeaders.userAgentHeader, 'Caelo/$appVersion');
-      request.headers.set('X-Caelo-Device', await DeviceIdentity.get());
+      await DeviceHeaders.apply(request.headers);
       final response = await request.close().timeout(timeout);
 
       if (response.statusCode != 200) {
@@ -197,7 +197,7 @@ abstract final class SubscriptionFetcher {
       final url = '$base/nodes/${Uri.encodeComponent(node.id)}/rotate';
       final request = await client.postUrl(Uri.parse(url)).timeout(timeout);
       request.headers.set(HttpHeaders.userAgentHeader, 'Caelo/$appVersion');
-      request.headers.set('X-Caelo-Device', await DeviceIdentity.get());
+      await DeviceHeaders.apply(request.headers);
       final response = await request.close().timeout(timeout);
       await response.drain<void>();
 
@@ -364,7 +364,7 @@ abstract final class SubscriptionFetcher {
           .postUrl(Uri.parse(url))
           .timeout(const Duration(seconds: 60));
       request.headers.set(HttpHeaders.userAgentHeader, 'Caelo/$appVersion');
-      request.headers.set('X-Caelo-Device', await DeviceIdentity.get());
+      await DeviceHeaders.apply(request.headers);
       final response = await request.close().timeout(
         const Duration(seconds: 60),
       );
@@ -456,7 +456,7 @@ abstract final class SubscriptionFetcher {
       // the connection drops on both. A server that understands this header
       // keeps a set per device; one that does not ignores it and answers
       // exactly as before, which is why sending it is safe everywhere.
-      request.headers.set('X-Caelo-Device', await DeviceIdentity.get());
+      await DeviceHeaders.apply(request.headers);
       // Offered, not demanded. A server that understands it answers with the
       // richer document; one that does not answers with plain sing-box JSON,
       // and which arrived is decided by the response rather than by this.

@@ -221,6 +221,22 @@ The value is the client's to invent and to keep. It is not a fingerprint of the 
 a random string generated once and stored is exactly right, and anything derived from
 hardware is both less stable and more identifying than the job needs.
 
+Alongside it the client may say what the device is, so that a person managing the link
+can tell their phone from their laptop:
+
+```
+X-Caelo-Device-Name: <what the device calls itself, UTF-8, percent-encoded>
+X-Caelo-Platform: <os in lower case, then its version>
+```
+
+The name is the one the person gave the device — `Pixel 8`, `Ноутбук Маши` — sent through
+`encodeURIComponent`, because header values are Latin-1 and names often are not. The
+platform is a word and a version separated by a space: `android 14`, `ios 18.1`,
+`ipados 18.1`, `macos 15.1`, `windows 11`, `linux`. Both are optional and descriptive
+only: a client leaves a header out when it does not know the value, and a server keeps
+what it had rather than clearing it. Neither identifies the device; that is
+`X-Caelo-Device`'s job alone. The client's version is already in the `User-Agent`.
+
 A server may cap how many devices one link serves. Over the cap it answers `409` rather
 than handing out a set that would fight with another device — a refusal a person can act
 on, where a broken tunnel is not.

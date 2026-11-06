@@ -22,7 +22,7 @@ import 'dart:io';
 import 'package:caelo/core/app_storage.dart';
 import 'package:caelo/core/build_info.dart';
 import 'package:caelo/core/config_store.dart';
-import 'package:caelo/core/device_identity.dart';
+import 'package:caelo/core/device_description.dart';
 import 'package:caelo/core/ffi/core_library.dart';
 import 'package:caelo/core/server_catalog.dart';
 import 'package:caelo/core/settings_store.dart';
@@ -61,7 +61,7 @@ void main() {
       final base = subscription.url.replaceAll(RegExp(r'/+$'), '');
       final request = await client.getUrl(Uri.parse('$base/state'));
       request.headers.set(HttpHeaders.userAgentHeader, 'Caelo/$appVersion');
-      request.headers.set('X-Caelo-Device', await DeviceIdentity.get());
+      await DeviceHeaders.apply(request.headers);
       final response = await request.close();
       expect(response.statusCode, 200, reason: '/state should be served');
       return jsonDecode(await utf8.decodeStream(response))
