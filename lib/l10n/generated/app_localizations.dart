@@ -745,6 +745,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The server stopped answering, and no other one did either.'**
   String get connectionLost;
+
+  /// No description provided for @serverMaintenance.
+  ///
+  /// In en, this message translates to:
+  /// **'Under maintenance'**
+  String get serverMaintenance;
+
+  /// No description provided for @serverNotIssued.
+  ///
+  /// In en, this message translates to:
+  /// **'Not available right now: the server did not issue a connection'**
+  String get serverNotIssued;
 }
 
 class _AppLocalizationsDelegate

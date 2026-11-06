@@ -165,7 +165,11 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
           state == AppLifecycleState.hidden) {
         return;
       }
-      unawaited(_servers.syncWithSubscriptions());
+      unawaited(() async {
+        await _servers.syncWithSubscriptions();
+        // A server refused ten minutes ago may issue now (#126).
+        await _provisionAll();
+      }());
     });
     _periodicRefresh = Timer.periodic(_refreshOnResumeAfter, (_) {
       final state = WidgetsBinding.instance.lifecycleState;

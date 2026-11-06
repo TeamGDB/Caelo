@@ -187,7 +187,8 @@ void main() {
     },
   );
 
-  test('an offer the subscription would not issue is left out', () async {
+  test('an offer the subscription would not issue is shown, unusable and '
+      'explained (#126)', () async {
     const subscription = Subscription(
       id: 'account',
       url: 'https://example.invalid/subscription',
@@ -203,7 +204,57 @@ void main() {
       loadConfigurations: () async => const [],
     );
 
-    final names = (await catalog.load()).map((server) => server.name);
-    expect(names, ['Neo']);
+    final servers = await catalog.load();
+    final truffle = servers.firstWhere((server) => server.name == 'Truffle');
+    expect(truffle.available, isFalse);
+    expect(truffle.reason, UnavailableReason.notIssued);
+    expect(truffle.connectable, isFalse);
+    expect(
+      servers.firstWhere((server) => server.name == 'Neo').available,
+      isTrue,
+    );
   });
+
+  test('unusable servers sit below the usable ones', () async {
+    final controller = ServerSelectionController(
+      _ListCatalog(const [
+        ServerOption(
+          id: 'down',
+          name: 'Down',
+          description: '',
+          flag: '🌐',
+          nodeId: 'down',
+          subscriptionId: 's',
+          available: false,
+          reason: UnavailableReason.maintenance,
+        ),
+        ServerOption(
+          id: 'up',
+          name: 'Up',
+          description: '',
+          flag: '🌐',
+          nodeId: 'up',
+          subscriptionId: 's',
+        ),
+      ]),
+      readSelected: () async => null,
+      writeSelected: (_) async {},
+      latencyRefreshInterval: null,
+    );
+    addTearDown(controller.dispose);
+    controller.tunnelActive = true;
+    await controller.load();
+    expect(controller.servers.map((s) => s.id), ['auto', 'up', 'down']);
+  });
+}
+
+class _ListCatalog implements ServerCatalog {
+  const _ListCatalog(this.list);
+  final List<ServerOption> list;
+  @override
+  Future<List<ServerOption>> load() async => list;
+  @override
+  Future<int?> measureLatency(ServerOption server) async => null;
+  @override
+  Future<void> activate(ServerOption server) async {}
 }

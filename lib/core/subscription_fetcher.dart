@@ -269,6 +269,23 @@ abstract final class SubscriptionFetcher {
   /// Offered servers the subscription answered 404 for when asked for keys,
   /// as `subscriptionId:serverId`. For this run only.
   static final refused = <String>{};
+  static final _refusedAt = <String, DateTime>{};
+
+  /// How long a refusal stands before the server is asked again (#126).
+  static const refusalLasts = Duration(minutes: 10);
+
+  /// Whether `subscriptionId:serverId` was refused recently. A refusal is
+  /// usually a server the backend cannot reach right now, which mends.
+  static bool isRefused(String key, {DateTime? now}) {
+    final at = _refusedAt[key];
+    if (!refused.contains(key)) return false;
+    if (at != null && (now ?? DateTime.now()).difference(at) > refusalLasts) {
+      refused.remove(key);
+      _refusedAt.remove(key);
+      return false;
+    }
+    return true;
+  }
 
   static Future<int> _enableAll(
     Future<List<Subscription>> Function() subscriptions,
@@ -282,8 +299,7 @@ abstract final class SubscriptionFetcher {
       // next one: the check runs every quarter of an hour.
       final missing = subscription.available.where(
         (server) =>
-            !server.ready &&
-            !refused.contains('${subscription.id}:${server.id}'),
+            !server.ready && !isRefused('${subscription.id}:${server.id}'),
       );
       var any = false;
       for (final server in missing) {
@@ -317,7 +333,10 @@ abstract final class SubscriptionFetcher {
       );
       await response.drain<void>();
 
-      if (response.statusCode == 404) {
+      // 404 for a server it will not issue, 5xx for one it could not reach:
+      // either way nothing to connect with for now (#126).
+      if (response.statusCode == 404 || response.statusCode >= 500) {
+        _refusedAt['${subscription.id}:$serverId'] = DateTime.now();
         // The subscription lists it and will not issue it. Nothing about
         // asking again in a minute will change that; leave it out of the
         // list until the next launch asks afresh.

@@ -13,6 +13,15 @@ import 'subscription.dart';
 import 'subscription_fetcher.dart';
 import 'subscription_store.dart';
 
+/// Why a listed server cannot be used (#126).
+enum UnavailableReason {
+  /// The subscription marked it as under maintenance.
+  maintenance,
+
+  /// The subscription offers it and would not issue keys for it.
+  notIssued,
+}
+
 @immutable
 class ServerOption {
   const ServerOption({
@@ -28,6 +37,7 @@ class ServerOption {
     this.available = true,
     this.automatic = false,
     this.unreachable = false,
+    this.reason,
   });
 
   /// The entry that stands for "pick one that works". Not a server: it has no
@@ -44,7 +54,8 @@ class ServerOption {
       serverId = null,
       available = true,
       automatic = true,
-      unreachable = false;
+      unreachable = false,
+      reason = null;
 
   static const automaticId = 'auto';
 
@@ -69,6 +80,9 @@ class ServerOption {
 
   /// Measured, and nothing came back. A result, as much as a latency is.
   final bool unreachable;
+
+  /// Set when [available] is false, to say why in the list.
+  final UnavailableReason? reason;
 
   /// Whether the last measurement reached a verdict either way.
   bool get measured => latencyMs != null || unreachable;
@@ -100,6 +114,7 @@ class ServerOption {
     available: available,
     automatic: automatic,
     unreachable: unreachable,
+    reason: reason,
   );
 }
 
@@ -156,23 +171,38 @@ class SubscriptionServerCatalog implements ServerCatalog {
             subscriptionId: subscription.id,
             nodeId: node.id,
             available: !node.maintenance,
+            reason: node.maintenance ? UnavailableReason.maintenance : null,
           ),
       // Серверы, которые подписка может выдать, но ещё не выдала. Ключей у них
       // нет, поэтому и узла нет: он появится, когда его выберут.
       for (final subscription in subscriptions)
         for (final server in subscription.available)
-          if (!server.ready &&
-              !SubscriptionFetcher.refused.contains(
-                '${subscription.id}:${server.id}',
-              ))
-            ServerOption(
-              id: 'offer:${subscription.id}:${server.id}',
-              name: server.name,
-              description: server.description,
-              flag: server.flag.isEmpty ? '🌐' : server.flag,
-              subscriptionId: subscription.id,
-              serverId: server.id,
-            ),
+          if (!server.ready)
+            // One the subscription would not issue is still shown, dimmed and
+            // explained, rather than vanishing from a list somebody can
+            // compare with the panel (#126).
+            if (SubscriptionFetcher.isRefused(
+              '${subscription.id}:${server.id}',
+            ))
+              ServerOption(
+                id: 'offer:${subscription.id}:${server.id}',
+                name: server.name,
+                description: server.description,
+                flag: server.flag.isEmpty ? '🌐' : server.flag,
+                subscriptionId: subscription.id,
+                serverId: server.id,
+                available: false,
+                reason: UnavailableReason.notIssued,
+              )
+            else
+              ServerOption(
+                id: 'offer:${subscription.id}:${server.id}',
+                name: server.name,
+                description: server.description,
+                flag: server.flag.isEmpty ? '🌐' : server.flag,
+                subscriptionId: subscription.id,
+                serverId: server.id,
+              ),
       for (final config in configs)
         ServerOption(
           id: 'user-${config.id}',
@@ -360,9 +390,12 @@ class ServerSelectionController extends ChangeNotifier {
       return before.unreachable ? server.withUnreachable() : server;
     }
 
+    final carried = loaded.map(carry).toList();
+    // Usable first, the rest below in their own order (#126).
     servers = [
       if (loaded.isNotEmpty) const ServerOption.automatic(),
-      ...loaded.map(carry),
+      ...carried.where((server) => server.available),
+      ...carried.where((server) => !server.available),
     ];
     selected =
         servers.where((server) => server.id == savedId).firstOrNull ??

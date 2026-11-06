@@ -358,4 +358,11 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get connectionLost =>
       'Сервер перестал отвечать, а другие тоже не ответили.';
+
+  @override
+  String get serverMaintenance => 'На обслуживании';
+
+  @override
+  String get serverNotIssued =>
+      'Сейчас недоступен: сервер не выдал подключение';
 }

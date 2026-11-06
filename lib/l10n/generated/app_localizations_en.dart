@@ -360,4 +360,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get connectionLost =>
       'The server stopped answering, and no other one did either.';
+
+  @override
+  String get serverMaintenance => 'Under maintenance';
+
+  @override
+  String get serverNotIssued =>
+      'Not available right now: the server did not issue a connection';
 }

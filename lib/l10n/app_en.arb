@@ -370,5 +370,7 @@
   "@subscriptionGone": {
     "description": "Connecting failed and the subscription server said the link is unknown: revoked or expired (#106)."
   },
-  "connectionLost": "The server stopped answering, and no other one did either."
+  "connectionLost": "The server stopped answering, and no other one did either.",
+  "serverMaintenance": "Under maintenance",
+  "serverNotIssued": "Not available right now: the server did not issue a connection"
 }
