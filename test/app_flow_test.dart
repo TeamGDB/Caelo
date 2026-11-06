@@ -168,6 +168,30 @@ void main() {
     }
   }
 
+  /// Pumps until [condition] holds, on the real clock as well as the fake
+  /// one. Waiting for a fixed number of frames passed on a fast machine and
+  /// failed on a slow CI runner; waiting for the state does not care.
+  Future<void> waitFor(
+    WidgetTester tester,
+    bool Function() condition, {
+    Duration timeout = const Duration(seconds: 20),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (!condition()) {
+      if (DateTime.now().isAfter(deadline)) {
+        fail('timed out waiting for the app to settle');
+      }
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    // Whatever the change set in motion, let it land.
+    await settle(tester, rounds: 3);
+  }
+
+  bool shows(Finder finder) => finder.evaluate().isNotEmpty;
+
   Future<void> launch(WidgetTester tester, {bool accessGranted = false}) async {
     tester.view.physicalSize = const Size(1170, 2532);
     tester.view.devicePixelRatio = 3;
@@ -181,18 +205,45 @@ void main() {
         serverCatalog: catalog(),
       ),
     );
+    await waitFor(
+      tester,
+      () =>
+          shows(find.text('Добро пожаловать')) ||
+          shows(find.byKey(const ValueKey('selected-server-name'))),
+    );
     await settle(tester);
   }
 
   Future<void> onboard(WidgetTester tester) async {
     await tester.enterText(find.byType(CupertinoTextField), _invitation);
     await tester.tap(find.text('Продолжить'));
-    await settle(tester);
+    await waitFor(
+      tester,
+      () => shows(find.byKey(const ValueKey('selected-server-name'))),
+    );
   }
 
-  Future<void> pressPower(WidgetTester tester) async {
+  /// Presses the button and waits for wherever it leads: up, down or failed,
+  /// whichever is not where it started — or [until], when a test holds the
+  /// tunnel somewhere in between.
+  Future<void> pressPower(
+    WidgetTester tester, {
+    Set<TunnelPhase>? until,
+  }) async {
+    final from = tester.widget<PowerButton>(find.byType(PowerButton)).phase;
+    final targets =
+        until ??
+        ({TunnelPhase.connected, TunnelPhase.disconnected, TunnelPhase.failed}
+          ..remove(from == TunnelPhase.failed ? null : from));
     await tester.tap(find.byType(PowerButton));
-    await settle(tester);
+    // One frame, so a press from "failed" has left it before the wait begins.
+    await tester.pump();
+    await waitFor(
+      tester,
+      () => targets.contains(
+        tester.widget<PowerButton>(find.byType(PowerButton)).phase,
+      ),
+    );
   }
 
   String headerName(WidgetTester tester) => tester
@@ -210,6 +261,11 @@ void main() {
         (widget.key! as ValueKey<String>).value.startsWith('server-row-') &&
         (widget.key! as ValueKey<String>).value.endsWith(suffix),
   );
+
+  Future<void> pick(WidgetTester tester, String suffix, String name) async {
+    await tester.tap(row(suffix));
+    await waitFor(tester, () => headerName(tester) == name);
+  }
 
   PowerButton power(WidgetTester tester) =>
       tester.widget<PowerButton>(find.byType(PowerButton));
@@ -286,10 +342,7 @@ void main() {
     await onboard(tester);
 
     await openServers(tester);
-    await tester.tap(row(':fra'));
-    await settle(tester);
-
-    expect(headerName(tester), 'Frankfurt');
+    await pick(tester, ':fra', 'Frankfurt');
     await pressPower(tester);
 
     expect(power(tester).phase, TunnelPhase.connected);
@@ -301,8 +354,7 @@ void main() {
     await launch(tester);
     await onboard(tester);
     await openServers(tester);
-    await tester.tap(row(':sto'));
-    await settle(tester);
+    await pick(tester, ':sto', 'Stockholm');
 
     await tester.pumpWidget(const SizedBox());
     SubscriptionStore.forget();
@@ -316,8 +368,7 @@ void main() {
     await launch(tester);
     await onboard(tester);
     await openServers(tester);
-    await tester.tap(row(':fra'));
-    await settle(tester);
+    await pick(tester, ':fra', 'Frankfurt');
     await pressPower(tester);
 
     expect(power(tester).phase, TunnelPhase.failed);
@@ -342,14 +393,17 @@ void main() {
     await pressPower(tester);
 
     tunnel.holdDisconnect = Completer<void>();
-    await pressPower(tester);
+    await pressPower(tester, until: {TunnelPhase.disconnecting});
     expect(power(tester).phase, TunnelPhase.disconnecting);
     expect(power(tester).onPressed, isNull);
 
     await tester.tap(find.byType(PowerButton), warnIfMissed: false);
     await settle(tester, rounds: 5);
     tunnel.holdDisconnect!.complete();
-    await settle(tester);
+    await waitFor(
+      tester,
+      () => power(tester).phase == TunnelPhase.disconnected,
+    );
 
     expect(power(tester).phase, TunnelPhase.disconnected);
     expect(tunnel.dialled, [_helsinki]);
@@ -421,7 +475,7 @@ void main() {
 
       await openForget(tester);
       await tester.tap(inDialog('Отключить'));
-      await settle(tester);
+      await waitFor(tester, () => shows(find.text('Добро пожаловать')));
 
       expect(find.text('Добро пожаловать'), findsOneWidget);
       expect(tunnel.current.phase, TunnelPhase.disconnected);
