@@ -9,8 +9,10 @@
 package systunnel
 
 import (
+	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
+	"github.com/TeamGDB/Caelo/core/internal/handshake"
 	"github.com/TeamGDB/Caelo/core/internal/system"
 )
 
@@ -31,7 +34,14 @@ type Status struct {
 	Protocol   string `json:"protocol,omitempty"`
 	Obfuscated bool   `json:"obfuscated,omitempty"`
 	SinceUnix  int64  `json:"since_unix,omitempty"`
+
+	// HandshakeUnix is when the peer last answered (#118).
+	HandshakeUnix int64 `json:"handshake_unix,omitempty"`
 }
+
+// HandshakeTimeout is how long a new tunnel has to hear from its server
+// before Start gives up on it (#117).
+const HandshakeTimeout = 10 * time.Second
 
 // Controller brings the machine's traffic in and out of a tunnel. It is safe
 // for concurrent use: the caller is a socket server handling one request while
@@ -132,6 +142,20 @@ func (c *Controller) Start(configText string) (*Status, error) {
 		return fail(err)
 	}
 
+	// A configured device says nothing about the far end. Reporting the
+	// tunnel up before the server has answered is how "connected" came to be
+	// shown over a server that no longer existed (#117). After the routes,
+	// because the handshake has to leave by the pinned endpoint route.
+	read := func() (string, error) {
+		var out strings.Builder
+		err := dev.IpcGetOperation(&out)
+		return out.String(), err
+	}
+	if !handshake.Wait(read, HandshakeTimeout) {
+		_ = system.Restore(state, network)
+		return fail(errors.New("the server did not answer the handshake"))
+	}
+
 	protocol := "AmneziaWG"
 	if len(cfg.Obfuscation) == 0 {
 		protocol = "WireGuard"
@@ -185,7 +209,16 @@ func (c *Controller) stopLocked() error {
 func (c *Controller) Status() Status {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.status
+	status := c.status
+	if status.Up && c.device != nil {
+		var out strings.Builder
+		if err := c.device.IpcGetOperation(&out); err == nil {
+			if at := handshake.Parse(out.String()); !at.IsZero() {
+				status.HandshakeUnix = at.Unix()
+			}
+		}
+	}
+	return status
 }
 
 // EndpointAddress resolves the host part of an endpoint to an address that can

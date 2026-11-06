@@ -23,6 +23,7 @@ import 'l10n/generated/app_localizations.dart';
 import 'theme/app_theme.dart';
 import 'theme/palette.dart';
 import 'ui/home_screen.dart';
+import 'ui/update_prompt.dart';
 import 'ui/welcome_screen.dart';
 import 'ui/window_chrome.dart';
 
@@ -115,6 +116,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   DateTime _lastRefresh = DateTime.now();
   static const _refreshOnResumeAfter = Duration(minutes: 15);
   Timer? _periodicRefresh;
+  Timer? _connectedCheck;
 
   /// The system tunnel wherever there is one, and the in-process tunnel where
   /// there is not.
@@ -147,8 +149,31 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     // somewhere that still exists rather than leave it on a peer about to
     // vanish (#111).
     _servers.onActiveRemoved = (_) => unawaited(_controller.reconnect());
+    // A clearly faster server turned up while connected automatically (#132).
+    _servers.onFasterAvailable = (_) => unawaited(_controller.reconnect());
     // Somebody who keeps the app on screen should see servers come and go as
     // well as somebody who reopens it (#111).
+    // While connected, look at the subscription every minute: spidernet cuts
+    // a removed server's peers at once, and the app should move off it within
+    // a minute rather than a quarter of an hour (#121). /state is a few
+    // hundred bytes; the document is fetched only when it changed.
+    // Every minute while the app is open, whatever the tunnel is doing (#124).
+    // /state is a few hundred bytes; the document is fetched only when it
+    // changed. spidernet cuts a removed server's peers at once (#121), and the
+    // list should not go on offering it for a quarter of an hour.
+    _connectedCheck = Timer.periodic(const Duration(minutes: 1), (_) {
+      final state = WidgetsBinding.instance.lifecycleState;
+      if (!_accessGranted ||
+          state == AppLifecycleState.paused ||
+          state == AppLifecycleState.hidden) {
+        return;
+      }
+      unawaited(() async {
+        await _servers.syncWithSubscriptions();
+        // A server refused ten minutes ago may issue now (#126).
+        await _provisionAll();
+      }());
+    });
     _periodicRefresh = Timer.periodic(_refreshOnResumeAfter, (_) {
       final state = WidgetsBinding.instance.lifecycleState;
       if (_accessGranted && state == AppLifecycleState.resumed) {
@@ -203,18 +228,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
 
   /// Asks for keys on every server the subscriptions offer and this device
   /// has none for, then shows them.
-  Future<void> _provisionAll() async {
-    try {
-      final refusedBefore = SubscriptionFetcher.refused.length;
-      final granted = await SubscriptionFetcher.enableAll();
-      // New keys add servers; a refusal takes one out (#110).
-      if (granted > 0 || SubscriptionFetcher.refused.length != refusedBefore) {
-        await _servers.load();
-      }
-    } on Object catch (error) {
-      Diagnostics.record('asking for keys failed', error: error);
-    }
-  }
+  Future<void> _provisionAll() => _servers.provisionAll();
 
   Future<void> setThemeMode(CaeloThemeMode mode) async {
     setState(() => _themeMode = mode);
@@ -252,6 +266,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _periodicRefresh?.cancel();
+    _connectedCheck?.cancel();
     _controller.removeListener(_onTunnelChanged);
     _controller.dispose();
     _servers.dispose();
@@ -292,7 +307,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
                   ],
                   supportedLocales: AppLocalizations.supportedLocales,
                   home: _accessGranted
-                      ? const HomeScreen()
+                      ? const UpdatePrompt(child: HomeScreen())
                       : WelcomeScreen(
                           gateway: widget.accountGateway,
                           onGranted: _completeOnboarding,

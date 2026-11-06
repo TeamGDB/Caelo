@@ -7,9 +7,13 @@ class MainFlutterWindow: NSWindow {
 
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
-    let windowFrame = self.frame
+    // Phone-shaped, and kept that way (#119).
+    var windowFrame = self.frame
+    windowFrame.size = NSSize(width: 420, height: 860)
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
+    self.contentMinSize = NSSize(width: 360, height: 640)
+    self.contentMaxSize = NSSize(width: 560, height: 4096)
 
     // Let the content run all the way up behind the traffic lights.
     self.titlebarAppearsTransparent = true

@@ -405,6 +405,21 @@ abstract final class CoreLibrary {
     return [result['v4'] as int? ?? -1, result['v6'] as int? ?? -1];
   }
 
+  /// What the hosted tunnel reports, including `handshake_unix`.
+  static Future<Map<String, dynamic>> statusFd() {
+    return Isolate.run(() {
+      final library = _open();
+      return _require(
+        _consume(
+          library,
+          library.lookupFunction<_StringNative, _StringNative>(
+            'caelo_status_fd',
+          )(),
+        ),
+      );
+    });
+  }
+
   static Future<void> disconnectFd() {
     return Isolate.run(() {
       final library = _open();

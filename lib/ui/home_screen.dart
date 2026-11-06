@@ -75,7 +75,12 @@ class HomeScreen extends StatelessWidget {
                         // the button for everyone, forever, to spare a shift in
                         // a state almost nobody reaches is the worse trade, and
                         // the movement is doing the same work as the colour.
-                        if (_explain(status.failure, l10n) case final note?)
+                        if (_explain(
+                              status.failure,
+                              l10n,
+                              servers.removedChoice,
+                            )
+                            case final note?)
                           Padding(
                             padding: const EdgeInsets.only(
                               top: CaeloSpace.gutter,
@@ -97,6 +102,7 @@ class HomeScreen extends StatelessWidget {
             Positioned.fill(
               child: ServerDrawer(
                 controller: servers,
+                onPicked: controller.dismissFailure,
                 // Open after a failure: that is exactly when somebody wants a
                 // different server (#104).
                 locked:
@@ -145,16 +151,23 @@ class HomeScreen extends StatelessWidget {
 /// Lives here rather than on [TunnelFailure] because the clients that raise
 /// these run below the interface and have no locale; an English sentence built
 /// down there would surface untranslated in a Russian window.
-String? _explain(TunnelFailure? failure, AppLocalizations l10n) =>
-    switch (failure) {
-      TunnelFailure.serviceOlderThanApp => l10n.serviceOlderThanApp,
-      TunnelFailure.appOlderThanService => l10n.appOlderThanService,
-      TunnelFailure.noServers => l10n.noServers,
-      TunnelFailure.noServerReachable => l10n.noServerReachable,
-      TunnelFailure.chosenServerUnreachable => l10n.chosenServerUnreachable,
-      TunnelFailure.subscriptionGone => l10n.subscriptionGone,
-      null => null,
-    };
+String? _explain(
+  TunnelFailure? failure,
+  AppLocalizations l10n, [
+  String? removedName,
+]) => switch (failure) {
+  TunnelFailure.serviceOlderThanApp => l10n.serviceOlderThanApp,
+  TunnelFailure.appOlderThanService => l10n.appOlderThanService,
+  TunnelFailure.noServers => l10n.noServers,
+  TunnelFailure.noServerReachable => l10n.noServerReachable,
+  TunnelFailure.chosenServerUnreachable => l10n.chosenServerUnreachable,
+  TunnelFailure.subscriptionGone => l10n.subscriptionGone,
+  TunnelFailure.connectionLost => l10n.connectionLost,
+  TunnelFailure.chosenServerRemoved => l10n.chosenServerRemoved(
+    removedName ?? '',
+  ),
+  null => null,
+};
 
 class _SettingsButton extends StatelessWidget {
   const _SettingsButton();

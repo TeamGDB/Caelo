@@ -102,7 +102,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get currentConnection => 'Текущее подключение';
 
   @override
-  String get serverPreparing => 'Готовим…';
+  String get serverPreparing => 'Готовим подключение…';
 
   @override
   String latency(int ping) {
@@ -354,4 +354,20 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get subscriptionGone =>
       'Подписка больше не действует. Получите новую ссылку приглашения и вставьте её: Настройки → Отключить аккаунт.';
+
+  @override
+  String get connectionLost =>
+      'Сервер перестал отвечать, а другие тоже не ответили.';
+
+  @override
+  String get serverMaintenance => 'На обслуживании';
+
+  @override
+  String get serverNotIssued =>
+      'Сейчас недоступен: сервер не выдал подключение';
+
+  @override
+  String chosenServerRemoved(String name) {
+    return 'Сервер $name удалён из подписки. Выберите другой или нажмите ещё раз — подключимся автоматически.';
+  }
 }

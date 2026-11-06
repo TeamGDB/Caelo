@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'config_store.dart';
+import 'reachability.dart';
 import 'diagnostics.dart';
+import 'handshake_watchdog.dart';
 import 'service_client.dart';
 import 'tunnel.dart';
 
@@ -16,7 +18,8 @@ import 'tunnel.dart';
 /// ask what is up rather than assume, because the answer can change without the
 /// app being involved.
 class ServiceTunnelClient implements TunnelClient {
-  ServiceTunnelClient() {
+  ServiceTunnelClient({Reachability? reachability})
+    : _reachability = reachability ?? Reachability() {
     // The service may already have a tunnel up from a previous run of the app.
     // Starting from "disconnected" and letting someone find out otherwise would
     // be the app lying about the state of their machine.
@@ -38,6 +41,13 @@ class ServiceTunnelClient implements TunnelClient {
 
   void _emit(TunnelStatus status) {
     _current = status;
+    if (status.phase == TunnelPhase.connected) {
+      if (!_watchdog.running) _watchdog.start();
+      if (_reachabilityTimer == null) _watchReachability(true);
+    } else {
+      _watchdog.stop();
+      _watchReachability(false);
+    }
     if (!_controller.isClosed) _controller.add(status);
   }
 
@@ -53,6 +63,61 @@ class ServiceTunnelClient implements TunnelClient {
       debugPrint('Caelo: service status failed: $error\n$stack');
     }
   }
+
+  final Reachability _reachability;
+  Timer? _reachabilityTimer;
+  int _misses = 0;
+
+  /// The machine's own traffic goes through this tunnel, so an ordinary
+  /// request is the test that matters: a server can accept the handshake and
+  /// forward nothing, and spidernet revokes a removed server's peers at once
+  /// (#121). Two misses in a row, twenty seconds apart, is a lost connection.
+  void _watchReachability(bool on) {
+    _reachabilityTimer?.cancel();
+    _reachabilityTimer = null;
+    _misses = 0;
+    if (!on) return;
+    _reachabilityTimer = Timer.periodic(_reachability.interval, (_) async {
+      if (_current.phase != TunnelPhase.connected) return;
+      if (await _reachability.check()) {
+        _misses = 0;
+        return;
+      }
+      if (++_misses < 2 || _current.phase != TunnelPhase.connected) return;
+      Diagnostics.record('nothing loads through the tunnel');
+      await _lose();
+    });
+  }
+
+  Future<void> _lose() async {
+    _watchReachability(false);
+    // Down before saying so: the controller connects again at once, and a
+    // dead tunnel left holding the routes would fail that attempt too.
+    await ServiceClient.disconnect().catchError((_) => <String, dynamic>{});
+    _emit(
+      const TunnelStatus(
+        phase: TunnelPhase.failed,
+        failure: TunnelFailure.connectionLost,
+      ),
+    );
+  }
+
+  late final _watchdog = HandshakeWatchdog(
+    read: () async {
+      final status = await ServiceClient.status();
+      if (status['up'] != true) return -1;
+      return (status['handshake_unix'] as num?)?.toInt();
+    },
+    onDead: () {
+      Diagnostics.record('the server stopped answering');
+      _emit(
+        const TunnelStatus(
+          phase: TunnelPhase.failed,
+          failure: TunnelFailure.connectionLost,
+        ),
+      );
+    },
+  );
 
   TunnelStatus _statusFrom(Map<String, dynamic> response) {
     return TunnelStatus(
@@ -85,7 +150,15 @@ class ServiceTunnelClient implements TunnelClient {
         return;
       }
 
-      _emit(_statusFrom(await ServiceClient.connect(configText)));
+      final up = await ServiceClient.connect(configText);
+      // The handshake said the server is there; this says it carries traffic.
+      if (!await _reachability.check()) {
+        Diagnostics.record('connected, and nothing loads');
+        await ServiceClient.disconnect().catchError((_) => <String, dynamic>{});
+        _emit(const TunnelStatus(phase: TunnelPhase.failed));
+        return;
+      }
+      _emit(_statusFrom(up));
     } on ServiceVersionMismatch catch (error) {
       // Named rather than folded into the failure below, because retrying is
       // useless and the interface has something specific to tell them. Left as
@@ -130,6 +203,8 @@ class ServiceTunnelClient implements TunnelClient {
 
   @override
   Future<void> dispose() async {
+    _watchdog.stop();
+    _watchReachability(false);
     // The tunnel deliberately outlives the app. Quitting Caelo is not the same
     // as asking to be exposed, and tearing the tunnel down here would make it
     // exactly that.

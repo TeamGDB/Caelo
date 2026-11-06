@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'config_store.dart';
 import 'diagnostics.dart';
+import 'handshake_watchdog.dart';
 import 'ffi/core_library.dart';
 import 'tunnel.dart';
 
@@ -43,8 +44,30 @@ class AndroidTunnelClient implements TunnelClient {
   @override
   bool get coversWholeMachine => true;
 
+  late final _watchdog = HandshakeWatchdog(
+    read: () async {
+      final status = await CoreLibrary.statusFd();
+      if (status['up'] != true) return -1;
+      return (status['handshake_unix'] as num?)?.toInt();
+    },
+    onDead: () {
+      Diagnostics.record('the server stopped answering');
+      _emit(
+        const TunnelStatus(
+          phase: TunnelPhase.failed,
+          failure: TunnelFailure.connectionLost,
+        ),
+      );
+    },
+  );
+
   void _emit(TunnelStatus status) {
     _current = status;
+    if (status.phase == TunnelPhase.connected) {
+      if (!_watchdog.running) _watchdog.start();
+    } else {
+      _watchdog.stop();
+    }
     if (!_controller.isClosed) _controller.add(status);
   }
 
@@ -188,6 +211,7 @@ class AndroidTunnelClient implements TunnelClient {
 
   @override
   Future<void> dispose() async {
+    _watchdog.stop();
     // The tunnel outlives the app on purpose. Leaving the screen is not the
     // same as asking to be exposed, and the foreground service exists so that
     // it does not have to be.

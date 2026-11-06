@@ -304,6 +304,8 @@ func fromStatus(status systunnel.Status) ipc.Response {
 		Protocol:   status.Protocol,
 		Obfuscated: status.Obfuscated,
 		SinceUnix:  status.SinceUnix,
+
+		HandshakeUnix: status.HandshakeUnix,
 	}
 }
 

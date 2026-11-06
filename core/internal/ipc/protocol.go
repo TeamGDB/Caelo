@@ -73,6 +73,10 @@ type Response struct {
 	Obfuscated bool   `json:"obfuscated,omitempty"`
 	SinceUnix  int64  `json:"since_unix,omitempty"`
 
+	// HandshakeUnix is when the tunnel's server last answered. Optional, so
+	// an older app or service on the other end is unaffected (#118).
+	HandshakeUnix int64 `json:"handshake_unix,omitempty"`
+
 	Core      string `json:"core,omitempty"`
 	AmneziaWG string `json:"amneziawg,omitempty"`
 

@@ -14,12 +14,13 @@
 package fdtun
 
 import (
+	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/TeamGDB/Caelo/core/internal/handshake"
 	"github.com/amnezia-vpn/amneziawg-go/v3/conn"
 	"github.com/amnezia-vpn/amneziawg-go/v3/device"
 
@@ -34,6 +35,11 @@ type Status struct {
 	Protocol   string `json:"protocol,omitempty"`
 	Obfuscated bool   `json:"obfuscated,omitempty"`
 	SinceUnix  int64  `json:"since_unix,omitempty"`
+
+	// HandshakeUnix is when the peer last answered. A live session
+	// re-handshakes at least every two minutes, so an old one means the
+	// server has gone quiet (#118).
+	HandshakeUnix int64 `json:"handshake_unix,omitempty"`
 }
 
 // Session is one tunnel on a host-provided device.
@@ -144,33 +150,20 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 // последнего лежит в его же состоянии и читается через тот же IPC, которым мы
 // его настраивали.
 func (s *Session) WaitForHandshake(timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for {
-		s.mu.Lock()
-		dev := s.device
-		s.mu.Unlock()
-		if dev == nil {
-			return false
-		}
+	return handshake.Wait(s.uapi, timeout)
+}
 
-		var out strings.Builder
-		if err := dev.IpcGetOperation(&out); err == nil {
-			for _, line := range strings.Split(out.String(), "\n") {
-				value, ok := strings.CutPrefix(line, "last_handshake_time_sec=")
-				if !ok || value == "0" {
-					continue
-				}
-				if seconds, err := strconv.ParseInt(value, 10, 64); err == nil && seconds > 0 {
-					return true
-				}
-			}
-		}
-
-		if time.Now().After(deadline) {
-			return false
-		}
-		time.Sleep(200 * time.Millisecond)
+// uapi reads the device's state, or fails when nothing is up.
+func (s *Session) uapi() (string, error) {
+	s.mu.Lock()
+	dev := s.device
+	s.mu.Unlock()
+	if dev == nil {
+		return "", errors.New("no tunnel is up")
 	}
+	var out strings.Builder
+	err := dev.IpcGetOperation(&out)
+	return out.String(), err
 }
 
 func (s *Session) SocketFds() (v4 int, v6 int) {
@@ -214,6 +207,14 @@ func (s *Session) stopLocked() {
 // Status reports what is up without disturbing it.
 func (s *Session) Status() Status {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.status
+	status := s.status
+	s.mu.Unlock()
+	if status.Up {
+		if uapi, err := s.uapi(); err == nil {
+			if at := handshake.Parse(uapi); !at.IsZero() {
+				status.HandshakeUnix = at.Unix()
+			}
+		}
+	}
+	return status
 }

@@ -14,8 +14,12 @@ class ServerDrawer extends StatefulWidget {
     required this.limitedScope,
     this.selectedLatencyMs,
     this.showActive = false,
+    this.onPicked,
     super.key,
   });
+
+  /// Told after the person picks a server.
+  final VoidCallback? onPicked;
 
   final ServerSelectionController controller;
   final bool locked;
@@ -214,7 +218,12 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                             widget.controller.servers[index];
                                         final preparing =
                                             server ==
-                                            widget.controller.preparing;
+                                                widget.controller.preparing ||
+                                            // Waiting for keys from the
+                                            // background pass (#131).
+                                            (widget.controller.provisioning &&
+                                                server.needsKeys &&
+                                                server.available);
                                         return _ServerRow(
                                           server: server,
                                           // Готовящийся показывается выбранным
@@ -223,7 +232,8 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                           // показывает прежний выбор, читается
                                           // как «не нажалось».
                                           selected:
-                                              preparing ||
+                                              server ==
+                                                  widget.controller.preparing ||
                                               server ==
                                                   widget.controller.selected,
                                           preparing: preparing,
@@ -249,6 +259,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                                   }
                                                   await widget.controller
                                                       .select(server);
+                                                  widget.onPicked?.call();
                                                 },
                                         );
                                       },
@@ -449,96 +460,104 @@ class _ServerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
-    return CupertinoButton(
-      padding: EdgeInsets.zero,
-      onPressed: onPressed,
-      child: Container(
-        key: ValueKey('server-row-${server.id}'),
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-          horizontal: CaeloSpace.md,
-          vertical: 18,
-        ),
-        decoration: BoxDecoration(
-          color: selected ? palette.accentSurface : const Color(0x00000000),
-          borderRadius: BorderRadius.circular(18),
-        ),
-        foregroundDecoration: selected
-            ? BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: palette.accent,
-                  width: CaeloStroke.emphasis,
-                ),
-              )
-            : null,
-        child: Row(
-          children: [
-            SizedBox(
-              width: 64,
-              child: Text(
-                server.flag,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 36),
-              ),
-            ),
-            const SizedBox(width: CaeloSpace.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _name(server, AppLocalizations.of(context)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: CaeloTheme.body(
-                      palette,
-                    ).copyWith(fontSize: 20, fontWeight: FontWeight.w600),
+    // A server that cannot be used is shown, dimmed, rather than hidden: the
+    // list should match the panel, and say why one of them will not do (#126).
+    return Opacity(
+      opacity: server.available ? 1 : 0.45,
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: onPressed,
+        child: Container(
+          key: ValueKey('server-row-${server.id}'),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(
+            horizontal: CaeloSpace.md,
+            vertical: 18,
+          ),
+          decoration: BoxDecoration(
+            color: selected ? palette.accentSurface : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          foregroundDecoration: selected
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: palette.accent,
+                    width: CaeloStroke.emphasis,
                   ),
-                  // Wraps rather than ends in an ellipsis: the description
-                  // is how somebody tells two servers in one country apart.
-                  Text(
-                    preparing
-                        ? AppLocalizations.of(context).serverPreparing
-                        : _description(server, AppLocalizations.of(context)),
-                    key: ValueKey('server-description-${server.id}'),
+                )
+              : null,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 64,
+                child: Text(
+                  server.flag,
+                  textAlign: TextAlign.center,
+                  // Opaque on purpose: a disabled button tints emoji through the
+                  // default text colour, and every flag paled while another
+                  // row was being prepared (#130).
+                  style: TextStyle(fontSize: 36, color: palette.foreground),
+                ),
+              ),
+              const SizedBox(width: CaeloSpace.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _name(server, AppLocalizations.of(context)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: CaeloTheme.body(
+                        palette,
+                      ).copyWith(fontSize: 20, fontWeight: FontWeight.w600),
+                    ),
+                    // Wraps rather than ends in an ellipsis: the description
+                    // is how somebody tells two servers in one country apart.
+                    Text(
+                      preparing
+                          ? AppLocalizations.of(context).serverPreparing
+                          : _description(server, AppLocalizations.of(context)),
+                      key: ValueKey('server-description-${server.id}'),
+                      style: CaeloTheme.body(
+                        palette,
+                      ).copyWith(color: palette.muted, fontSize: 17),
+                    ),
+                  ],
+                ),
+              ),
+              if (showLatency)
+                Padding(
+                  padding: const EdgeInsets.only(left: CaeloSpace.sm),
+                  child: Text(
+                    switch (server.latencyMs) {
+                      final latency? => AppLocalizations.of(
+                        context,
+                      ).latency(latency),
+                      null => '—',
+                    },
+                    key: ValueKey('server-latency-${server.id}'),
                     style: CaeloTheme.body(
                       palette,
                     ).copyWith(color: palette.muted, fontSize: 17),
                   ),
-                ],
-              ),
-            ),
-            if (showLatency)
-              Padding(
-                padding: const EdgeInsets.only(left: CaeloSpace.sm),
-                child: Text(
-                  switch (server.latencyMs) {
-                    final latency? => AppLocalizations.of(
-                      context,
-                    ).latency(latency),
-                    null => '—',
-                  },
-                  key: ValueKey('server-latency-${server.id}'),
-                  style: CaeloTheme.body(
-                    palette,
-                  ).copyWith(color: palette.muted, fontSize: 17),
                 ),
+              const SizedBox(width: CaeloSpace.sm),
+              SizedBox(
+                width: 28,
+                child: preparing
+                    ? const CupertinoActivityIndicator(radius: 9)
+                    : selected
+                    ? Icon(
+                        CupertinoIcons.check_mark_circled_solid,
+                        color: palette.accent,
+                        size: 28,
+                      )
+                    : null,
               ),
-            const SizedBox(width: CaeloSpace.sm),
-            SizedBox(
-              width: 28,
-              child: preparing
-                  ? const CupertinoActivityIndicator(radius: 9)
-                  : selected
-                  ? Icon(
-                      CupertinoIcons.check_mark_circled_solid,
-                      color: palette.accent,
-                      size: 28,
-                    )
-                  : null,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -552,6 +571,14 @@ String _name(ServerOption? server, AppLocalizations l10n) {
 }
 
 String _description(ServerOption? server, AppLocalizations l10n) {
+  switch (server?.reason) {
+    case UnavailableReason.maintenance:
+      return l10n.serverMaintenance;
+    case UnavailableReason.notIssued:
+      return l10n.serverNotIssued;
+    case null:
+      break;
+  }
   if (server != null && server.automatic) {
     return l10n.automaticServerDescription;
   }

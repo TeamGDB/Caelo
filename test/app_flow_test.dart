@@ -104,6 +104,14 @@ class _DeviceTunnel implements TunnelClient {
     _emit(const TunnelStatus.disconnected());
   }
 
+  /// The server went quiet under the live tunnel, as the watchdog reports.
+  void lose() => _emit(
+    const TunnelStatus(
+      phase: TunnelPhase.failed,
+      failure: TunnelFailure.connectionLost,
+    ),
+  );
+
   @override
   Future<void> reconnectDifferently() async {}
 
@@ -336,6 +344,22 @@ void main() {
     expect(row(':sto'), findsOneWidget);
   });
 
+  testWidgets('after a failure, picking another server brings the button '
+      'back to Connect (#125)', (tester) async {
+    answers.clear();
+    await launch(tester);
+    await onboard(tester);
+    await pressPower(tester);
+    expect(power(tester).phase, TunnelPhase.failed);
+
+    answers[_stockholm] = 40;
+    await openServers(tester);
+    await pick(tester, ':sto', 'Stockholm');
+
+    expect(power(tester).phase, TunnelPhase.disconnected);
+    expect(find.text('Подключить'), findsWidgets);
+  });
+
   testWidgets('picking a server by hand connects through exactly that one', (
     tester,
   ) async {
@@ -471,8 +495,9 @@ void main() {
     expect(row(':hel'), findsNothing);
   });
 
-  testWidgets('the next connection goes straight to the last server, probing '
-      'nothing (#112)', (tester) async {
+  testWidgets('the next connection checks the servers again (#123)', (
+    tester,
+  ) async {
     await launch(tester);
     await onboard(tester);
     await pressPower(tester);
@@ -487,7 +512,24 @@ void main() {
 
     expect(power(tester).phase, TunnelPhase.connected);
     expect(tunnel.dialled, [_helsinki, _helsinki]);
-    expect(probed, isEmpty);
+    expect(probed.toSet(), {_helsinki, _stockholm, _frankfurt});
+  });
+
+  testWidgets('the server goes quiet while connected: the app moves to '
+      'another on its own (#118)', (tester) async {
+    await launch(tester);
+    await onboard(tester);
+    await pressPower(tester);
+    expect(headerName(tester), 'Helsinki');
+
+    answers.remove(_helsinki);
+    tunnel.silent.add(_helsinki);
+    tunnel.lose();
+    await waitFor(tester, () => tunnel.dialled.length == 2);
+    await waitFor(tester, () => power(tester).phase == TunnelPhase.connected);
+
+    expect(tunnel.dialled, [_helsinki, _stockholm]);
+    expect(headerName(tester), 'Stockholm');
   });
 
   group('forgetting the account', () {

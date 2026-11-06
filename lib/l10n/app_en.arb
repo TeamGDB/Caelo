@@ -83,7 +83,7 @@
   "@currentConnection": {
     "description": "Label above the real node reported by the core on Home."
   },
-  "serverPreparing": "Preparing…",
+  "serverPreparing": "Preparing a connection…",
   "@serverPreparing": {
     "description": "Shown while the subscription is issuing keys for a server somebody just chose."
   },
@@ -369,5 +369,16 @@
   "subscriptionGone": "Your subscription no longer works. Get a new invitation link, then go to Settings → Disconnect account and paste it.",
   "@subscriptionGone": {
     "description": "Connecting failed and the subscription server said the link is unknown: revoked or expired (#106)."
+  },
+  "connectionLost": "The server stopped answering, and no other one did either.",
+  "serverMaintenance": "Under maintenance",
+  "serverNotIssued": "Not available right now: the server did not issue a connection",
+  "chosenServerRemoved": "{name} was removed from your subscription. Pick another server, or press again to connect automatically.",
+  "@chosenServerRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   }
 }

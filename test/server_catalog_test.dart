@@ -187,7 +187,8 @@ void main() {
     },
   );
 
-  test('an offer the subscription would not issue is left out', () async {
+  test('an offer the subscription would not issue is shown, unusable and '
+      'explained (#126)', () async {
     const subscription = Subscription(
       id: 'account',
       url: 'https://example.invalid/subscription',
@@ -203,7 +204,135 @@ void main() {
       loadConfigurations: () async => const [],
     );
 
-    final names = (await catalog.load()).map((server) => server.name);
-    expect(names, ['Neo']);
+    final servers = await catalog.load();
+    final truffle = servers.firstWhere((server) => server.name == 'Truffle');
+    expect(truffle.available, isFalse);
+    expect(truffle.reason, UnavailableReason.notIssued);
+    expect(truffle.connectable, isFalse);
+    expect(
+      servers.firstWhere((server) => server.name == 'Neo').available,
+      isTrue,
+    );
   });
+
+  test('a server issued twice is listed once (#127)', () async {
+    const subscription = Subscription(
+      id: 'account',
+      url: 'https://example.invalid/subscription',
+      nodes: [
+        SubscriptionNode(
+          id: 'm1',
+          tag: 'Mett',
+          endpoint: '{}',
+          position: 0,
+          country: 'DE',
+        ),
+        SubscriptionNode(
+          id: 'm2',
+          tag: 'Mett',
+          endpoint: '{}',
+          position: 1,
+          country: 'DE',
+        ),
+        SubscriptionNode(
+          id: 'b',
+          tag: 'Buran',
+          endpoint: '{}',
+          position: 2,
+          country: 'RU',
+        ),
+      ],
+    );
+    final catalog = SubscriptionServerCatalog(
+      loadSubscriptions: () async => const [subscription],
+      loadConfigurations: () async => const [],
+    );
+    final names = (await catalog.load()).map((server) => server.name);
+    expect(names, ['Mett', 'Buran']);
+  });
+
+  test('a server issued twice connects through whichever config answers '
+      '(#129)', () async {
+    const subscription = Subscription(
+      id: 'account',
+      url: 'https://example.invalid/subscription',
+      nodes: [
+        SubscriptionNode(
+          id: 'dead',
+          tag: 'Salem',
+          endpoint: 'dead',
+          position: 0,
+          country: 'KZ',
+        ),
+        SubscriptionNode(
+          id: 'live',
+          tag: 'Salem',
+          endpoint: 'live',
+          position: 1,
+          country: 'KZ',
+        ),
+      ],
+    );
+    final probed = <String>[];
+    final catalog = SubscriptionServerCatalog(
+      loadSubscriptions: () async => const [subscription],
+      loadConfigurations: () async => const [],
+      probeConfiguration: (endpoint) async {
+        probed.add(endpoint);
+        if (endpoint == 'dead') throw StateError('no answer');
+        return {'latency_ms': 40};
+      },
+    );
+    final row = (await catalog.load()).single;
+
+    expect(await catalog.measureLatency(row), 40);
+    expect(probed, ['dead', 'live']);
+
+    probed.clear();
+    expect(await catalog.measureLatency(row), 40);
+    expect(probed, ['live'], reason: 'the one that worked is asked first');
+  });
+
+  test('unusable servers sit below the usable ones', () async {
+    final controller = ServerSelectionController(
+      _ListCatalog(const [
+        ServerOption(
+          id: 'down',
+          name: 'Down',
+          description: '',
+          flag: '🌐',
+          nodeId: 'down',
+          subscriptionId: 's',
+          available: false,
+          reason: UnavailableReason.maintenance,
+        ),
+        ServerOption(
+          id: 'up',
+          name: 'Up',
+          description: '',
+          flag: '🌐',
+          nodeId: 'up',
+          subscriptionId: 's',
+        ),
+      ]),
+      readSelected: () async => null,
+      writeSelected: (_) async {},
+      latencyRefreshInterval: null,
+    );
+    addTearDown(controller.dispose);
+    controller.tunnelActive = true;
+    await controller.load();
+    expect(controller.servers.map((s) => s.id), ['auto', 'up', 'down']);
+  });
+}
+
+class _ListCatalog implements ServerCatalog {
+  const _ListCatalog(this.list);
+  final List<ServerOption> list;
+  @override
+  Future<List<ServerOption>> load() async => list;
+  @override
+  Future<int?> measureLatency(ServerOption server) async => null;
+  @override
+  Future<void> activate(ServerOption server) async {}
 }

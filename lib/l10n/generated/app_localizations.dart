@@ -269,7 +269,7 @@ abstract class AppLocalizations {
   /// Shown while the subscription is issuing keys for a server somebody just chose.
   ///
   /// In en, this message translates to:
-  /// **'Preparing…'**
+  /// **'Preparing a connection…'**
   String get serverPreparing;
 
   /// Measured round-trip latency reported by the core.
@@ -739,6 +739,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your subscription no longer works. Get a new invitation link, then go to Settings → Disconnect account and paste it.'**
   String get subscriptionGone;
+
+  /// No description provided for @connectionLost.
+  ///
+  /// In en, this message translates to:
+  /// **'The server stopped answering, and no other one did either.'**
+  String get connectionLost;
+
+  /// No description provided for @serverMaintenance.
+  ///
+  /// In en, this message translates to:
+  /// **'Under maintenance'**
+  String get serverMaintenance;
+
+  /// No description provided for @serverNotIssued.
+  ///
+  /// In en, this message translates to:
+  /// **'Not available right now: the server did not issue a connection'**
+  String get serverNotIssued;
+
+  /// No description provided for @chosenServerRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} was removed from your subscription. Pick another server, or press again to connect automatically.'**
+  String chosenServerRemoved(String name);
 }
 
 class _AppLocalizationsDelegate

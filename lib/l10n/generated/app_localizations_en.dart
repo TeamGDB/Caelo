@@ -102,7 +102,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get currentConnection => 'Current connection';
 
   @override
-  String get serverPreparing => 'Preparing…';
+  String get serverPreparing => 'Preparing a connection…';
 
   @override
   String latency(int ping) {
@@ -356,4 +356,20 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get subscriptionGone =>
       'Your subscription no longer works. Get a new invitation link, then go to Settings → Disconnect account and paste it.';
+
+  @override
+  String get connectionLost =>
+      'The server stopped answering, and no other one did either.';
+
+  @override
+  String get serverMaintenance => 'Under maintenance';
+
+  @override
+  String get serverNotIssued =>
+      'Not available right now: the server did not issue a connection';
+
+  @override
+  String chosenServerRemoved(String name) {
+    return '$name was removed from your subscription. Pick another server, or press again to connect automatically.';
+  }
 }
