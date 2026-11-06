@@ -508,35 +508,24 @@ class ServerSelectionController extends ChangeNotifier {
           TunnelFailure.chosenServerUnreachable,
         );
       }
-      await catalog.activate(choice);
-      active = choice;
-      notifyListeners();
-      return PreparedConnection.ready(choice.id, latencyMs: choice.latencyMs);
-    }
-
-    // The server the last connection went through is used straight away,
-    // without a probe: it is almost always still the right answer, and the
-    // tunnel proves it with a handshake anyway. If it does not come up, the
-    // controller asks again with it in [tried], and the rest are compared.
-    // Passed over when a recent measurement shows another server clearly
-    // faster, so a phone that moved cities does not stay on a far server.
-    if (tried.isEmpty) {
-      final lastId = await readLastConnected().catchError((_) => null);
-      final last = servers
-          .where((server) => server.connectable && server.id == lastId)
-          .firstOrNull;
-      if (last != null && !_clearlyBeaten(last, servers)) {
-        Diagnostics.record('using the server that worked last: ${last.name}');
-        await catalog.activate(last);
-        if (cancelled()) return const PreparedConnection.cancelled();
-        active = last;
-        notifyListeners();
-        return PreparedConnection.ready(
-          last.id,
-          retryable: true,
-          latencyMs: last.latencyMs,
+      // Checked on every press, like automatic (#123). Handing the tunnel a
+      // configuration nobody has tried is how a server removed in the panel
+      // came to be shown as connected.
+      final latency = await _probe(choice);
+      if (cancelled()) return const PreparedConnection.cancelled();
+      if (latency == null) {
+        _recordUnreachable(choice.id);
+        return const PreparedConnection.failed(
+          TunnelFailure.chosenServerUnreachable,
         );
       }
+      _recordLatency(choice.id, latency);
+      await catalog.activate(choice);
+      active =
+          servers.where((each) => each.id == choice.id).firstOrNull ?? choice;
+      notifyListeners();
+      Diagnostics.record('connecting through ${choice.name}, picked by hand');
+      return PreparedConnection.ready(choice.id, latencyMs: latency);
     }
 
     var found = await _fastest(tried, cancelled);
@@ -651,10 +640,6 @@ class ServerSelectionController extends ChangeNotifier {
     return null;
   }
 
-  /// How much faster another server has to have measured before the one that
-  /// worked last time is passed over without being asked.
-  static const clearlyFaster = 0.7;
-
   /// The fastest candidate that carries traffic (#112).
   ///
   /// Every candidate is asked at once. Slow ones are not waited for
@@ -709,19 +694,18 @@ class ServerSelectionController extends ChangeNotifier {
       if (byLatency != 0) return byLatency;
       return candidates.indexOf(a.$1).compareTo(candidates.indexOf(b.$1));
     });
-    return answered.first;
-  }
-
-  bool _clearlyBeaten(ServerOption last, List<ServerOption> candidates) {
-    final own = last.latencyMs;
-    if (own == null) return false;
-    return candidates.any(
-      (other) =>
-          other.id != last.id &&
-          other.connectable &&
-          other.latencyMs != null &&
-          other.latencyMs! < own * clearlyFaster,
+    // The one that worked last time keeps the connection when it is about as
+    // fast as the best: moving between near-equal servers on every press
+    // gains nothing and changes the address every time.
+    final best = answered.first;
+    final lastId = await readLastConnected().catchError((_) => null);
+    final last = answered.where((each) => each.$1.id == lastId).firstOrNull;
+    final pick = last != null && last.$2 <= best.$2 * 1.15 ? last : best;
+    Diagnostics.record(
+      'chose ${pick.$1.name} (${pick.$2}ms) of ${answered.length} that '
+      'answered out of ${candidates.length}',
     );
+    return pick;
   }
 
   Future<int?> _probe(ServerOption server) async {

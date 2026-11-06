@@ -479,8 +479,9 @@ void main() {
     expect(row(':hel'), findsNothing);
   });
 
-  testWidgets('the next connection goes straight to the last server, probing '
-      'nothing (#112)', (tester) async {
+  testWidgets('the next connection checks the servers again (#123)', (
+    tester,
+  ) async {
     await launch(tester);
     await onboard(tester);
     await pressPower(tester);
@@ -495,7 +496,7 @@ void main() {
 
     expect(power(tester).phase, TunnelPhase.connected);
     expect(tunnel.dialled, [_helsinki, _helsinki]);
-    expect(probed, isEmpty);
+    expect(probed.toSet(), {_helsinki, _stockholm, _frankfurt});
   });
 
   testWidgets('the server goes quiet while connected: the app moves to '

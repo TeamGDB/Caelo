@@ -80,12 +80,16 @@ abstract final class Diagnostics {
         ? '$stamp  $message'
         : '$stamp  $message: $error';
 
-    _lines.add(_redact(line));
+    final redacted = _redact(line);
+    _lines.add(redacted);
     if (_lines.length > _capacity) {
       _lines.removeRange(0, _lines.length - _capacity);
     }
 
-    unawaited(_append(line));
+    // One write at a time, in order. Unordered appends interleaved and left
+    // the file with lines cut in half and others missing (#123). And the
+    // redacted line, not the raw one: the file is what gets sent to people.
+    _writing = _writing.then((_) => _append(redacted));
     _changes.add(null);
   }
 
@@ -105,6 +109,8 @@ abstract final class Diagnostics {
         final labelled = match.group(1);
         return labelled == null ? '<redacted>' : '$labelled<redacted>';
       });
+
+  static Future<void> _writing = Future<void>.value();
 
   static Future<void> _append(String line) async {
     try {

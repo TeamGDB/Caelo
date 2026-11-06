@@ -197,7 +197,8 @@ void main() {
       expect(catalog.maxInFlight, 8);
     });
 
-    test('the last one that worked is used straight away, unprobed', () async {
+    test('every press compares the servers, even with one remembered '
+        '(#123)', () async {
       last = 'b';
       catalog = _ScriptedCatalog(
         [_node('a'), _node('b')],
@@ -207,10 +208,20 @@ void main() {
       await servers.load();
 
       final prepared = await servers.prepareConnection({}, never);
-      expect(prepared.id, 'b');
-      expect(prepared.retryable, isTrue);
-      expect(catalog.probed, isEmpty);
-      expect(catalog.activated, ['b']);
+      expect(prepared.id, 'a');
+      expect(catalog.probed.toSet(), {'a', 'b'});
+    });
+
+    test('the remembered server wins a near tie', () async {
+      last = 'b';
+      catalog = _ScriptedCatalog(
+        [_node('a'), _node('b')],
+        answers: {'a': 100, 'b': 110},
+      );
+      servers = build();
+      await servers.load();
+
+      expect((await servers.prepareConnection({}, never)).id, 'b');
     });
 
     test('when the last one does not come up, the rest are compared', () async {
@@ -492,19 +503,38 @@ void main() {
     });
   });
 
-  test('a server picked by hand is used without probing anything', () async {
-    catalog = _ScriptedCatalog([_node('a'), _node('b')]);
-    servers = build();
-    await servers.load();
-    await servers.select(servers.servers.firstWhere((s) => s.id == 'b'));
+  test(
+    'a server picked by hand is checked first, and only it (#123)',
+    () async {
+      catalog = _ScriptedCatalog([_node('a'), _node('b')], answers: {'b': 60});
+      servers = build();
+      await servers.load();
+      await servers.select(servers.servers.firstWhere((s) => s.id == 'b'));
 
-    final prepared = await servers.prepareConnection({}, never);
+      final prepared = await servers.prepareConnection({}, never);
 
-    expect(prepared.id, 'b');
-    expect(prepared.retryable, isFalse);
-    expect(catalog.probed, isEmpty);
-    expect(catalog.activated, ['b']);
-  });
+      expect(prepared.id, 'b');
+      expect(prepared.retryable, isFalse);
+      expect(prepared.latencyMs, 60);
+      expect(catalog.probed, ['b']);
+      expect(catalog.activated, ['b']);
+    },
+  );
+
+  test(
+    'a server picked by hand that does not answer is not dialled (#123)',
+    () async {
+      catalog = _ScriptedCatalog([_node('a'), _node('b')], answers: {'a': 5});
+      servers = build();
+      await servers.load();
+      await servers.select(servers.servers.firstWhere((s) => s.id == 'b'));
+
+      final prepared = await servers.prepareConnection({}, never);
+
+      expect(prepared.failure, TunnelFailure.chosenServerUnreachable);
+      expect(catalog.activated, isEmpty, reason: 'no silent switch either');
+    },
+  );
 
   test('a hand-picked server that failed is not tried again', () async {
     catalog = _ScriptedCatalog([_node('a')]);
