@@ -477,6 +477,16 @@ jobs:
     # Runs on dispatch as well as on tags, so the release page can be looked at
     # before there is anything to release. A dispatch run stays a draft.
     needs: [version, android, linux, macos, windows]
+    # macOS is waited for but not required. A notarisation refused by Apple
+    # for reasons of its own (an agreement to accept, a certificate to renew)
+    # must not hold back the platforms that built; the manifest leaves macOS
+    # out, and re-running the failed jobs adds it to the same release later.
+    if: >-
+      ${{ !cancelled() &&
+          needs.version.result == 'success' &&
+          needs.android.result == 'success' &&
+          needs.linux.result == 'success' &&
+          needs.windows.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
