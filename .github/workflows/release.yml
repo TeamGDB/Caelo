@@ -584,7 +584,13 @@ jobs:
     # beside it: the manifest names files that must already be downloadable, and
     # the ordering is the whole guarantee.
     needs: publish
-    if: needs.publish.outputs.publishable == 'true'
+    # Explicit about the result: without it the implicit success() looks past
+    # publish at macOS, which may have failed on Apple's side, and the release
+    # went out with the old manifest still served (v0.3.2).
+    if: >-
+      ${{ !cancelled() &&
+          needs.publish.result == 'success' &&
+          needs.publish.outputs.publishable == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       pages: write
