@@ -225,18 +225,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
 
   /// Asks for keys on every server the subscriptions offer and this device
   /// has none for, then shows them.
-  Future<void> _provisionAll() async {
-    try {
-      final refusedBefore = SubscriptionFetcher.refused.length;
-      final granted = await SubscriptionFetcher.enableAll();
-      // New keys add servers; a refusal takes one out (#110).
-      if (granted > 0 || SubscriptionFetcher.refused.length != refusedBefore) {
-        await _servers.load();
-      }
-    } on Object catch (error) {
-      Diagnostics.record('asking for keys failed', error: error);
-    }
-  }
+  Future<void> _provisionAll() => _servers.provisionAll();
 
   Future<void> setThemeMode(CaeloThemeMode mode) async {
     setState(() => _themeMode = mode);

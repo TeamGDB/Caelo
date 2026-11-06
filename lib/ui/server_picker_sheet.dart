@@ -218,7 +218,12 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                             widget.controller.servers[index];
                                         final preparing =
                                             server ==
-                                            widget.controller.preparing;
+                                                widget.controller.preparing ||
+                                            // Waiting for keys from the
+                                            // background pass (#131).
+                                            (widget.controller.provisioning &&
+                                                server.needsKeys &&
+                                                server.available);
                                         return _ServerRow(
                                           server: server,
                                           // Готовящийся показывается выбранным
@@ -227,7 +232,8 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                           // показывает прежний выбор, читается
                                           // как «не нажалось».
                                           selected:
-                                              preparing ||
+                                              server ==
+                                                  widget.controller.preparing ||
                                               server ==
                                                   widget.controller.selected,
                                           preparing: preparing,

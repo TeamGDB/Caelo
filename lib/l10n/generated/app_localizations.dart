@@ -269,7 +269,7 @@ abstract class AppLocalizations {
   /// Shown while the subscription is issuing keys for a server somebody just chose.
   ///
   /// In en, this message translates to:
-  /// **'Preparing…'**
+  /// **'Preparing a connection…'**
   String get serverPreparing;
 
   /// Measured round-trip latency reported by the core.

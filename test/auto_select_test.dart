@@ -69,6 +69,7 @@ void main() {
   String? saved;
   String? last;
   void Function()? panelChange;
+  int Function() provisioned = () => 0;
 
   ServerSelectionController build({
     Future<bool> Function()? refresh,
@@ -86,6 +87,7 @@ void main() {
       activateConfiguration: (_) async {},
       activateNode: (_, _) async {},
       backgroundMeasurement: false,
+      provisionOffers: () async => provisioned(),
       checkSubscriptions: () async {
         if (panelChange == null) return false;
         panelChange!();
@@ -112,6 +114,7 @@ void main() {
     saved = null;
     last = null;
     panelChange = null;
+    provisioned = () => 0;
     refreshes = 0;
   });
 
@@ -740,6 +743,28 @@ void main() {
 
     expect(catalog.probed, contains('c'));
     expect(catalog.probed, isNot(contains('a')));
+  });
+
+  test('new servers from the panel get their keys asked for at once, and '
+      'say so meanwhile (#131)', () async {
+    catalog = _ScriptedCatalog([_node('a')], answers: {'a': 5});
+    servers = build();
+    await servers.load();
+
+    var asked = 0;
+    provisioned = () {
+      asked++;
+      expect(servers.provisioning, isTrue);
+      catalog.list = [_node('a'), _node('b')];
+      return 1;
+    };
+    panelChange = () => catalog.list = [_node('a'), _offer('b')];
+    await servers.syncWithSubscriptions();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(asked, 1);
+    expect(servers.provisioning, isFalse);
+    expect(servers.servers.firstWhere((s) => s.id == 'b').connectable, isTrue);
   });
 
   group('a server removed from the subscription (#111)', () {

@@ -301,6 +301,7 @@ class ServerSelectionController extends ChangeNotifier {
     this.activateNode = _activateNode,
     this.refreshSubscriptions = _refreshSubscriptions,
     this.checkSubscriptions = _checkSubscriptions,
+    this.provisionOffers = SubscriptionFetcher.enableAll,
     this.latencyRefreshInterval = const Duration(minutes: 5),
     this.probeConcurrency = 8,
     this.backgroundMeasurement = true,
@@ -337,9 +338,48 @@ class ServerSelectionController extends ChangeNotifier {
   /// minute while the app is open and at the start of every connect (#124).
   Future<void> syncWithSubscriptions() async {
     try {
-      if (await checkSubscriptions()) await load();
+      if (await checkSubscriptions()) {
+        await load();
+        // New servers come without keys. Ask now rather than at the next
+        // tick, so they are usable by the time somebody looks (#131).
+        if (servers.any((server) => server.needsKeys && server.available)) {
+          unawaited(provisionAll());
+        }
+      }
     } on Object catch (error) {
       Diagnostics.record('checking the subscription failed', error: error);
+    }
+  }
+
+  /// Asks for keys on every offered server without them, one request per
+  /// server at a time. Answers how many were issued.
+  final Future<int> Function() provisionOffers;
+
+  /// Whether a background pass for keys is running. Rows still waiting for
+  /// theirs say so instead of looking ready (#131).
+  bool provisioning = false;
+
+  Future<void> provisionAll() async {
+    if (provisioning) return;
+    if (!servers.any((server) => server.needsKeys && server.available)) {
+      return;
+    }
+    provisioning = true;
+    notifyListeners();
+    final refusedBefore = SubscriptionFetcher.refused.length;
+    var granted = 0;
+    try {
+      granted = await provisionOffers();
+    } on Object catch (error) {
+      Diagnostics.record('asking for keys failed', error: error);
+    } finally {
+      provisioning = false;
+    }
+    // New keys add servers; a refusal dims one (#126).
+    if (granted > 0 || SubscriptionFetcher.refused.length != refusedBefore) {
+      await load();
+    } else {
+      notifyListeners();
     }
   }
 

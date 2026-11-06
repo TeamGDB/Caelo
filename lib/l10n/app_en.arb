@@ -83,7 +83,7 @@
   "@currentConnection": {
     "description": "Label above the real node reported by the core on Home."
   },
-  "serverPreparing": "Preparing…",
+  "serverPreparing": "Preparing a connection…",
   "@serverPreparing": {
     "description": "Shown while the subscription is issuing keys for a server somebody just chose."
   },

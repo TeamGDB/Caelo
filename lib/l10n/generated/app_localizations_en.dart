@@ -102,7 +102,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get currentConnection => 'Current connection';
 
   @override
-  String get serverPreparing => 'Preparing…';
+  String get serverPreparing => 'Preparing a connection…';
 
   @override
   String latency(int ping) {
