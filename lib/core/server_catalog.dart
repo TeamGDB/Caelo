@@ -142,27 +142,44 @@ class SubscriptionServerCatalog implements ServerCatalog {
   final Future<List<Subscription>> Function() _loadSubscriptions;
   final Future<List<StoredConfig>> Function() _loadConfigurations;
   final Future<Map<String, dynamic>> Function(String) _probeConfiguration;
-  final Map<String, String> _subscriptionEndpoints = {};
+
+  /// Every configuration a row stands for, by row id. Usually one; a
+  /// backend that issued a server twice gives two, and one of them may have
+  /// no peer behind it (#129).
+  final Map<String, List<String>> _endpoints = {};
+
+  /// The configuration of a row that last carried traffic.
+  final Map<String, String> _working = {};
 
   @override
   Future<List<ServerOption>> load() async {
     final configs = await _loadConfigurations();
     final subscriptions = await _loadSubscriptions();
-    _subscriptionEndpoints
-      ..clear()
-      ..addEntries(
-        subscriptions.expand(
-          (subscription) => subscription.nodes.map(
-            (node) =>
-                MapEntry('node:${subscription.id}:${node.id}', node.endpoint),
-          ),
-        ),
-      );
-    // One row per server. A backend that issued two configs on one server to
-    // the same device listed it twice (#127); the first is kept.
+    // One row per server (#127), standing for every configuration the
+    // server issued to this device: whichever of them answers is the one
+    // used (#129).
+    _endpoints.clear();
+    final rowOf = <String, String>{};
     final seen = <String>{};
-    bool firstOf(Subscription subscription, SubscriptionNode node) =>
-        seen.add('${subscription.id}|${node.tag.trim()}|${node.country}');
+    bool firstOf(Subscription subscription, SubscriptionNode node) {
+      final server = '${subscription.id}|${node.tag.trim()}|${node.country}';
+      final row = rowOf.putIfAbsent(
+        server,
+        () => 'node:${subscription.id}:${node.id}',
+      );
+      _endpoints.putIfAbsent(row, () => []).add(node.endpoint);
+      return seen.add(server);
+    }
+
+    for (final subscription in subscriptions) {
+      for (final node in subscription.nodes) {
+        firstOf(subscription, node);
+      }
+    }
+    seen.clear();
+    _working.removeWhere(
+      (row, endpoint) => !(_endpoints[row]?.contains(endpoint) ?? false),
+    );
     return [
       for (final subscription in subscriptions)
         for (final node in subscription.nodes)
@@ -222,13 +239,28 @@ class SubscriptionServerCatalog implements ServerCatalog {
 
   @override
   Future<int?> measureLatency(ServerOption server) async {
+    if (!server.available) return null;
     final configId = server.configId;
-    final endpoint = configId != null
-        ? await ConfigStore.readById(configId)
-        : _subscriptionEndpoints[server.id];
-    if (endpoint == null || endpoint.trim().isEmpty || !server.available) {
-      return null;
+    if (configId != null) {
+      final endpoint = await ConfigStore.readById(configId);
+      if (endpoint == null || endpoint.trim().isEmpty) return null;
+      return _latencyOf(endpoint);
     }
+    // The one that worked last first, then the rest in the order served.
+    final all = _endpoints[server.id] ?? const <String>[];
+    final known = _working[server.id];
+    for (final endpoint in [?known, ...all.where((e) => e != known)]) {
+      if (endpoint.trim().isEmpty) continue;
+      final latency = await _latencyOf(endpoint);
+      if (latency != null) {
+        _working[server.id] = endpoint;
+        return latency;
+      }
+    }
+    return null;
+  }
+
+  Future<int?> _latencyOf(String endpoint) async {
     try {
       final result = await _probeConfiguration(endpoint);
       return (result['latency_ms'] as num?)?.round();
@@ -243,7 +275,7 @@ class SubscriptionServerCatalog implements ServerCatalog {
       await ConfigStore.select(id);
       return;
     }
-    final endpoint = _subscriptionEndpoints[server.id];
+    final endpoint = _working[server.id] ?? _endpoints[server.id]?.firstOrNull;
     if (endpoint == null) {
       throw StateError('the server has no configuration to activate');
     }

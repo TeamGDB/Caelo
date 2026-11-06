@@ -251,6 +251,48 @@ void main() {
     expect(names, ['Mett', 'Buran']);
   });
 
+  test('a server issued twice connects through whichever config answers '
+      '(#129)', () async {
+    const subscription = Subscription(
+      id: 'account',
+      url: 'https://example.invalid/subscription',
+      nodes: [
+        SubscriptionNode(
+          id: 'dead',
+          tag: 'Salem',
+          endpoint: 'dead',
+          position: 0,
+          country: 'KZ',
+        ),
+        SubscriptionNode(
+          id: 'live',
+          tag: 'Salem',
+          endpoint: 'live',
+          position: 1,
+          country: 'KZ',
+        ),
+      ],
+    );
+    final probed = <String>[];
+    final catalog = SubscriptionServerCatalog(
+      loadSubscriptions: () async => const [subscription],
+      loadConfigurations: () async => const [],
+      probeConfiguration: (endpoint) async {
+        probed.add(endpoint);
+        if (endpoint == 'dead') throw StateError('no answer');
+        return {'latency_ms': 40};
+      },
+    );
+    final row = (await catalog.load()).single;
+
+    expect(await catalog.measureLatency(row), 40);
+    expect(probed, ['dead', 'live']);
+
+    probed.clear();
+    expect(await catalog.measureLatency(row), 40);
+    expect(probed, ['live'], reason: 'the one that worked is asked first');
+  });
+
   test('unusable servers sit below the usable ones', () async {
     final controller = ServerSelectionController(
       _ListCatalog(const [
