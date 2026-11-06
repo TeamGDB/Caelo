@@ -97,6 +97,7 @@ class HomeScreen extends StatelessWidget {
             Positioned.fill(
               child: ServerDrawer(
                 controller: servers,
+                onPicked: controller.dismissFailure,
                 // Open after a failure: that is exactly when somebody wants a
                 // different server (#104).
                 locked:

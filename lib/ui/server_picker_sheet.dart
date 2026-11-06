@@ -14,8 +14,12 @@ class ServerDrawer extends StatefulWidget {
     required this.limitedScope,
     this.selectedLatencyMs,
     this.showActive = false,
+    this.onPicked,
     super.key,
   });
+
+  /// Told after the person picks a server.
+  final VoidCallback? onPicked;
 
   final ServerSelectionController controller;
   final bool locked;
@@ -249,6 +253,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                                   }
                                                   await widget.controller
                                                       .select(server);
+                                                  widget.onPicked?.call();
                                                 },
                                         );
                                       },

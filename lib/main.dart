@@ -17,7 +17,6 @@ import 'core/apple_tunnel_client.dart';
 import 'core/settings_store.dart';
 import 'core/server_catalog.dart';
 import 'core/subscription_fetcher.dart';
-import 'core/subscription_store.dart';
 import 'core/tunnel.dart';
 import 'core/tunnel_controller.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -155,21 +154,18 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     // a removed server's peers at once, and the app should move off it within
     // a minute rather than a quarter of an hour (#121). /state is a few
     // hundred bytes; the document is fetched only when it changed.
-    _connectedCheck = Timer.periodic(const Duration(minutes: 1), (_) async {
-      if (!_accessGranted || _controller.value.phase != TunnelPhase.connected) {
+    // Every minute while the app is open, whatever the tunnel is doing (#124).
+    // /state is a few hundred bytes; the document is fetched only when it
+    // changed. spidernet cuts a removed server's peers at once (#121), and the
+    // list should not go on offering it for a quarter of an hour.
+    _connectedCheck = Timer.periodic(const Duration(minutes: 1), (_) {
+      final state = WidgetsBinding.instance.lifecycleState;
+      if (!_accessGranted ||
+          state == AppLifecycleState.paused ||
+          state == AppLifecycleState.hidden) {
         return;
       }
-      try {
-        final before = await SubscriptionStore.all();
-        final after = await SubscriptionFetcher.refreshDue();
-        final changed = [
-          for (var i = 0; i < after.length && i < before.length; i++)
-            if (!identical(after[i], before[i])) i,
-        ].isNotEmpty;
-        if (changed) await _servers.load();
-      } on Object catch (error) {
-        Diagnostics.record('checking the subscription failed', error: error);
-      }
+      unawaited(_servers.syncWithSubscriptions());
     });
     _periodicRefresh = Timer.periodic(_refreshOnResumeAfter, (_) {
       final state = WidgetsBinding.instance.lifecycleState;

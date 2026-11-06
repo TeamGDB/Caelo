@@ -68,6 +68,7 @@ void main() {
   late int refreshes;
   String? saved;
   String? last;
+  void Function()? panelChange;
 
   ServerSelectionController build({
     Future<bool> Function()? refresh,
@@ -84,6 +85,12 @@ void main() {
       writeSelected: (id) async => saved = id,
       activateConfiguration: (_) async {},
       activateNode: (_, _) async {},
+      checkSubscriptions: () async {
+        if (panelChange == null) return false;
+        panelChange!();
+        panelChange = null;
+        return true;
+      },
       refreshSubscriptions:
           refresh ??
           () async {
@@ -103,6 +110,7 @@ void main() {
   setUp(() {
     saved = null;
     last = null;
+    panelChange = null;
     refreshes = 0;
   });
 
@@ -641,6 +649,24 @@ void main() {
 
       expect(catalog.probed, isNot(contains(ServerOption.automaticId)));
     });
+  });
+
+  test('connecting first catches up with the panel, so a removed server '
+      'is neither tried nor shown (#124)', () async {
+    catalog = _ScriptedCatalog(
+      [_node('a'), _node('b')],
+      answers: {'a': 5, 'b': 50},
+    );
+    servers = build();
+    await servers.load();
+
+    // Removed in the panel since the list was last read.
+    panelChange = () => catalog.list = [_node('b')];
+    final prepared = await servers.prepareConnection({}, never);
+
+    expect(prepared.id, 'b');
+    expect(catalog.probed, isNot(contains('a')));
+    expect(servers.servers.map((s) => s.id), [ServerOption.automaticId, 'b']);
   });
 
   group('a server removed from the subscription (#111)', () {

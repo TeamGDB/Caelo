@@ -241,6 +241,14 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
 
   Future<void> reconnectDifferently() => _client.reconnectDifferently();
 
+  /// Back to "Connect" after a failure, when the person has changed what they
+  /// are connecting to: the note was about the server that failed (#125).
+  void dismissFailure() {
+    if (value.phase == TunnelPhase.failed) {
+      value = const TunnelStatus.disconnected();
+    }
+  }
+
   /// Takes the tunnel down and brings it up again, choosing afresh. For when
   /// the server it was using went away (#111). Does nothing unless connected:
   /// an attempt in flight will choose from the current list anyway, and a

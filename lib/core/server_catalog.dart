@@ -232,6 +232,7 @@ class ServerSelectionController extends ChangeNotifier {
     this.readSubscription = SubscriptionStore.byId,
     this.activateNode = _activateNode,
     this.refreshSubscriptions = _refreshSubscriptions,
+    this.checkSubscriptions = _checkSubscriptions,
     this.latencyRefreshInterval = const Duration(minutes: 5),
     this.probeConcurrency = 8,
     this.fastestGrace = const Duration(milliseconds: 1500),
@@ -258,6 +259,20 @@ class ServerSelectionController extends ChangeNotifier {
   ///
   /// Answers whether every subscription was refused by its server as unknown.
   final Future<bool> Function() refreshSubscriptions;
+
+  /// Asks each subscription whether its list changed (a few hundred bytes)
+  /// and fetches the ones that did. Answers whether anything changed.
+  final Future<bool> Function() checkSubscriptions;
+
+  /// Brings the list up to date with the subscription, cheaply. Run every
+  /// minute while the app is open and at the start of every connect (#124).
+  Future<void> syncWithSubscriptions() async {
+    try {
+      if (await checkSubscriptions()) await load();
+    } on Object catch (error) {
+      Diagnostics.record('checking the subscription failed', error: error);
+    }
+  }
 
   /// How long to wait between re-measuring the list. Long: each measurement is
   /// a real handshake with every server, which costs battery and tells each of
@@ -496,6 +511,12 @@ class ServerSelectionController extends ChangeNotifier {
     Set<String> tried,
     bool Function() cancelled,
   ) async {
+    // What the panel says now, before anything is probed (#124): a server
+    // removed a minute ago should neither be tried nor be shown.
+    if (tried.isEmpty) {
+      await syncWithSubscriptions();
+      if (cancelled()) return const PreparedConnection.cancelled();
+    }
     final choice = selected;
     if (choice != null && !choice.automatic) {
       if (tried.contains(choice.id)) {
@@ -775,6 +796,15 @@ class ServerSelectionController extends ChangeNotifier {
     if (node == null || node.maintenance) return;
     await SubscriptionStore.save(subscription.copyWith(pinnedId: node.id));
     await ConfigStore.activateSubscriptionNode(node.endpoint);
+  }
+
+  static Future<bool> _checkSubscriptions() async {
+    final before = await SubscriptionStore.all();
+    final after = await SubscriptionFetcher.refreshDue();
+    for (var i = 0; i < after.length; i++) {
+      if (i >= before.length || !identical(after[i], before[i])) return true;
+    }
+    return false;
   }
 
   static Future<bool> _refreshSubscriptions() async {

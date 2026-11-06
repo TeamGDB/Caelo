@@ -344,6 +344,22 @@ void main() {
     expect(row(':sto'), findsOneWidget);
   });
 
+  testWidgets('after a failure, picking another server brings the button '
+      'back to Connect (#125)', (tester) async {
+    answers.clear();
+    await launch(tester);
+    await onboard(tester);
+    await pressPower(tester);
+    expect(power(tester).phase, TunnelPhase.failed);
+
+    answers[_stockholm] = 40;
+    await openServers(tester);
+    await pick(tester, ':sto', 'Stockholm');
+
+    expect(power(tester).phase, TunnelPhase.disconnected);
+    expect(find.text('Подключить'), findsWidgets);
+  });
+
   testWidgets('picking a server by hand connects through exactly that one', (
     tester,
   ) async {
