@@ -197,8 +197,20 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     if (phase == TunnelPhase.connected) unawaited(_servers.rememberActive());
   }
 
+  DateTime? _lastDesktopCheck;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && DesktopUpdater.isSupported) {
+      // Every return, at most once a minute (#152): coming back from a
+      // system dialog counts as a return too.
+      final now = DateTime.now();
+      final last = _lastDesktopCheck;
+      if (last == null || now.difference(last) >= const Duration(minutes: 1)) {
+        _lastDesktopCheck = now;
+        unawaited(DesktopUpdater.checkInBackground());
+      }
+    }
     if (state != AppLifecycleState.resumed || !_accessGranted) return;
     if (DateTime.now().difference(_lastRefresh) < _refreshOnResumeAfter) return;
     unawaited(_loadServers());

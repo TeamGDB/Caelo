@@ -90,6 +90,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Filename: "{app}\caelo-service.exe"; Parameters: "install"; StatusMsg: "Registering the tunnel service"; Flags: runhidden
 #endif
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; An update from the app runs this silently (#152) and the app has already
+; closed itself; start the new one, as the person who started the update.
+Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: WizardSilent
 
 #ifdef WithService
 [UninstallRun]

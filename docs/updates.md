@@ -4,9 +4,9 @@ How an installed copy of Caelo finds out that a newer one exists, and what it is
 allowed to do about it.
 
 This describes the manifest — the contract between the release pipeline and every
-updater. The updaters themselves are separate work: Sparkle on macOS (#44),
-WinSparkle on Windows (#45), the sideload updater on Android (#48). Linux does
-not get an updater at all, and the reason is below.
+updater: Sparkle on macOS (#44), a signature-verifying updater on Windows (#45),
+and the sideload updater on Android (#48). Linux asks the package manager or
+uses zsync for the AppImage, as described below.
 
 ## Two files, one truth
 
@@ -14,8 +14,8 @@ not get an updater at all, and the reason is below.
 
 | File | Read by |
 | --- | --- |
-| `appcast.xml` | Sparkle on macOS, WinSparkle on Windows |
-| `latest.json` | the Android updater, and the "there is a newer version" notice on Linux |
+| `appcast.xml` | Sparkle on macOS |
+| `latest.json` | the Windows and Android updaters, and the update check on Linux |
 
 They carry the same facts. They are generated together rather than separately
 because the failure they are guarding against is the two disagreeing about which
@@ -23,6 +23,24 @@ version is current, which would send half the installed base to one build and
 half to another with nothing in the logs to explain it.
 
 Both live on GitHub Pages. The artifacts they point at live on GitHub Releases.
+
+## Updating from the desktop app
+
+On macOS (#152), with update checks enabled, Sparkle checks in the background at
+launch, on returning to the app (at most once a minute), and hourly while it is
+open. When it finds an update, Sparkle offers its "Install update" window;
+downloads stay manual (`automaticallyDownloadsUpdates = false`). Turning checks
+off also stops the launch and return checks.
+
+On Windows (#152), accepting an update downloads and verifies the installer,
+then launches it detached with
+`/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS`.
+The app exits only after the installer starts, releasing
+its executable and mutex. Installation shows the UAC prompt and a progress bar
+without wizard pages or a system restart. After a successful silent install,
+Inno Setup starts Caelo as the original user. A normal interactive installation
+keeps its existing "Launch Caelo" checkbox. If the installer cannot start, the
+app stays open and reports the failure.
 
 ## Why not the API
 

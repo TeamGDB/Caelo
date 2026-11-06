@@ -66,6 +66,9 @@ final class Updater: NSObject {
             // first and disabling after would let one check escape.
             let enabled = call.arguments as? Bool ?? false
             controller.updater.automaticallyChecksForUpdates = enabled
+            // Hourly while open rather than Sparkle's daily default (#152); the
+            // app also asks at every launch and every return.
+            controller.updater.updateCheckInterval = 3600
 
             // Downloads are never automatic. Checking is small and can happen
             // quietly; fetching a disk image is not, and the person's connection
@@ -74,6 +77,20 @@ final class Updater: NSObject {
 
             if enabled {
                 controller.startUpdater()
+                // At launch, not at the end of the first interval. Quiet when
+                // there is nothing; Sparkle's "Install update" window when
+                // there is.
+                controller.updater.checkForUpdatesInBackground()
+            }
+            result(nil)
+
+        case "checkInBackground":
+            // Coming back to the app. Nothing on screen unless an update is
+            // found, and nothing at all with the switch off.
+            if controller.updater.automaticallyChecksForUpdates,
+                controller.updater.canCheckForUpdates
+            {
+                controller.updater.checkForUpdatesInBackground()
             }
             result(nil)
 
