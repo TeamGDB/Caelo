@@ -52,6 +52,10 @@ enum TunnelFailure {
   /// The tunnel was up and its server stopped answering (#118). The
   /// controller reconnects elsewhere when it can.
   connectionLost,
+
+  /// The server picked by hand was removed from the subscription (#128). The
+  /// choice is back on automatic; the next press connects.
+  chosenServerRemoved,
 }
 
 /// Which protocol carried the connection.

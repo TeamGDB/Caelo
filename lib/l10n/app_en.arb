@@ -372,5 +372,13 @@
   },
   "connectionLost": "The server stopped answering, and no other one did either.",
   "serverMaintenance": "Under maintenance",
-  "serverNotIssued": "Not available right now: the server did not issue a connection"
+  "serverNotIssued": "Not available right now: the server did not issue a connection",
+  "chosenServerRemoved": "{name} was removed from your subscription. Pick another server, or press again to connect automatically.",
+  "@chosenServerRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
 }

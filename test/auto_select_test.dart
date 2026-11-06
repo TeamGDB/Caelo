@@ -85,6 +85,7 @@ void main() {
       writeSelected: (id) async => saved = id,
       activateConfiguration: (_) async {},
       activateNode: (_, _) async {},
+      backgroundMeasurement: false,
       checkSubscriptions: () async {
         if (panelChange == null) return false;
         panelChange!();
@@ -571,20 +572,33 @@ void main() {
   });
 
   group('measuring', () {
-    test('does not measure while the tunnel is up (#102)', () async {
-      catalog = _ScriptedCatalog([_node('a')], answers: {'a': 5});
-      servers = ServerSelectionController(
-        catalog,
-        readSelected: () async => null,
-        writeSelected: (_) async {},
-        latencyRefreshInterval: null,
-      );
-      servers.tunnelActive = true;
-      await servers.load();
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+    test(
+      'does not measure the server in use while the tunnel is up (#102)',
+      () async {
+        catalog = _ScriptedCatalog([_node('a')], answers: {'a': 5});
+        servers = ServerSelectionController(
+          catalog,
+          readSelected: () async => null,
+          writeSelected: (_) async {},
+          activateConfiguration: (_) async {},
+          activateNode: (_, _) async {},
+          readLastConnected: () async => null,
+          writeLastConnected: (_) async {},
+          checkSubscriptions: () async => false,
+          backgroundMeasurement: false,
+          latencyRefreshInterval: null,
+          fastestGrace: const Duration(milliseconds: 10),
+        );
+        await servers.load();
+        await servers.prepareConnection({}, () => false);
+        catalog.probed.clear();
+        servers.tunnelActive = true;
+        await servers.load();
+        await Future<void>.delayed(const Duration(milliseconds: 10));
 
-      expect(catalog.probed, isEmpty);
-    });
+        expect(catalog.probed, isEmpty);
+      },
+    );
 
     test('measures once the tunnel is down again', () async {
       catalog = _ScriptedCatalog([_node('a')], answers: {'a': 5});
@@ -667,6 +681,65 @@ void main() {
     expect(prepared.id, 'b');
     expect(catalog.probed, isNot(contains('a')));
     expect(servers.servers.map((s) => s.id), [ServerOption.automaticId, 'b']);
+  });
+
+  test('a hand-picked server removed in the panel is reported, not '
+      'replaced; the next press connects automatically (#128)', () async {
+    catalog = _ScriptedCatalog(
+      [_node('a'), _node('b')],
+      answers: {'a': 5, 'b': 50},
+    );
+    servers = build();
+    await servers.load();
+    await servers.select(servers.servers.firstWhere((s) => s.id == 'b'));
+    catalog.activated.clear();
+
+    panelChange = () => catalog.list = [_node('a')];
+    final first = await servers.prepareConnection({}, never);
+
+    expect(first.failure, TunnelFailure.chosenServerRemoved);
+    expect(servers.removedChoice, 'b');
+    expect(catalog.activated, isEmpty);
+    expect(servers.selected?.automatic, isTrue);
+    expect(saved, ServerOption.automaticId);
+
+    final second = await servers.prepareConnection({}, never);
+    expect(second.id, 'a');
+    expect(servers.removedChoice, isNull);
+  });
+
+  test('while connected, servers without a figure are measured, the one in '
+      'use is not (#128)', () async {
+    catalog = _ScriptedCatalog(
+      [_node('a'), _node('b')],
+      answers: {'a': 5, 'b': 50},
+    );
+    servers = ServerSelectionController(
+      catalog,
+      readSelected: () async => null,
+      writeSelected: (_) async {},
+      activateConfiguration: (_) async {},
+      activateNode: (_, _) async {},
+      readLastConnected: () async => null,
+      writeLastConnected: (_) async {},
+      checkSubscriptions: () async => false,
+      latencyRefreshInterval: null,
+      fastestGrace: const Duration(milliseconds: 10),
+    );
+    await servers.load();
+    await servers.prepareConnection({}, never);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    catalog.probed.clear();
+
+    servers.tunnelActive = false;
+    servers.tunnelActive = true;
+    catalog.list = [_node('a'), _node('b'), _node('c')];
+    catalog.answers['c'] = 30;
+    await servers.load();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(catalog.probed, contains('c'));
+    expect(catalog.probed, isNot(contains('a')));
   });
 
   group('a server removed from the subscription (#111)', () {

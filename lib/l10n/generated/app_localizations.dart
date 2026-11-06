@@ -757,6 +757,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not available right now: the server did not issue a connection'**
   String get serverNotIssued;
+
+  /// No description provided for @chosenServerRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} was removed from your subscription. Pick another server, or press again to connect automatically.'**
+  String chosenServerRemoved(String name);
 }
 
 class _AppLocalizationsDelegate

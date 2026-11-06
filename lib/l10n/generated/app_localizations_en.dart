@@ -367,4 +367,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get serverNotIssued =>
       'Not available right now: the server did not issue a connection';
+
+  @override
+  String chosenServerRemoved(String name) {
+    return '$name was removed from your subscription. Pick another server, or press again to connect automatically.';
+  }
 }

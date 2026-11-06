@@ -365,4 +365,9 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get serverNotIssued =>
       'Сейчас недоступен: сервер не выдал подключение';
+
+  @override
+  String chosenServerRemoved(String name) {
+    return 'Сервер $name удалён из подписки. Выберите другой или нажмите ещё раз — подключимся автоматически.';
+  }
 }

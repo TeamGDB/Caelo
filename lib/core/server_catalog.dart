@@ -271,6 +271,7 @@ class ServerSelectionController extends ChangeNotifier {
     this.checkSubscriptions = _checkSubscriptions,
     this.latencyRefreshInterval = const Duration(minutes: 5),
     this.probeConcurrency = 8,
+    this.backgroundMeasurement = true,
     this.fastestGrace = const Duration(milliseconds: 1500),
     this.readLastConnected = SettingsStore.lastConnectedServerId,
     this.writeLastConnected = SettingsStore.setLastConnectedServerId,
@@ -318,6 +319,10 @@ class ServerSelectionController extends ChangeNotifier {
   /// How many servers are probed at once when choosing automatically.
   final int probeConcurrency;
 
+  /// Whether the list measures itself in the background. Off in tests that
+  /// count probes made by connecting.
+  final bool backgroundMeasurement;
+
   /// How long the others get once the first server has answered.
   final Duration fastestGrace;
 
@@ -351,6 +356,10 @@ class ServerSelectionController extends ChangeNotifier {
   /// and the peer is about to disappear from under it.
   void Function(ServerOption removed)? onActiveRemoved;
 
+  /// The name of a hand-picked server that the subscription removed, for the
+  /// failure note (#128).
+  String? removedChoice;
+
   /// Whether the automatic entry is the choice.
   bool get isAutomatic => selected?.automatic ?? true;
 
@@ -374,7 +383,7 @@ class ServerSelectionController extends ChangeNotifier {
     _tunnelActive = active;
     _measureGeneration++;
     _latencyRefreshTimer?.cancel();
-    if (!active) _scheduleMeasurement(const Duration(seconds: 2));
+    _scheduleMeasurement(const Duration(seconds: 2));
   }
 
   bool get tunnelActive => _tunnelActive;
@@ -417,23 +426,31 @@ class ServerSelectionController extends ChangeNotifier {
     }
     _measureGeneration++;
     _latencyRefreshTimer?.cancel();
-    if (!_tunnelActive) unawaited(_measureLatencies(_measureGeneration));
+    unawaited(_measureLatencies(_measureGeneration));
   }
 
   void _scheduleMeasurement(Duration after) {
     _latencyRefreshTimer?.cancel();
     final generation = _measureGeneration;
     _latencyRefreshTimer = Timer(after, () {
-      if (generation == _measureGeneration && !_tunnelActive) {
+      if (generation == _measureGeneration) {
         unawaited(_measureLatencies(generation));
       }
     });
   }
 
   Future<void> _measureLatencies(int generation) async {
+    if (!backgroundMeasurement) return;
     for (final server in [...servers]) {
-      if (generation != _measureGeneration || _tunnelActive) return;
+      if (generation != _measureGeneration) return;
       if (!server.connectable) continue;
+      // While connected, the server in use is left alone: a probe of it is a
+      // second device with the same key and takes the session from the live
+      // tunnel (#102). Everything else is measured once, so a server that
+      // arrived while connected still gets a figure (#128).
+      if (_tunnelActive && (server.id == active?.id || server.measured)) {
+        continue;
+      }
       final pending = catalog.measureLatency(server);
       _measuring[server.id] = pending;
       int? latency;
@@ -553,9 +570,26 @@ class ServerSelectionController extends ChangeNotifier {
     // What the panel says now, before anything is probed (#124): a server
     // removed a minute ago should neither be tried nor be shown.
     if (tried.isEmpty) {
+      final before = selected;
       await syncWithSubscriptions();
       if (cancelled()) return const PreparedConnection.cancelled();
+      // The server picked by hand is gone. Connecting somewhere else without
+      // a word is the surprise this avoids (#128): say so, and leave the
+      // choice on automatic so the next press connects.
+      if (before != null &&
+          !before.automatic &&
+          !servers.any((server) => server.id == before.id)) {
+        removedChoice = before.name;
+        await writeSelected(ServerOption.automaticId);
+        Diagnostics.record(
+          'the server picked by hand was removed: ${before.name}',
+        );
+        return const PreparedConnection.failed(
+          TunnelFailure.chosenServerRemoved,
+        );
+      }
     }
+    removedChoice = null;
     final choice = selected;
     if (choice != null && !choice.automatic) {
       if (tried.contains(choice.id)) {
