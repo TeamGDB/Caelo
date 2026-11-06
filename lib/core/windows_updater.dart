@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'diagnostics.dart';
 import 'update_check.dart';
@@ -20,8 +22,16 @@ import 'update_download.dart';
 /// makes a single key survivable. Here we do the work: fetch, verify against
 /// every trusted key, hand over.
 abstract final class WindowsUpdater {
+  static const _channel = MethodChannel('team.gdb.caelo/windows_updates');
+
   @visibleForTesting
   static bool Function() isWindows = () => Platform.isWindows;
+
+  @visibleForTesting
+  static Future<Process> Function(String, List<String>) launch = _launch;
+
+  @visibleForTesting
+  static Duration readyTimeout = const Duration(minutes: 5);
 
   static bool get isSupported => isWindows();
 
@@ -35,10 +45,8 @@ abstract final class WindowsUpdater {
 
   /// Downloads the update, proves it is ours, and starts the installer.
   ///
-  /// Quits once the installer has been started, without waiting for the
-  /// installation. What happens next is between the person and Windows: the
-  /// installer asks for administrator rights because it registers a service, and
-  /// declining that is a legitimate answer this cannot see.
+  /// Quits only after the elevated installer signals that it is ready. A
+  /// cancelled UAC prompt or a failure before that keeps the application open.
   ///
   /// Quitting releases the application's mutex so the installer can replace
   /// caelo.exe.
@@ -70,8 +78,8 @@ abstract final class WindowsUpdater {
     if (!isSupported) return;
     Diagnostics.record('starting the installer');
     await (start ?? _start)(path, installerArguments);
-    // Out of the installer's way: it replaces this executable, and the
-    // installer starts the new one when it is done (#152).
+    // The installer has passed UAC and now waits for our mutex to disappear.
+    // Only then can it replace the executable and start the new app (#152).
     (leave ?? () => exit(0))();
   }
 
@@ -90,12 +98,32 @@ abstract final class WindowsUpdater {
   ];
 
   static Future<void> _start(String path, List<String> arguments) async {
-    // Detached: this process is about to leave, and the installer outlives it.
-    await Process.start(
-      path,
-      arguments,
-      runInShell: false,
-      mode: ProcessStartMode.detached,
-    );
+    final event = await _channel.invokeMethod<String>('prepare');
+    if (event == null) throw StateError('no installer handover event');
+    try {
+      // The loader starts without elevation so Inno Setup retains the original
+      // user for relaunch. Its elevated child acknowledges us after UAC.
+      final process = await launch(path, [...arguments, '/CAELOUPDATE=$event']);
+      final elapsed = Stopwatch()..start();
+      while (true) {
+        if (elapsed.elapsed >= readyTimeout) {
+          throw TimeoutException('the installer did not become ready');
+        }
+        if (await _channel.invokeMethod<bool>('isReady', process.pid) == true) {
+          return;
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    } finally {
+      await _channel.invokeMethod<void>('release');
+    }
   }
+
+  static Future<Process> _launch(String path, List<String> arguments) =>
+      Process.start(
+        path,
+        arguments,
+        runInShell: false,
+        mode: ProcessStartMode.detached,
+      );
 }

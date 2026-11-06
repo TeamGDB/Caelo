@@ -184,7 +184,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     unawaited(_loadServers());
     // After the setting has been read, not before: the updater is handed the
     // answer rather than starting and being corrected.
-    unawaited(DesktopUpdater.start());
+    unawaited(_startDesktopUpdater());
     // Whatever the last update attempt left behind, now that the installer is
     // certainly finished with it.
     unawaited(UpdateDownload.discardLeftovers());
@@ -197,17 +197,28 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     if (phase == TunnelPhase.connected) unawaited(_servers.rememberActive());
   }
 
-  DateTime? _lastDesktopCheck;
+  final _desktopCheckClock = Stopwatch();
+  bool _desktopUpdaterStarted = false;
+
+  Future<void> _startDesktopUpdater() async {
+    await DesktopUpdater.start();
+    if (!mounted) return;
+    // Startup already checks. Count from its completion so the initial resumed
+    // event cannot launch another check, even if reading Settings was slow.
+    _desktopUpdaterStarted = true;
+    _desktopCheckClock.start();
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && DesktopUpdater.isSupported) {
+    if (state == AppLifecycleState.resumed &&
+        DesktopUpdater.isSupported &&
+        _desktopUpdaterStarted) {
       // Every return, at most once a minute (#152): coming back from a
       // system dialog counts as a return too.
-      final now = DateTime.now();
-      final last = _lastDesktopCheck;
-      if (last == null || now.difference(last) >= const Duration(minutes: 1)) {
-        _lastDesktopCheck = now;
+      // Stopwatch is monotonic: changing the system clock cannot stall checks.
+      if (_desktopCheckClock.elapsed >= const Duration(minutes: 1)) {
+        _desktopCheckClock.reset();
         unawaited(DesktopUpdater.checkInBackground());
       }
     }

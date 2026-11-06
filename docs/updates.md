@@ -30,17 +30,34 @@ On macOS (#152), with update checks enabled, Sparkle checks in the background at
 launch, on returning to the app (at most once a minute), and hourly while it is
 open. When it finds an update, Sparkle offers its "Install update" window;
 downloads stay manual (`automaticallyDownloadsUpdates = false`). Turning checks
-off also stops the launch and return checks.
+off also stops the launch and return checks. Startup and return share a
+monotonic throttle, so the first resume does not duplicate the startup check and
+changing the system clock does not delay checks. Choosing "Later" suppresses
+background offers of that version for the rest of the session; manual checks
+and offers of a newer version remain available.
 
 On Windows (#152), accepting an update downloads and verifies the installer,
 then launches it detached with
 `/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS`.
-The app exits only after the installer starts, releasing
-its executable and mutex. Installation shows the UAC prompt and a progress bar
-without wizard pages or a system restart. After a successful silent install,
-Inno Setup starts Caelo as the original user. A normal interactive installation
-keeps its existing "Launch Caelo" checkbox. If the installer cannot start, the
-app stays open and reports the failure.
+An additional `/CAELOUPDATE=<event>` argument identifies this in-app handover.
+The app stays open through UAC until the elevated installer signals its named
+event. Only then does the app exit; setup waits up to 30 seconds for its mutex
+to disappear before Inno Setup's own mutex check and before replacing files.
+Cancelling UAC or an early installer failure leaves Caelo open. A missing
+acknowledgement times out after five minutes, also leaving it open.
+
+Installation shows the UAC prompt and a progress bar without wizard pages or a
+system restart. After a successful in-app update, Inno Setup starts Caelo as the
+original user. Ordinary silent installations (for example MDM deployments) do
+not launch the app; interactive installations keep their "Launch Caelo"
+checkbox. A failure after the app has handed over, or cancelling installation
+at that point, can still require reopening Caelo manually. This flow is not a
+rollback mechanism.
+
+On a real Windows machine, test accepting and declining UAC, updating with UAC
+disabled, installation failure/cancellation after handover, and relaunch without
+elevation. On a real Mac, test returning shortly after launch, repeated returns
+after "Later", manual checking after dismissal, and disabled automatic checks.
 
 ## Why not the API
 

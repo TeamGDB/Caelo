@@ -41,8 +41,51 @@ AppMutex=Global\team.gdb.caelo.running
 CloseApplications=yes
 RestartApplications=no
 
-#ifdef WithService
 [Code]
+function OpenEvent(DesiredAccess: LongWord; InheritHandle: BOOL; Name: String): THandle;
+external 'OpenEventW@kernel32.dll stdcall';
+function SetEvent(Event: THandle): BOOL;
+external 'SetEvent@kernel32.dll stdcall';
+function CloseHandle(Handle: THandle): BOOL;
+external 'CloseHandle@kernel32.dll stdcall';
+
+function IsCaeloUpdate: Boolean;
+begin
+  Result := WizardSilent and (ExpandConstant('{param:CAELOUPDATE|}') <> '');
+end;
+
+function InitializeSetup: Boolean;
+var
+  Ready: THandle;
+  Attempts: Integer;
+begin
+  Result := True;
+  if not IsCaeloUpdate then Exit;
+
+  // This runs after elevation, before Inno's built-in AppMutex check. A named
+  // event avoids writing an elevated acknowledgement into a user-writable file.
+  Result := False;
+  Ready := OpenEvent($0002, False, ExpandConstant('{param:CAELOUPDATE|}'));
+  if Ready = 0 then Exit;
+  try
+    if not SetEvent(Ready) then Exit;
+    // The app exits after receiving the acknowledgement. With UAC disabled
+    // this ordering matters just as much: a suppressed mutex prompt cancels
+    // installation rather than waiting. Bound the wait if an app cannot exit.
+    for Attempts := 1 to 300 do begin
+      if not CheckForMutexes('Global\team.gdb.caelo.running') then begin
+        Result := True;
+        Exit;
+      end;
+      Sleep(100);
+    end;
+    Log('Caelo did not exit within 30 seconds; update cancelled.');
+  finally
+    CloseHandle(Ready);
+  end;
+end;
+
+#ifdef WithService
 // Stopping the service before the files are replaced, not after.
 //
 // caelo-service.exe and wintun.dll are held open while a tunnel is up, and the
@@ -90,9 +133,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Filename: "{app}\caelo-service.exe"; Parameters: "install"; StatusMsg: "Registering the tunnel service"; Flags: runhidden
 #endif
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
-; An update from the app runs this silently (#152) and the app has already
-; closed itself; start the new one, as the person who started the update.
-Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: WizardSilent
+; Only the app supplies the handover event. Ordinary silent deployments do not
+; launch a GUI under the deployment account (#152).
+Filename: "{app}\{#AppExe}"; Flags: nowait runasoriginaluser; Check: IsCaeloUpdate
 
 #ifdef WithService
 [UninstallRun]

@@ -4,9 +4,17 @@ import 'dart:io';
 import 'package:caelo/core/update_check.dart';
 import 'package:caelo/core/update_download.dart';
 import 'package:caelo/core/windows_updater.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+class _Installer extends Fake implements Process {
+  @override
+  int get pid => 42;
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('handing over to the Windows installer', () {
     setUp(() => WindowsUpdater.isWindows = () => true);
     tearDown(() => WindowsUpdater.isWindows = () => Platform.isWindows);
@@ -59,6 +67,110 @@ void main() {
         start: (_, _) async => fail('must not launch the installer'),
         leave: () => fail('must not leave'),
       );
+    });
+  });
+
+  group('waiting for the elevated installer', () {
+    const channel = MethodChannel('team.gdb.caelo/windows_updates');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final originalLaunch = WindowsUpdater.launch;
+    late List<String> events;
+    late bool left;
+
+    setUp(() {
+      WindowsUpdater.isWindows = () => true;
+      events = [];
+      left = false;
+      WindowsUpdater.launch = (path, arguments) async {
+        expect(path, 'setup.exe');
+        expect(arguments, [
+          ...WindowsUpdater.installerArguments,
+          r'/CAELOUPDATE=Local\Caelo.UpdateReady.test',
+        ]);
+        events.add('launch');
+        return _Installer();
+      };
+    });
+
+    tearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+      WindowsUpdater.isWindows = () => Platform.isWindows;
+      WindowsUpdater.launch = originalLaunch;
+      WindowsUpdater.readyTimeout = const Duration(minutes: 5);
+    });
+
+    void handle(Future<bool> Function() ready) {
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        events.add(call.method);
+        switch (call.method) {
+          case 'prepare':
+            return r'Local\Caelo.UpdateReady.test';
+          case 'isReady':
+            expect(call.arguments, 42);
+            return ready();
+          case 'release':
+            return null;
+          default:
+            fail('unexpected method ${call.method}');
+        }
+      });
+    }
+
+    test('creating the process alone does not close the app', () async {
+      final queried = Completer<void>();
+      final ready = Completer<bool>();
+      handle(() {
+        queried.complete();
+        return ready.future;
+      });
+
+      final installing = WindowsUpdater.install(
+        'setup.exe',
+        leave: () {
+          events.add('leave');
+          left = true;
+        },
+      );
+      await queried.future;
+      expect(left, isFalse);
+      ready.complete(true);
+      await installing;
+      expect(events, ['prepare', 'launch', 'isReady', 'release', 'leave']);
+      expect(left, isTrue);
+    });
+
+    test('cancelled UAC or early setup failure keeps the app open', () async {
+      handle(() async => throw PlatformException(code: 'installer_stopped'));
+      await expectLater(
+        WindowsUpdater.install('setup.exe', leave: () => left = true),
+        throwsA(isA<PlatformException>()),
+      );
+      expect(left, isFalse);
+      expect(events.last, 'release');
+    });
+
+    test('a launch failure releases the handover event', () async {
+      handle(() async => fail('must not wait for a failed launch'));
+      WindowsUpdater.launch = (_, _) async =>
+          throw ProcessException('setup.exe', [], 'cannot start');
+      await expectLater(
+        WindowsUpdater.install('setup.exe', leave: () => left = true),
+        throwsA(isA<ProcessException>()),
+      );
+      expect(events, ['prepare', 'release']);
+      expect(left, isFalse);
+    });
+
+    test('a missing acknowledgement times out without leaving', () async {
+      handle(() async => false);
+      WindowsUpdater.readyTimeout = Duration.zero;
+      await expectLater(
+        WindowsUpdater.install('setup.exe', leave: () => left = true),
+        throwsA(isA<TimeoutException>()),
+      );
+      expect(left, isFalse);
+      expect(events, ['prepare', 'launch', 'release']);
     });
   });
 
