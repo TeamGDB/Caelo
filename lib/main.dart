@@ -23,6 +23,7 @@ import 'l10n/generated/app_localizations.dart';
 import 'theme/app_theme.dart';
 import 'theme/palette.dart';
 import 'ui/home_screen.dart';
+import 'ui/update_prompt.dart';
 import 'ui/welcome_screen.dart';
 import 'ui/window_chrome.dart';
 
@@ -306,7 +307,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
                   ],
                   supportedLocales: AppLocalizations.supportedLocales,
                   home: _accessGranted
-                      ? const HomeScreen()
+                      ? const UpdatePrompt(child: HomeScreen())
                       : WelcomeScreen(
                           gateway: widget.accountGateway,
                           onGranted: _completeOnboarding,

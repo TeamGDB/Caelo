@@ -803,7 +803,7 @@ void main() {
         servers.onFasterAvailable = (server) => moved.add(server.id);
 
         // 205 against 242 is 15% faster: not enough. 190 is over 20%.
-      await connectThenRecover('eintopf', 190);
+        await connectThenRecover('eintopf', 190);
         expect(servers.active?.id, 'kazy');
         expect(moved, ['eintopf']);
       },
