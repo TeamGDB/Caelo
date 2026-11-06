@@ -11,19 +11,17 @@ class AccountSession {
   final String displayName;
 }
 
-/// Backend boundary for invitation and QR authentication.
+/// Backend boundary for signing in.
+///
+/// A QR code is the same invitation in another form: the panel shows each
+/// subscription's link as one, and the scanned link is accepted here exactly
+/// as a pasted one (#142).
 abstract interface class AccountGateway {
   Future<AccountSession> acceptInvitation(String invitation);
-
-  Future<AccountSession> signInWithQr();
 }
 
 class InvalidInvitation implements Exception {
   const InvalidInvitation();
-}
-
-class QrSignInUnavailable implements Exception {
-  const QrSignInUnavailable();
 }
 
 typedef AddSubscription = Future<Subscription> Function(String url);
@@ -73,11 +71,6 @@ class SubscriptionAccountGateway implements AccountGateway {
       if (error.gone) throw const InvalidInvitation();
       rethrow;
     }
-  }
-
-  @override
-  Future<AccountSession> signInWithQr() async {
-    throw const QrSignInUnavailable();
   }
 
   static Future<Subscription> _refresh(Subscription subscription) =>

@@ -13,7 +13,6 @@
   "continueAction": "Continue",
   "cancel": "Cancel",
   "qrLogin": "Sign in with QR",
-  "qrUnavailableExplanation": "QR sign-in is not available yet. Use an invitation link.",
   "importOwnConfiguration": "Import your own configuration file",
   "configurationFileInvalid": "Choose a valid WireGuard .conf file",
   "forgetAccount": "Disconnect account",
@@ -380,5 +379,8 @@
         "type": "String"
       }
     }
-  }
+  },
+  "qrPointCamera": "Point the camera at the subscription's QR code in the panel",
+  "qrNotInvitation": "This QR code is not a Caelo invitation. Open the subscription in the panel and scan its code.",
+  "qrCameraUnavailable": "The camera is not available. Allow Caelo to use it in the system settings, or paste the invitation link instead."
 }

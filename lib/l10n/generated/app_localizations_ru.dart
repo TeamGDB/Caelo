@@ -40,10 +40,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get qrLogin => 'Войти по QR';
 
   @override
-  String get qrUnavailableExplanation =>
-      'Вход по QR пока недоступен. Используйте ссылку приглашения.';
-
-  @override
   String get importOwnConfiguration => 'Добавить свой файл конфигурации';
 
   @override
@@ -370,4 +366,15 @@ class AppLocalizationsRu extends AppLocalizations {
   String chosenServerRemoved(String name) {
     return 'Сервер $name удалён из подписки. Выберите другой или нажмите ещё раз — подключимся автоматически.';
   }
+
+  @override
+  String get qrPointCamera => 'Наведите камеру на QR-код подписки в панели';
+
+  @override
+  String get qrNotInvitation =>
+      'Это не QR-код приглашения Caelo. Откройте подписку в панели и отсканируйте её код.';
+
+  @override
+  String get qrCameraUnavailable =>
+      'Камера недоступна. Разрешите Caelo пользоваться камерой в настройках телефона или вставьте ссылку приглашения.';
 }

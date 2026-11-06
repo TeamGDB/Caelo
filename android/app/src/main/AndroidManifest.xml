@@ -12,6 +12,10 @@
          in Settings rather than at install time, so it is asked for rather than
          assumed. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+    <!-- Only to read a subscription's QR code at sign-in (#142). Asked for
+         when somebody presses "Sign in with QR", never before. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <application
         android:label="Caelo"
