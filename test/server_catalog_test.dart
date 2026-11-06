@@ -293,6 +293,80 @@ void main() {
     expect(probed, ['live'], reason: 'the one that worked is asked first');
   });
 
+  test('the same server from two subscriptions is one row, with both '
+      'configs behind it (#140)', () async {
+    const first = Subscription(
+      id: 'old',
+      url: 'https://example.invalid/old',
+      nodes: [
+        SubscriptionNode(
+          id: 'k1',
+          tag: 'Kazy',
+          endpoint: 'old-kazy',
+          position: 0,
+          country: 'KZ',
+        ),
+      ],
+    );
+    const second = Subscription(
+      id: 'new',
+      url: 'https://example.invalid/new',
+      nodes: [
+        SubscriptionNode(
+          id: 'k2',
+          tag: 'Kazy',
+          endpoint: 'new-kazy',
+          position: 0,
+          country: 'KZ',
+        ),
+        SubscriptionNode(
+          id: 'm',
+          tag: 'Mett',
+          endpoint: 'mett',
+          position: 1,
+          country: 'DE',
+        ),
+      ],
+      available: [AvailableServer(id: 'mett', name: 'Mett', country: 'DE')],
+    );
+    final probed = <String>[];
+    final catalog = SubscriptionServerCatalog(
+      loadSubscriptions: () async => const [first, second],
+      loadConfigurations: () async => const [],
+      probeConfiguration: (endpoint) async {
+        probed.add(endpoint);
+        if (endpoint == 'old-kazy') throw StateError('revoked');
+        return {'latency_ms': 30};
+      },
+    );
+    final rows = await catalog.load();
+    expect(rows.map((row) => row.name), ['Kazy', 'Mett']);
+    expect(await catalog.measureLatency(rows.first), 30);
+    expect(probed, ['old-kazy', 'new-kazy']);
+  });
+
+  test('a subscription its server disowned lists nothing (#140)', () async {
+    const gone = Subscription(
+      id: 'old',
+      url: 'https://example.invalid/old',
+      lastError: subscriptionGoneMessage,
+      nodes: [
+        SubscriptionNode(
+          id: 'k1',
+          tag: 'Kazy',
+          endpoint: 'x',
+          position: 0,
+          country: 'KZ',
+        ),
+      ],
+    );
+    final catalog = SubscriptionServerCatalog(
+      loadSubscriptions: () async => const [gone],
+      loadConfigurations: () async => const [],
+    );
+    expect(await catalog.load(), isEmpty);
+  });
+
   test('unusable servers sit below the usable ones', () async {
     final controller = ServerSelectionController(
       _ListCatalog(const [

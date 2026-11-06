@@ -401,7 +401,9 @@ abstract final class SubscriptionFetcher {
   static Future<List<Subscription>> refreshDue({bool force = false}) async {
     final results = <Subscription>[];
     for (final subscription in await SubscriptionStore.all()) {
-      if (force || subscription.isDue) {
+      // A disowned subscription is asked again every time: it lists nothing
+      // while disowned (#140), so a one-off 404 must not hide it for long.
+      if (force || subscription.isDue || subscription.isGone) {
         results.add(await refresh(subscription));
         continue;
       }
@@ -435,6 +437,8 @@ abstract final class SubscriptionFetcher {
   static Future<List<SubscriptionNode>> candidates() async {
     final nodes = <SubscriptionNode>[];
     for (final subscription in await SubscriptionStore.all()) {
+      // Nothing to try on a subscription its server disowned (#140).
+      if (subscription.isGone) continue;
       nodes.addAll(subscription.candidates);
     }
     return nodes;

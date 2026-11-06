@@ -154,32 +154,37 @@ class SubscriptionServerCatalog implements ServerCatalog {
   @override
   Future<List<ServerOption>> load() async {
     final configs = await _loadConfigurations();
-    final subscriptions = await _loadSubscriptions();
-    // One row per server (#127), standing for every configuration the
-    // server issued to this device: whichever of them answers is the one
-    // used (#129).
+    // A subscription its server has disowned lists nothing: its cached nodes
+    // have no peers behind them any more (#140).
+    final subscriptions = [
+      for (final subscription in await _loadSubscriptions())
+        if (!subscription.isGone) subscription,
+    ];
+    // One row per server (#127), across every subscription (#140): a second
+    // sign-in under 0.2.1 kept the first subscription, and the same server
+    // from both was listed twice. A row stands for every configuration of its
+    // server, and whichever answers is the one used (#129).
+    String serverOf(String name, String country) =>
+        '${name.trim().toLowerCase()}|${country.toUpperCase()}';
     _endpoints.clear();
     final rowOf = <String, String>{};
-    final seen = <String>{};
-    bool firstOf(Subscription subscription, SubscriptionNode node) {
-      final server = '${subscription.id}|${node.tag.trim()}|${node.country}';
-      final row = rowOf.putIfAbsent(
-        server,
-        () => 'node:${subscription.id}:${node.id}',
-      );
-      _endpoints.putIfAbsent(row, () => []).add(node.endpoint);
-      return seen.add(server);
-    }
-
     for (final subscription in subscriptions) {
       for (final node in subscription.nodes) {
-        firstOf(subscription, node);
+        final row = rowOf.putIfAbsent(
+          serverOf(node.tag, node.country),
+          () => 'node:${subscription.id}:${node.id}',
+        );
+        _endpoints.putIfAbsent(row, () => []).add(node.endpoint);
       }
     }
-    seen.clear();
     _working.removeWhere(
       (row, endpoint) => !(_endpoints[row]?.contains(endpoint) ?? false),
     );
+    final listed = <String>{};
+    bool firstOf(Subscription subscription, SubscriptionNode node) =>
+        listed.add(serverOf(node.tag, node.country));
+    bool newOffer(AvailableServer server) =>
+        listed.add(serverOf(server.name, server.country));
     return [
       for (final subscription in subscriptions)
         for (final node in subscription.nodes)
@@ -200,7 +205,7 @@ class SubscriptionServerCatalog implements ServerCatalog {
       // нет, поэтому и узла нет: он появится, когда его выберут.
       for (final subscription in subscriptions)
         for (final server in subscription.available)
-          if (!server.ready)
+          if (!server.ready && newOffer(server))
             // One the subscription would not issue is still shown, dimmed and
             // explained, rather than vanishing from a list somebody can
             // compare with the panel (#126).
