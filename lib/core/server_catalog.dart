@@ -158,21 +158,27 @@ class SubscriptionServerCatalog implements ServerCatalog {
           ),
         ),
       );
+    // One row per server. A backend that issued two configs on one server to
+    // the same device listed it twice (#127); the first is kept.
+    final seen = <String>{};
+    bool firstOf(Subscription subscription, SubscriptionNode node) =>
+        seen.add('${subscription.id}|${node.tag.trim()}|${node.country}');
     return [
       for (final subscription in subscriptions)
         for (final node in subscription.nodes)
-          ServerOption(
-            id: 'node:${subscription.id}:${node.id}',
-            name: node.tag.trim().isEmpty
-                ? 'Server ${node.position + 1}'
-                : node.tag.trim(),
-            description: node.description,
-            flag: node.flag.isEmpty ? '🌐' : node.flag,
-            subscriptionId: subscription.id,
-            nodeId: node.id,
-            available: !node.maintenance,
-            reason: node.maintenance ? UnavailableReason.maintenance : null,
-          ),
+          if (firstOf(subscription, node))
+            ServerOption(
+              id: 'node:${subscription.id}:${node.id}',
+              name: node.tag.trim().isEmpty
+                  ? 'Server ${node.position + 1}'
+                  : node.tag.trim(),
+              description: node.description,
+              flag: node.flag.isEmpty ? '🌐' : node.flag,
+              subscriptionId: subscription.id,
+              nodeId: node.id,
+              available: !node.maintenance,
+              reason: node.maintenance ? UnavailableReason.maintenance : null,
+            ),
       // Серверы, которые подписка может выдать, но ещё не выдала. Ключей у них
       // нет, поэтому и узла нет: он появится, когда его выберут.
       for (final subscription in subscriptions)

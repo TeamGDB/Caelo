@@ -314,8 +314,30 @@ abstract final class SubscriptionFetcher {
     return granted;
   }
 
+  /// One key request at a time, whoever asks. Two at once for the same
+  /// server each found no config yet and each made one (#127).
+  static Future<void> _granting = Future<void>.value();
+
   /// Asks the server for keys on one server. True if it issued them.
-  static Future<bool> _grant(Subscription subscription, String serverId) async {
+  static Future<bool> _grant(Subscription subscription, String serverId) {
+    final result = _granting.then((_) => _grantNow(subscription, serverId));
+    _granting = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
+  static Future<bool> _grantNow(
+    Subscription subscription,
+    String serverId,
+  ) async {
+    // Issued while this request waited its turn: asking again would make a
+    // second peer on the same server.
+    final current = await SubscriptionStore.byId(subscription.id);
+    if (current != null &&
+        current.available.any(
+          (server) => server.id == serverId && server.ready,
+        )) {
+      return true;
+    }
     final client = HttpClient()..connectionTimeout = timeout;
     try {
       final base = subscription.url.replaceAll(RegExp(r'/+$'), '');

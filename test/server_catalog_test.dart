@@ -215,6 +215,42 @@ void main() {
     );
   });
 
+  test('a server issued twice is listed once (#127)', () async {
+    const subscription = Subscription(
+      id: 'account',
+      url: 'https://example.invalid/subscription',
+      nodes: [
+        SubscriptionNode(
+          id: 'm1',
+          tag: 'Mett',
+          endpoint: '{}',
+          position: 0,
+          country: 'DE',
+        ),
+        SubscriptionNode(
+          id: 'm2',
+          tag: 'Mett',
+          endpoint: '{}',
+          position: 1,
+          country: 'DE',
+        ),
+        SubscriptionNode(
+          id: 'b',
+          tag: 'Buran',
+          endpoint: '{}',
+          position: 2,
+          country: 'RU',
+        ),
+      ],
+    );
+    final catalog = SubscriptionServerCatalog(
+      loadSubscriptions: () async => const [subscription],
+      loadConfigurations: () async => const [],
+    );
+    final names = (await catalog.load()).map((server) => server.name);
+    expect(names, ['Mett', 'Buran']);
+  });
+
   test('unusable servers sit below the usable ones', () async {
     final controller = ServerSelectionController(
       _ListCatalog(const [
