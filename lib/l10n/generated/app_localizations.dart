@@ -739,6 +739,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your subscription no longer works. Get a new invitation link, then go to Settings → Disconnect account and paste it.'**
   String get subscriptionGone;
+
+  /// No description provided for @connectionLost.
+  ///
+  /// In en, this message translates to:
+  /// **'The server stopped answering, and no other one did either.'**
+  String get connectionLost;
 }
 
 class _AppLocalizationsDelegate

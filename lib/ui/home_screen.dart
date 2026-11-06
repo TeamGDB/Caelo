@@ -153,6 +153,7 @@ String? _explain(TunnelFailure? failure, AppLocalizations l10n) =>
       TunnelFailure.noServerReachable => l10n.noServerReachable,
       TunnelFailure.chosenServerUnreachable => l10n.chosenServerUnreachable,
       TunnelFailure.subscriptionGone => l10n.subscriptionGone,
+      TunnelFailure.connectionLost => l10n.connectionLost,
       null => null,
     };
 

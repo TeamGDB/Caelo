@@ -104,6 +104,14 @@ class _DeviceTunnel implements TunnelClient {
     _emit(const TunnelStatus.disconnected());
   }
 
+  /// The server went quiet under the live tunnel, as the watchdog reports.
+  void lose() => _emit(
+    const TunnelStatus(
+      phase: TunnelPhase.failed,
+      failure: TunnelFailure.connectionLost,
+    ),
+  );
+
   @override
   Future<void> reconnectDifferently() async {}
 
@@ -488,6 +496,23 @@ void main() {
     expect(power(tester).phase, TunnelPhase.connected);
     expect(tunnel.dialled, [_helsinki, _helsinki]);
     expect(probed, isEmpty);
+  });
+
+  testWidgets('the server goes quiet while connected: the app moves to '
+      'another on its own (#118)', (tester) async {
+    await launch(tester);
+    await onboard(tester);
+    await pressPower(tester);
+    expect(headerName(tester), 'Helsinki');
+
+    answers.remove(_helsinki);
+    tunnel.silent.add(_helsinki);
+    tunnel.lose();
+    await waitFor(tester, () => tunnel.dialled.length == 2);
+    await waitFor(tester, () => power(tester).phase == TunnelPhase.connected);
+
+    expect(tunnel.dialled, [_helsinki, _stockholm]);
+    expect(headerName(tester), 'Stockholm');
   });
 
   group('forgetting the account', () {

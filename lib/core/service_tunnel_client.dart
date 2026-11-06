@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'config_store.dart';
 import 'diagnostics.dart';
+import 'handshake_watchdog.dart';
 import 'service_client.dart';
 import 'tunnel.dart';
 
@@ -38,6 +39,11 @@ class ServiceTunnelClient implements TunnelClient {
 
   void _emit(TunnelStatus status) {
     _current = status;
+    if (status.phase == TunnelPhase.connected) {
+      if (!_watchdog.running) _watchdog.start();
+    } else {
+      _watchdog.stop();
+    }
     if (!_controller.isClosed) _controller.add(status);
   }
 
@@ -53,6 +59,23 @@ class ServiceTunnelClient implements TunnelClient {
       debugPrint('Caelo: service status failed: $error\n$stack');
     }
   }
+
+  late final _watchdog = HandshakeWatchdog(
+    read: () async {
+      final status = await ServiceClient.status();
+      if (status['up'] != true) return -1;
+      return (status['handshake_unix'] as num?)?.toInt();
+    },
+    onDead: () {
+      Diagnostics.record('the server stopped answering');
+      _emit(
+        const TunnelStatus(
+          phase: TunnelPhase.failed,
+          failure: TunnelFailure.connectionLost,
+        ),
+      );
+    },
+  );
 
   TunnelStatus _statusFrom(Map<String, dynamic> response) {
     return TunnelStatus(
@@ -130,6 +153,7 @@ class ServiceTunnelClient implements TunnelClient {
 
   @override
   Future<void> dispose() async {
+    _watchdog.stop();
     // The tunnel deliberately outlives the app. Quitting Caelo is not the same
     // as asking to be exposed, and tearing the tunnel down here would make it
     // exactly that.

@@ -256,6 +256,32 @@ void main() {
       expect(scripted.connects, 0);
     });
 
+    test('a server that stops answering is left for another (#118)', () async {
+      final seen = <Set<String>>[];
+      var n = 0;
+      final controller = TunnelController(
+        scripted,
+        prepare: (tried, cancelled) async {
+          seen.add({...tried});
+          return PreparedConnection.ready('n${n++}', retryable: true);
+        },
+      );
+      addTearDown(controller.dispose);
+
+      await controller.toggle();
+      expect(controller.value.phase, TunnelPhase.connected);
+
+      scripted.lose();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(seen, [
+        <String>{},
+        {'n0'},
+      ]);
+      expect(scripted.connects, 2);
+      expect(controller.value.phase, TunnelPhase.connected);
+    });
+
     test('a prepare that throws reads as a failed attempt', () async {
       final controller = TunnelController(
         scripted,
@@ -312,6 +338,14 @@ class _ScriptedClient implements TunnelClient {
     _emit(const TunnelStatus(phase: TunnelPhase.disconnecting));
     _emit(const TunnelStatus.disconnected());
   }
+
+  /// The server went quiet under a live tunnel.
+  void lose() => _emit(
+    const TunnelStatus(
+      phase: TunnelPhase.failed,
+      failure: TunnelFailure.connectionLost,
+    ),
+  );
 
   @override
   Future<void> reconnectDifferently() async {}

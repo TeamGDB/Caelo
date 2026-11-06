@@ -354,4 +354,8 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get subscriptionGone =>
       'Подписка больше не действует. Получите новую ссылку приглашения и вставьте её: Настройки → Отключить аккаунт.';
+
+  @override
+  String get connectionLost =>
+      'Сервер перестал отвечать, а другие тоже не ответили.';
 }

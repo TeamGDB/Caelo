@@ -356,4 +356,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get subscriptionGone =>
       'Your subscription no longer works. Get a new invitation link, then go to Settings → Disconnect account and paste it.';
+
+  @override
+  String get connectionLost =>
+      'The server stopped answering, and no other one did either.';
 }

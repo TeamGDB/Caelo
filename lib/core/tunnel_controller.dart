@@ -96,7 +96,20 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
   /// reports a figure of its own.
   int? _preparedLatencyMs;
 
+  /// The candidate the current connection went through.
+  String? _connectedId;
+
   void _onClientStatus(TunnelStatus status) {
+    // The server stopped answering under a live tunnel (#118). Move to
+    // another rather than leave the person on a dead connection, and skip
+    // the one that just died.
+    if (status.failure == TunnelFailure.connectionLost &&
+        !_choosing &&
+        _prepare != null) {
+      final lost = _connectedId;
+      unawaited(_connect(skip: {?lost}));
+      return;
+    }
     if (_choosing &&
         (status.phase == TunnelPhase.failed ||
             status.phase == TunnelPhase.disconnected)) {
@@ -161,7 +174,7 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
     }
   }
 
-  Future<void> _connect() async {
+  Future<void> _connect({Set<String> skip = const {}}) async {
     final prepare = _prepare;
     if (prepare == null) return _client.connect();
 
@@ -171,7 +184,7 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
     _choosing = true;
     _preparedLatencyMs = null;
     value = const TunnelStatus(phase: TunnelPhase.connecting);
-    final tried = <String>{};
+    final tried = <String>{...skip};
 
     try {
       for (var round = 0; round < maxAttempts; round++) {
@@ -190,7 +203,7 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
           // and failed, that is the more truthful thing to report.
           value = TunnelStatus(
             phase: TunnelPhase.failed,
-            failure: tried.isEmpty ? failure : null,
+            failure: tried.length <= skip.length ? failure : null,
           );
           return;
         }
@@ -201,6 +214,7 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
         }
 
         tried.add(id);
+        _connectedId = id;
         _preparedLatencyMs = prepared.latencyMs;
         _choosing = false;
         await _client.connect();

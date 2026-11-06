@@ -48,6 +48,10 @@ enum TunnelFailure {
   /// link is no longer a subscription. A new invitation is the remedy, not the
   /// network (#106).
   subscriptionGone,
+
+  /// The tunnel was up and its server stopped answering (#118). The
+  /// controller reconnects elsewhere when it can.
+  connectionLost,
 }
 
 /// Which protocol carried the connection.
