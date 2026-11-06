@@ -148,6 +148,8 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     // somewhere that still exists rather than leave it on a peer about to
     // vanish (#111).
     _servers.onActiveRemoved = (_) => unawaited(_controller.reconnect());
+    // A clearly faster server turned up while connected automatically (#132).
+    _servers.onFasterAvailable = (_) => unawaited(_controller.reconnect());
     // Somebody who keeps the app on screen should see servers come and go as
     // well as somebody who reopens it (#111).
     // While connected, look at the subscription every minute: spidernet cuts

@@ -520,7 +520,14 @@ class ServerSelectionController extends ChangeNotifier {
       // second device with the same key and takes the session from the live
       // tunnel (#102). Everything else is measured once, so a server that
       // arrived while connected still gets a figure (#128).
-      if (_tunnelActive && (server.id == active?.id || server.measured)) {
+      // A fresh figure is not asked for again; one that did not answer is,
+      // because a server just issued often answers a minute later (#132).
+      final at = _measuredAt[server.id];
+      final fresh =
+          at != null &&
+          DateTime.now().difference(at) < const Duration(minutes: 4);
+      if (_tunnelActive &&
+          (server.id == active?.id || (fresh && !server.unreachable))) {
         continue;
       }
       final pending = catalog.measureLatency(server);
@@ -545,6 +552,7 @@ class ServerSelectionController extends ChangeNotifier {
         _recordUnreachable(server.id);
       } else {
         _recordLatency(server.id, latency);
+        _considerFaster();
       }
     }
     if (generation != _measureGeneration) return;
@@ -553,6 +561,7 @@ class ServerSelectionController extends ChangeNotifier {
   }
 
   void _recordUnreachable(String id) {
+    _measuredAt[id] = DateTime.now();
     servers = [
       for (final current in servers)
         if (current.id == id) current.withUnreachable() else current,
@@ -561,7 +570,57 @@ class ServerSelectionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// When each server was last measured.
+  final _measuredAt = <String, DateTime>{};
+
+  /// Told when, while connected automatically, another server measures
+  /// clearly faster than the one in use (#132). The app reconnects, which
+  /// chooses afresh.
+  void Function(ServerOption faster)? onFasterAvailable;
+
+  /// How much faster another server must be to be worth moving to.
+  static const switchWhenFaster = 0.7;
+
+  /// The least time between two moves made for speed.
+  static const switchCooldown = Duration(minutes: 10);
+
+  DateTime? _lastSwitch;
+
+  void _considerFaster() {
+    if (!_tunnelActive || !isAutomatic) return;
+    final current = active;
+    final own = current?.latencyMs;
+    if (current == null || own == null) return;
+    final now = DateTime.now();
+    if (_lastSwitch case final last?
+        when now.difference(last) < switchCooldown) {
+      return;
+    }
+    final faster = servers
+        .where(
+          (server) =>
+              server.connectable &&
+              server.id != current.id &&
+              server.latencyMs != null &&
+              server.latencyMs! < own * switchWhenFaster,
+        )
+        .fold<ServerOption?>(
+          null,
+          (best, server) => best == null || server.latencyMs! < best.latencyMs!
+              ? server
+              : best,
+        );
+    if (faster == null) return;
+    _lastSwitch = now;
+    Diagnostics.record(
+      'moving to ${faster.name} (${faster.latencyMs}ms), faster than '
+      '${current.name} (${own}ms)',
+    );
+    onFasterAvailable?.call(faster);
+  }
+
   void _recordLatency(String id, int latency) {
+    _measuredAt[id] = DateTime.now();
     ServerOption? measured;
     servers = [
       for (final current in servers)

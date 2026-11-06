@@ -767,6 +767,76 @@ void main() {
     expect(servers.servers.firstWhere((s) => s.id == 'b').connectable, isTrue);
   });
 
+  group('moving to a faster server while connected (#132)', () {
+    ServerSelectionController measuring() => ServerSelectionController(
+      catalog,
+      readSelected: () async => saved,
+      writeSelected: (id) async => saved = id,
+      activateConfiguration: (_) async {},
+      activateNode: (_, _) async {},
+      readLastConnected: () async => null,
+      writeLastConnected: (_) async {},
+      checkSubscriptions: () async => false,
+      provisionOffers: () async => 0,
+      latencyRefreshInterval: null,
+      fastestGrace: const Duration(milliseconds: 10),
+    );
+
+    Future<void> connectThenRecover(String recovering, int latency) async {
+      await servers.load();
+      await servers.prepareConnection({}, never);
+      servers.tunnelActive = true;
+      catalog.answers[recovering] = latency;
+      await servers.load();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+    }
+
+    test(
+      'a server that answers later and is clearly faster is moved to',
+      () async {
+        catalog = _ScriptedCatalog(
+          [_node('kazy'), _node('eintopf')],
+          answers: {'kazy': 242},
+        );
+        servers = measuring();
+        final moved = <String>[];
+        servers.onFasterAvailable = (server) => moved.add(server.id);
+
+        await connectThenRecover('eintopf', 150);
+        expect(servers.active?.id, 'kazy');
+        expect(moved, ['eintopf']);
+      },
+    );
+
+    test('a little faster is not worth a reconnect', () async {
+      catalog = _ScriptedCatalog(
+        [_node('kazy'), _node('eintopf')],
+        answers: {'kazy': 242},
+      );
+      servers = measuring();
+      final moved = <String>[];
+      servers.onFasterAvailable = (server) => moved.add(server.id);
+
+      await connectThenRecover('eintopf', 205);
+      expect(moved, isEmpty);
+    });
+
+    test('never with a server picked by hand', () async {
+      catalog = _ScriptedCatalog(
+        [_node('kazy'), _node('eintopf')],
+        answers: {'kazy': 242},
+      );
+      servers = measuring();
+      final moved = <String>[];
+      servers.onFasterAvailable = (server) => moved.add(server.id);
+      await servers.load();
+      await servers.select(servers.servers.firstWhere((s) => s.id == 'kazy'));
+
+      await connectThenRecover('eintopf', 100);
+      expect(moved, isEmpty);
+    });
+  });
+
   group('a server removed from the subscription (#111)', () {
     test('says so when it was the one in use', () async {
       catalog = _ScriptedCatalog([_node('a'), _node('b')], answers: {'a': 5});
