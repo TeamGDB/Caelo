@@ -383,7 +383,16 @@
   "qrPointCamera": "Point the camera at the subscription's QR code in the panel",
   "qrNotInvitation": "This QR code is not a Caelo invitation. Open the subscription in the panel and scan its code.",
   "qrCameraUnavailable": "The camera is not available. Allow Caelo to use it in the system settings, or paste the invitation link instead.",
+  "updateInstallationNotStarted": "Installation did not start",
+  "@updateInstallationNotStarted": {
+    "description": "Neutral title when Windows setup exits before handover, including a declined UAC prompt."
+  },
+  "updateWindowsInstallerStopped": "You may have cancelled the Windows permission prompt, or the installer could not continue. Caelo is still open. You can try again.",
+  "@updateWindowsInstallerStopped": {
+    "description": "Covers both cancellation and early setup failure without claiming which occurred."
+  },
   "updateInstall": "Update",
   "updateInstallingNow": "Installing the update…",
-  "updateLinuxFailed": "The update did not install. You can update by hand: sudo apt upgrade (or sudo dnf upgrade caelo)."
+  "updateLinuxFailed": "The update did not install. You can update by hand: sudo apt upgrade (or sudo dnf upgrade caelo).",
+  "updateWindowsHandOverFailed": "Caelo could not start the installer. The download is fine; try again, or run the installer from the release page."
 }

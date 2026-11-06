@@ -379,6 +379,13 @@ class AppLocalizationsRu extends AppLocalizations {
       'Камера недоступна. Разрешите Caelo пользоваться камерой в настройках телефона или вставьте ссылку приглашения.';
 
   @override
+  String get updateInstallationNotStarted => 'Установка не началась';
+
+  @override
+  String get updateWindowsInstallerStopped =>
+      'Возможно, вы отменили запрос разрешения Windows, или установщик не смог продолжить. Caelo остаётся открытым. Можно попробовать ещё раз.';
+
+  @override
   String get updateInstall => 'Обновить';
 
   @override
@@ -387,4 +394,8 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get updateLinuxFailed =>
       'Обновление не установилось. Можно обновить вручную: sudo apt upgrade (или sudo dnf upgrade caelo).';
+
+  @override
+  String get updateWindowsHandOverFailed =>
+      'Не удалось запустить установщик. Файл скачан и проверен — попробуйте ещё раз или запустите установщик со страницы релизов.';
 }

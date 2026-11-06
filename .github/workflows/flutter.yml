@@ -261,6 +261,23 @@ jobs:
           test -f build/windows/x64/runner/Debug/caelo.dll
           test -f core/build/caelo-service.exe
 
+      - name: Compile both Inno Setup installer variants
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $compiler)) {
+            choco install innosetup --version=6.5.4 --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          $source = (Resolve-Path 'build/windows/x64/runner/Debug').Path
+          $output = Join-Path $env:RUNNER_TEMP 'caelo-installer-check'
+          New-Item -ItemType Directory -Force -Path $output | Out-Null
+          $defines = @('/DAppVersion=0.0.0', "/DSourceDir=$source", "/DOutputDir=$output")
+          & $compiler @defines 'packaging/windows/caelo.iss'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $compiler @defines '/DWithService=1' 'packaging/windows/caelo.iss'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - uses: actions/upload-artifact@v7
         with:
           name: caelo-windows

@@ -776,6 +776,18 @@ abstract class AppLocalizations {
   /// **'The camera is not available. Allow Caelo to use it in the system settings, or paste the invitation link instead.'**
   String get qrCameraUnavailable;
 
+  /// Neutral title when Windows setup exits before handover, including a declined UAC prompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Installation did not start'**
+  String get updateInstallationNotStarted;
+
+  /// Covers both cancellation and early setup failure without claiming which occurred.
+  ///
+  /// In en, this message translates to:
+  /// **'You may have cancelled the Windows permission prompt, or the installer could not continue. Caelo is still open. You can try again.'**
+  String get updateWindowsInstallerStopped;
+
   /// No description provided for @updateInstall.
   ///
   /// In en, this message translates to:
@@ -793,6 +805,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The update did not install. You can update by hand: sudo apt upgrade (or sudo dnf upgrade caelo).'**
   String get updateLinuxFailed;
+
+  /// No description provided for @updateWindowsHandOverFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Caelo could not start the installer. The download is fine; try again, or run the installer from the release page.'**
+  String get updateWindowsHandOverFailed;
 }
 
 class _AppLocalizationsDelegate

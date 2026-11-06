@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:caelo/core/update_check.dart';
 import 'package:caelo/core/update_flow.dart';
+import 'package:caelo/core/windows_updater.dart';
 import 'package:caelo/l10n/generated/app_localizations.dart';
 import 'package:caelo/ui/update_prompt.dart';
 import 'package:flutter/cupertino.dart';
@@ -69,6 +70,34 @@ void main() {
     await pump(tester, flow);
     expect(find.byType(CupertinoAlertDialog), findsNothing);
   });
+
+  testWidgets(
+    'an early Windows setup exit offers a neutral explanation and retry',
+    (tester) async {
+      final flow = UpdateFlow(
+        look: () async => _update,
+        fetch: (_, _) async => File('verified.exe'),
+        canInstall: () async => true,
+        install: (_) async => throw const WindowsInstallerStopped(),
+        readPending: () async => null,
+        writePending: (_) async {},
+      );
+      await pump(tester, flow);
+      await tester.tap(find.byKey(const ValueKey('update-now')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Установка не началась'), findsOneWidget);
+      expect(
+        find.textContaining('вы отменили запрос разрешения Windows'),
+        findsOneWidget,
+      );
+      expect(find.text('Скачивание не завершилось.'), findsNothing);
+      expect(find.textContaining('Android'), findsNothing);
+      await tester.tap(find.text('Попробовать снова'));
+      await tester.pumpAndSettle();
+      expect(find.text('Доступна версия 0.3.1'), findsOneWidget);
+    },
+  );
 
   testWidgets('later leaves the app alone', (tester) async {
     final flow = UpdateFlow(

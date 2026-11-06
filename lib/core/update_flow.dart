@@ -36,6 +36,10 @@ enum UpdateStage {
   /// — whether it installs is between the person and Android.
   handedOver,
 
+  /// Windows setup exited before acknowledging handover. This can be a
+  /// declined UAC prompt or an early setup failure; the reason is unknown.
+  installerStopped,
+
   /// The file was fetched and proved ours, and handing it to the system
   /// installer failed.
   ///
@@ -248,9 +252,20 @@ class UpdateFlow extends ChangeNotifier {
       // about it.
       Diagnostics.record('update: downloaded and verified ${update.version}');
 
+      // Before the hand-over, not after: on Windows a successful hand-over
+      // ends this process (#152), and a note written afterwards would never
+      // be written, so an installation that failed later would go unreported
+      // (#73). Cleared again when the hand-over itself fails.
+      await _writePending(update.build).catchError((_) {});
       try {
         await _install(file.path);
+      } on WindowsInstallerStopped {
+        await _writePending(null).catchError((_) {});
+        Diagnostics.record('update: installer closed before handover');
+        _to(UpdateStage.installerStopped);
+        return;
       } on Object catch (error) {
+        await _writePending(null).catchError((_) {});
         // Deliberately not folded into the download's failure. They send
         // somebody to different places, and sharing one reported a complete,
         // verified file as a download that did not finish (#71).
@@ -260,7 +275,6 @@ class UpdateFlow extends ChangeNotifier {
       }
 
       Diagnostics.record('update: handed to the system installer');
-      await _writePending(update.build).catchError((_) {});
       _to(UpdateStage.handedOver);
     } on DownloadFailed catch (error) {
       Diagnostics.record('update: download failed', error: error);

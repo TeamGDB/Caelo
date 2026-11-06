@@ -382,6 +382,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'The camera is not available. Allow Caelo to use it in the system settings, or paste the invitation link instead.';
 
   @override
+  String get updateInstallationNotStarted => 'Installation did not start';
+
+  @override
+  String get updateWindowsInstallerStopped =>
+      'You may have cancelled the Windows permission prompt, or the installer could not continue. Caelo is still open. You can try again.';
+
+  @override
   String get updateInstall => 'Update';
 
   @override
@@ -390,4 +397,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get updateLinuxFailed =>
       'The update did not install. You can update by hand: sudo apt upgrade (or sudo dnf upgrade caelo).';
+
+  @override
+  String get updateWindowsHandOverFailed =>
+      'Caelo could not start the installer. The download is fine; try again, or run the installer from the release page.';
 }

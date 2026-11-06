@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 
@@ -86,6 +87,7 @@ class _UpdatePromptState extends State<UpdatePrompt>
     if (stage == UpdateStage.found ||
         stage == UpdateStage.needsPermission ||
         stage == UpdateStage.handOverFailed ||
+        stage == UpdateStage.installerStopped ||
         stage == UpdateStage.notInstalled ||
         stage == UpdateStage.failed) {
       unawaited(_show(stage));
@@ -104,6 +106,7 @@ class _UpdatePromptState extends State<UpdatePrompt>
             UpdateStage.found => l10n.updateFound(update?.version ?? ''),
             UpdateStage.needsPermission => l10n.checkForUpdates,
             UpdateStage.notInstalled => l10n.updateNotInstalled,
+            UpdateStage.installerStopped => l10n.updateInstallationNotStarted,
             _ => l10n.updateFailed,
           }),
           content: switch (stage) {
@@ -112,9 +115,14 @@ class _UpdatePromptState extends State<UpdatePrompt>
             UpdateStage.notInstalled => Text(
               l10n.updateNotInstalledExplanation,
             ),
+            UpdateStage.installerStopped => Text(
+              l10n.updateWindowsInstallerStopped,
+            ),
             UpdateStage.handOverFailed => Text(
               _flow.needsDownload
-                  ? l10n.updateHandOverFailed
+                  ? (Platform.isWindows
+                        ? l10n.updateWindowsHandOverFailed
+                        : l10n.updateHandOverFailed)
                   : l10n.updateLinuxFailed,
             ),
             _ => Text(
@@ -160,7 +168,8 @@ class _UpdatePromptState extends State<UpdatePrompt>
                 },
                 child: Text(l10n.updateOpenSettings),
               ),
-            if (stage == UpdateStage.notInstalled)
+            if (stage == UpdateStage.notInstalled ||
+                stage == UpdateStage.installerStopped)
               CupertinoDialogAction(
                 isDefaultAction: true,
                 onPressed: () {

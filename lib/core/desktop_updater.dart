@@ -39,6 +39,10 @@ abstract final class DesktopUpdater {
   /// interrupt.
   static Future<void> checkNow() => _tell('checkNow', null);
 
+  /// A quiet check on coming back to the app (#152): Sparkle says nothing
+  /// unless it finds an update, and nothing at all with the switch off.
+  static Future<void> checkInBackground() => _tell('checkInBackground', null);
+
   static Future<void> _tell(String method, Object? argument) async {
     if (!isSupported) return;
     try {

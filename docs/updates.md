@@ -4,9 +4,9 @@ How an installed copy of Caelo finds out that a newer one exists, and what it is
 allowed to do about it.
 
 This describes the manifest — the contract between the release pipeline and every
-updater. The updaters themselves are separate work: Sparkle on macOS (#44),
-WinSparkle on Windows (#45), the sideload updater on Android (#48). Linux does
-not get an updater at all, and the reason is below.
+updater: Sparkle on macOS (#44), a signature-verifying updater on Windows (#45),
+and the sideload updater on Android (#48). Linux asks the package manager or
+uses zsync for the AppImage, as described below.
 
 ## Two files, one truth
 
@@ -14,8 +14,8 @@ not get an updater at all, and the reason is below.
 
 | File | Read by |
 | --- | --- |
-| `appcast.xml` | Sparkle on macOS, WinSparkle on Windows |
-| `latest.json` | the Android updater, and the "there is a newer version" notice on Linux |
+| `appcast.xml` | Sparkle on macOS |
+| `latest.json` | the Windows and Android updaters, and the update check on Linux |
 
 They carry the same facts. They are generated together rather than separately
 because the failure they are guarding against is the two disagreeing about which
@@ -23,6 +23,54 @@ version is current, which would send half the installed base to one build and
 half to another with nothing in the logs to explain it.
 
 Both live on GitHub Pages. The artifacts they point at live on GitHub Releases.
+
+## Updating from the desktop app
+
+On macOS (#152), with update checks enabled, Sparkle checks in the background at
+launch, on returning to the app (at most once a minute), and hourly while it is
+open. When it finds an update, Sparkle offers its "Install update" window;
+downloads stay manual (`automaticallyDownloadsUpdates = false`). Turning checks
+off also stops the launch and return checks. Startup and return share a
+monotonic throttle, so the first resume does not duplicate the startup check and
+changing the system clock does not delay checks. Choosing "Later" suppresses
+background offers of that version for the rest of the session; manual checks
+and offers of a newer version remain available.
+
+On Windows (#152), accepting an update downloads and verifies the installer,
+then launches it detached with
+`/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS`.
+An additional `/CAELOUPDATE=<event>` argument identifies this in-app handover.
+The app stays open through UAC until the elevated installer signals its named
+event. Only then does the app exit; setup waits up to 30 seconds for its mutex
+to disappear before Inno Setup's own mutex check and before replacing files.
+Cancelling UAC or an early installer failure leaves Caelo open. A missing
+acknowledgement times out after five minutes, also leaving it open.
+If setup exits before acknowledging, the app says that installation did not
+start: the permission prompt may have been cancelled, or setup could not
+continue. It offers a retry without calling this a failed download.
+
+Installation shows the UAC prompt and a progress bar without wizard pages or a
+system restart. After a successful in-app update, Inno Setup starts Caelo as the
+original user. Ordinary silent installations (for example MDM deployments) do
+not launch the app; interactive installations keep their "Launch Caelo"
+checkbox. A failure after the app has handed over, or cancelling installation
+at that point, can still require reopening Caelo manually. This flow is not a
+rollback mechanism.
+
+Each in-app attempt also passes `/LOG=<path>` to retain Inno Setup's log in
+Caelo's application-support directory as `windows-installer.log`. In the
+standard Windows build this is
+`%APPDATA%\team.gdb\caelo\caelo\windows-installer.log`. Setup overwrites this
+file when it opens the log for a new attempt; it remains available after Caelo
+exits, including after a later installation failure or cancellation. It records
+installer operations and local paths, separately from the optional connection
+diagnostics. Declining UAC before setup initializes may produce no new log;
+check the timestamp before treating an existing log as the latest attempt.
+
+On a real Windows machine, test accepting and declining UAC, updating with UAC
+disabled, installation failure/cancellation after handover, and relaunch without
+elevation. On a real Mac, test returning shortly after launch, repeated returns
+after "Later", manual checking after dismissal, and disabled automatic checks.
 
 ## Why not the API
 

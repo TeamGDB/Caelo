@@ -19,21 +19,21 @@ import Sparkle
 /// fingerprint, and the whole point of docs/updates.md is that two installations
 /// send the same bytes. So the defaults are overridden explicitly below rather
 /// than trusted to stay as they are across a Sparkle upgrade.
-final class Updater: NSObject {
+final class Updater: NSObject, SPUUpdaterDelegate {
     static let channelName = "team.gdb.caelo/updates"
 
-    private let controller: SPUStandardUpdaterController
+    private lazy var controller = SPUStandardUpdaterController(
+        startingUpdater: false,
+        updaterDelegate: self,
+        userDriverDelegate: nil
+    )
     private let channel: FlutterMethodChannel
+    private var dismissedVersions = Set<String>()
 
     init(messenger: FlutterBinaryMessenger) {
         // startingUpdater: false, because a controller that starts itself checks
         // on a schedule before anybody has told it whether checking is allowed.
         // The setting lives in Dart, and this waits to be told.
-        controller = SPUStandardUpdaterController(
-            startingUpdater: false,
-            updaterDelegate: nil,
-            userDriverDelegate: nil
-        )
         channel = FlutterMethodChannel(name: Self.channelName, binaryMessenger: messenger)
         super.init()
 
@@ -66,6 +66,9 @@ final class Updater: NSObject {
             // first and disabling after would let one check escape.
             let enabled = call.arguments as? Bool ?? false
             controller.updater.automaticallyChecksForUpdates = enabled
+            // Hourly while open rather than Sparkle's daily default (#152); the
+            // app also asks at every launch and every return.
+            controller.updater.updateCheckInterval = 3600
 
             // Downloads are never automatic. Checking is small and can happen
             // quietly; fetching a disk image is not, and the person's connection
@@ -74,6 +77,22 @@ final class Updater: NSObject {
 
             if enabled {
                 controller.startUpdater()
+                // At launch, not at the end of the first interval. Quiet when
+                // there is nothing; Sparkle's "Install update" window when
+                // there is.
+                if controller.updater.canCheckForUpdates {
+                    controller.updater.checkForUpdatesInBackground()
+                }
+            }
+            result(nil)
+
+        case "checkInBackground":
+            // Coming back to the app. Nothing on screen unless an update is
+            // found, and nothing at all with the switch off.
+            if controller.updater.automaticallyChecksForUpdates,
+                controller.updater.canCheckForUpdates
+            {
+                controller.updater.checkForUpdatesInBackground()
             }
             result(nil)
 
@@ -93,6 +112,31 @@ final class Updater: NSObject {
 
         default:
             result(FlutterMethodNotImplemented)
+        }
+    }
+
+    func updater(
+        _ updater: SPUUpdater, userDidMake choice: SPUUserUpdateChoice,
+        forUpdate updateItem: SUAppcastItem, state: SPUUserUpdateState
+    ) {
+        if choice == .dismiss {
+            // "Later" lasts for this session. A manual check still offers the
+            // version, and a newly published version can still be offered.
+            dismissedVersions.insert(updateItem.versionString)
+        }
+    }
+
+    func updater(
+        _ updater: SPUUpdater, shouldProceedWithUpdate updateItem: SUAppcastItem,
+        updateCheck: SPUUpdateCheck
+    ) throws {
+        if updateCheck == .updatesInBackground,
+            dismissedVersions.contains(updateItem.versionString)
+        {
+            throw NSError(
+                domain: "team.gdb.caelo.updates", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Update reminder postponed for this session."]
+            )
         }
     }
 }
