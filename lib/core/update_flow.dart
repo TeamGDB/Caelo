@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'android_installer.dart';
 import 'build_info.dart';
 import 'desktop_updater.dart';
+import 'linux_updater.dart';
 import 'settings_store.dart';
 import 'diagnostics.dart';
 import 'update_check.dart';
@@ -26,6 +27,10 @@ enum UpdateStage {
 
   found,
   downloading,
+
+  /// The package manager is upgrading this copy (Linux, #150). No download of
+  /// ours: apt or dnf fetch and verify the package themselves.
+  installing,
 
   /// The system installer has been asked to take over. Nothing further is known
   /// — whether it installs is between the person and Android.
@@ -71,7 +76,9 @@ class UpdateFlow extends ChangeNotifier {
     Future<int?> Function()? readPending,
     Future<void> Function(int?)? writePending,
     this.currentBuild = appBuild,
-  }) : _look = look ?? UpdateCheck.look,
+    bool? needsDownload,
+  }) : needsDownload = needsDownload ?? !LinuxUpdater.isSupported,
+       _look = look ?? UpdateCheck.look,
        _fetch = fetch ?? _defaultFetch,
        _canInstall = canInstall ?? _platformCanInstall,
        _install = install ?? _platformInstall,
@@ -83,6 +90,10 @@ class UpdateFlow extends ChangeNotifier {
 
   /// The build this copy is. A seam for tests.
   final int currentBuild;
+
+  /// Whether updating means fetching a file of ours. False where the package
+  /// manager does it (Linux, #150).
+  final bool needsDownload;
 
   /// Looks at what the last hand-over left behind.
   ///
@@ -141,20 +152,31 @@ class UpdateFlow extends ChangeNotifier {
   /// second path on the same platform would mean two things able to replace the
   /// application, which is one more than anything needs.
   static bool get isSupported =>
-      (AndroidInstaller.isSupported || WindowsUpdater.isSupported) &&
+      (AndroidInstaller.isSupported ||
+          WindowsUpdater.isSupported ||
+          LinuxUpdater.isSupported) &&
       !DesktopUpdater.isSupported;
 
   /// Windows had none of this wired up, so the setting screen offered no way to
   /// check and the only route to a new version was noticing one existed. The
   /// updater itself was written and tested; nothing ever called it.
-  static Future<bool> _platformCanInstall() => WindowsUpdater.isSupported
-      ? WindowsUpdater.canInstall()
-      : AndroidInstaller.canInstall();
+  static Future<bool> _platformCanInstall() async {
+    if (LinuxUpdater.isSupported) return true;
+    return WindowsUpdater.isSupported
+        ? WindowsUpdater.canInstall()
+        : AndroidInstaller.canInstall();
+  }
 
-  static Future<void> _platformInstall(String path) =>
-      WindowsUpdater.isSupported
-      ? WindowsUpdater.install(path)
-      : AndroidInstaller.install(path);
+  static Future<void> _platformInstall(String path) async {
+    if (LinuxUpdater.isSupported) {
+      await LinuxUpdater.install();
+      await LinuxUpdater.relaunch();
+      return;
+    }
+    return WindowsUpdater.isSupported
+        ? WindowsUpdater.install(path)
+        : AndroidInstaller.install(path);
+  }
 
   void _to(UpdateStage next) {
     stage = next;
@@ -191,6 +213,26 @@ class UpdateFlow extends ChangeNotifier {
       if (!await _canInstall()) {
         Diagnostics.record('update: not allowed to install packages');
         _to(UpdateStage.needsPermission);
+        return;
+      }
+
+      if (!needsDownload) {
+        // The package manager fetches and checks the package itself.
+        _to(UpdateStage.installing);
+        try {
+          await _writePending(update.build).catchError((_) {});
+          await _install('');
+        } on LinuxUpdateFailed catch (error) {
+          await _writePending(null).catchError((_) {});
+          if (error.declined) {
+            // Dismissing the password prompt is a choice, not a failure.
+            dismiss();
+          } else {
+            _to(UpdateStage.handOverFailed);
+          }
+          return;
+        }
+        _to(UpdateStage.handedOver);
         return;
       }
 

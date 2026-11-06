@@ -775,6 +775,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The camera is not available. Allow Caelo to use it in the system settings, or paste the invitation link instead.'**
   String get qrCameraUnavailable;
+
+  /// No description provided for @updateInstall.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get updateInstall;
+
+  /// No description provided for @updateInstallingNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing the update…'**
+  String get updateInstallingNow;
+
+  /// No description provided for @updateLinuxFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The update did not install. You can update by hand: sudo apt upgrade (or sudo dnf upgrade caelo).'**
+  String get updateLinuxFailed;
 }
 
 class _AppLocalizationsDelegate

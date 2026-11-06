@@ -112,7 +112,11 @@ class _UpdatePromptState extends State<UpdatePrompt>
             UpdateStage.notInstalled => Text(
               l10n.updateNotInstalledExplanation,
             ),
-            UpdateStage.handOverFailed => Text(l10n.updateHandOverFailed),
+            UpdateStage.handOverFailed => Text(
+              _flow.needsDownload
+                  ? l10n.updateHandOverFailed
+                  : l10n.updateLinuxFailed,
+            ),
             _ => Text(
               _flow.failure == DownloadFailure.untrusted
                   ? l10n.updateNotOurs
@@ -137,9 +141,13 @@ class _UpdatePromptState extends State<UpdatePrompt>
                   unawaited(_flow.download());
                 },
                 child: Text(
-                  l10n.updateDownload(
-                    ((update?.sizeBytes ?? 0) / 1048576).toStringAsFixed(0),
-                  ),
+                  _flow.needsDownload
+                      ? l10n.updateDownload(
+                          ((update?.sizeBytes ?? 0) / 1048576).toStringAsFixed(
+                            0,
+                          ),
+                        )
+                      : l10n.updateInstall,
                 ),
               ),
             if (stage == UpdateStage.needsPermission)
@@ -189,7 +197,8 @@ class _UpdatePromptState extends State<UpdatePrompt>
       builder: (context, child) => Stack(
         children: [
           child!,
-          if (_flow.stage == UpdateStage.downloading)
+          if (_flow.stage == UpdateStage.downloading ||
+              _flow.stage == UpdateStage.installing)
             Positioned(
               left: 16,
               right: 16,
@@ -214,8 +223,12 @@ class _UpdatePromptState extends State<UpdatePrompt>
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
-                            '${AppLocalizations.of(context).updateDownloading} '
-                            '${(_flow.progress * 100).toStringAsFixed(0)}%',
+                            _flow.stage == UpdateStage.installing
+                                ? AppLocalizations.of(
+                                    context,
+                                  ).updateInstallingNow
+                                : '${AppLocalizations.of(context).updateDownloading} '
+                                      '${(_flow.progress * 100).toStringAsFixed(0)}%',
                           ),
                         ),
                       ],
