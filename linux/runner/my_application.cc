@@ -52,7 +52,17 @@ static void my_application_activate(GApplication* application) {
     gtk_window_set_title(window, "caelo");
   }
 
-  gtk_window_set_default_size(window, 1280, 720);
+  // Phone-shaped, and kept that way (#119). The interface is a single column
+  // laid out for a phone; a wide window only adds empty space beside it.
+  gtk_window_set_default_size(window, 420, 860);
+  GdkGeometry geometry = {};
+  geometry.min_width = 360;
+  geometry.min_height = 640;
+  geometry.max_width = 560;
+  geometry.max_height = 4096;
+  gtk_window_set_geometry_hints(
+      window, nullptr, &geometry,
+      static_cast<GdkWindowHints>(GDK_HINT_MIN_SIZE | GDK_HINT_MAX_SIZE));
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
