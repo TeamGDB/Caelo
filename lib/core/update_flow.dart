@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'android_installer.dart';
+import 'build_info.dart';
 import 'desktop_updater.dart';
+import 'settings_store.dart';
 import 'diagnostics.dart';
 import 'update_check.dart';
 import 'update_download.dart';
@@ -43,6 +45,13 @@ enum UpdateStage {
   /// discover a permission.
   needsPermission,
 
+  /// The installer was handed the file and the update did not take: this
+  /// copy is still running, or came back at the same build. Android does not
+  /// say why (#73). Declining the prompt is the usual reason and nothing is
+  /// wrong; a signing key that does not match is the other, and only a
+  /// reinstall fixes it. The interface says both, calmly.
+  notInstalled,
+
   failed,
 }
 
@@ -59,10 +68,55 @@ class UpdateFlow extends ChangeNotifier {
     Future<File> Function(AvailableUpdate, void Function(double))? fetch,
     Future<bool> Function()? canInstall,
     Future<void> Function(String)? install,
+    Future<int?> Function()? readPending,
+    Future<void> Function(int?)? writePending,
+    this.currentBuild = appBuild,
   }) : _look = look ?? UpdateCheck.look,
        _fetch = fetch ?? _defaultFetch,
        _canInstall = canInstall ?? _platformCanInstall,
-       _install = install ?? _platformInstall;
+       _install = install ?? _platformInstall,
+       _readPending = readPending ?? SettingsStore.pendingUpdateBuild,
+       _writePending = writePending ?? SettingsStore.setPendingUpdateBuild;
+
+  final Future<int?> Function() _readPending;
+  final Future<void> Function(int?) _writePending;
+
+  /// The build this copy is. A seam for tests.
+  final int currentBuild;
+
+  /// Looks at what the last hand-over left behind.
+  ///
+  /// A build was handed to the installer and this copy is older than it: the
+  /// update did not install. This copy is that build or newer: it did, and
+  /// there is nothing to say. Either way the note is cleared, so this is said
+  /// once rather than on every launch.
+  Future<void> reconcile() async {
+    final pending = await _readPending().catchError((_) => null);
+    if (pending == null) return;
+    await _writePending(null).catchError((_) {});
+    if (currentBuild >= pending) {
+      Diagnostics.record('update: build $pending installed');
+      return;
+    }
+    Diagnostics.record(
+      'update: build $pending was handed over and did not install',
+    );
+    _to(UpdateStage.notInstalled);
+  }
+
+  /// The app came back to the front.
+  ///
+  /// A successful installation replaces the package, which ends this
+  /// process: a copy that is still here to be resumed after handing the file
+  /// over is a copy that was not replaced.
+  Future<void> resumed() async {
+    if (stage != UpdateStage.handedOver) return;
+    await _writePending(null).catchError((_) {});
+    Diagnostics.record(
+      'update: back from the installer without being replaced',
+    );
+    _to(UpdateStage.notInstalled);
+  }
 
   final Future<AvailableUpdate?> Function() _look;
   final Future<File> Function(AvailableUpdate, void Function(double)) _fetch;
@@ -164,6 +218,7 @@ class UpdateFlow extends ChangeNotifier {
       }
 
       Diagnostics.record('update: handed to the system installer');
+      await _writePending(update.build).catchError((_) {});
       _to(UpdateStage.handedOver);
     } on DownloadFailed catch (error) {
       Diagnostics.record('update: download failed', error: error);

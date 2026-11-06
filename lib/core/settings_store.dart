@@ -109,6 +109,21 @@ abstract final class SettingsStore {
     await _save(settings);
   }
 
+  /// The build last handed to the system installer, until it is known whether
+  /// it installed (#73).
+  static Future<int?> pendingUpdateBuild() async =>
+      (await _load())['pendingUpdateBuild'] as int?;
+
+  static Future<void> setPendingUpdateBuild(int? build) async {
+    final settings = Map<String, dynamic>.from(await _load());
+    if (build == null) {
+      settings.remove('pendingUpdateBuild');
+    } else {
+      settings['pendingUpdateBuild'] = build;
+    }
+    await _save(settings);
+  }
+
   /// Whether the diagnostic log is being kept.
   ///
   /// Off by default, and stored rather than assumed: someone who turned it on
