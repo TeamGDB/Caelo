@@ -579,7 +579,7 @@ class ServerSelectionController extends ChangeNotifier {
   void Function(ServerOption faster)? onFasterAvailable;
 
   /// How much faster another server must be to be worth moving to.
-  static const switchWhenFaster = 0.7;
+  static const switchWhenFaster = 0.8;
 
   /// The least time between two moves made for speed.
   static const switchCooldown = Duration(minutes: 10);
