@@ -129,4 +129,84 @@ void main() {
 
     expect(started, 1);
   });
+
+  group('whether the update installed (#73)', () {
+    test('remembers what was handed over', () async {
+      int? pending;
+      final flow = UpdateFlow(
+        look: () async => _update,
+        fetch: (_, _) async => File('unused'),
+        canInstall: () async => true,
+        install: (_) async {},
+        readPending: () async => pending,
+        writePending: (build) async => pending = build,
+      );
+      await flow.check();
+      await flow.download();
+
+      expect(flow.stage, UpdateStage.handedOver);
+      expect(pending, _update.build);
+    });
+
+    test('coming back to the same copy means it did not install', () async {
+      int? pending;
+      final flow = UpdateFlow(
+        look: () async => _update,
+        fetch: (_, _) async => File('unused'),
+        canInstall: () async => true,
+        install: (_) async {},
+        readPending: () async => pending,
+        writePending: (build) async => pending = build,
+      );
+      await flow.check();
+      await flow.download();
+      await flow.resumed();
+
+      expect(flow.stage, UpdateStage.notInstalled);
+      expect(pending, isNull);
+    });
+
+    test('resuming for any other reason says nothing', () async {
+      final flow = UpdateFlow(
+        readPending: () async => null,
+        writePending: (_) async {},
+      );
+      await flow.resumed();
+      expect(flow.stage, UpdateStage.idle);
+    });
+
+    test('a launch at an older build reports it once', () async {
+      int? pending = 20;
+      final flow = UpdateFlow(
+        readPending: () async => pending,
+        writePending: (build) async => pending = build,
+        currentBuild: 13,
+      );
+      await flow.reconcile();
+
+      expect(flow.stage, UpdateStage.notInstalled);
+      expect(pending, isNull);
+
+      final next = UpdateFlow(
+        readPending: () async => pending,
+        writePending: (build) async => pending = build,
+        currentBuild: 13,
+      );
+      await next.reconcile();
+      expect(next.stage, UpdateStage.idle);
+    });
+
+    test('a launch at the new build is quiet and clears the note', () async {
+      int? pending = 20;
+      final flow = UpdateFlow(
+        readPending: () async => pending,
+        writePending: (build) async => pending = build,
+        currentBuild: 20,
+      );
+      await flow.reconcile();
+
+      expect(flow.stage, UpdateStage.idle);
+      expect(pending, isNull);
+    });
+  });
 }

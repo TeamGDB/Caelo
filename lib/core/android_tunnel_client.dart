@@ -27,6 +27,9 @@ class AndroidTunnelClient implements TunnelClient {
 
   static const _channel = MethodChannel('team.gdb.caelo/vpn');
 
+  /// How long a freshly raised tunnel has to reach its server.
+  static const handshakeTimeout = Duration(seconds: 10);
+
   final _controller = StreamController<TunnelStatus>.broadcast();
 
   TunnelStatus _current = const TunnelStatus.disconnected();
@@ -134,17 +137,18 @@ class AndroidTunnelClient implements TunnelClient {
         );
       }
 
-      // Measure through the live tunnel. Failure to measure is not allowed to
-      // tear down a descriptor that Android and the core already accepted:
-      // the previous implementation kept that tunnel up, and adding a display
-      // value must not change connection semantics.
-      int? pingMs;
-      try {
-        final reachability = await CoreLibrary.check();
-        pingMs = (reachability['elapsed_ms'] as num?)?.round();
-      } on Object catch (error) {
-        Diagnostics.record('latency measurement failed', error: error);
+      // The descriptor being adopted says nothing about the far end. Only a
+      // completed handshake does, and a tunnel that never completes one must
+      // not be called connected: the person would see "connected" and nothing
+      // would load. Failing here lets the caller move on to another server.
+      final shook = await CoreLibrary.waitHandshakeFd(handshakeTimeout);
+      if (!shook) {
+        Diagnostics.record(
+          'no handshake within ${handshakeTimeout.inSeconds}s',
+        );
+        throw StateError('the server did not complete a handshake');
       }
+      Diagnostics.record('handshake completed');
 
       _emit(
         TunnelStatus(
@@ -153,7 +157,6 @@ class AndroidTunnelClient implements TunnelClient {
           protocol: description['obfuscated'] == true
               ? TunnelProtocol.amneziaWg
               : TunnelProtocol.vless,
-          pingMs: pingMs,
         ),
       );
     } on Object {
@@ -177,8 +180,8 @@ class AndroidTunnelClient implements TunnelClient {
 
   @override
   Future<void> reconnectDifferently() async {
-    // There is one configuration and therefore one node. This becomes real
-    // with subscriptions.
+    // Which node comes next is decided above this client, by whatever
+    // prepares the connection; from here it is a fresh start.
     await disconnect();
     await connect();
   }

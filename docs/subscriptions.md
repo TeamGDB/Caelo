@@ -74,7 +74,7 @@ the canonical format was chosen for. Everything the client needs is already expr
 
 | What | Where |
 | --- | --- |
-| Which node to try first | The order of `endpoints`. First is first. |
+| How the list is shown, and who wins a tie | The order of `endpoints`. First is first. |
 | What to call a node | Its `tag` |
 | Traffic used and left, expiry | The `subscription-userinfo` response header |
 | How often to come back | The `profile-update-interval` response header |
@@ -138,7 +138,10 @@ which is exactly the unreliable thing an identity is being added to replace.
 
 Everything except `endpoint` is optional.
 
-**Order still decides priority**, here as in the plain document.
+**Order is how the list is shown**, here as in the plain document. Automatic choice
+takes the fastest node that carries traffic from the device, asking the one that worked
+last first; order breaks ties. Latency depends on where the client stands, so only the
+client can decide by it.
 
 **Latency is never sent.** It depends on where the client is standing, and a number
 measured somewhere else is worse than no number: it looks authoritative and is not. The

@@ -133,6 +133,16 @@ abstract final class ConfigStore {
     String description = '',
   }) async {
     final index = await _loadIndex();
+    // The same file imported twice is one configuration, not two entries that
+    // differ only in which of them somebody renamed (#103).
+    final wanted = configText.trim();
+    for (final existing in index.configs) {
+      final text = await readById(existing.id);
+      if (text != null && text.trim() == wanted) {
+        await _saveIndex(index.configs, existing.id);
+        return existing;
+      }
+    }
     final id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
     final config = StoredConfig(
       id: id,
@@ -210,9 +220,22 @@ abstract final class ConfigStore {
     await _saveIndex(remaining, selected);
   }
 
-  /// Compatibility for import call sites: create another named configuration.
-  static Future<void> write(String configText) async {
-    await create('Imported configuration', configText);
+  /// Removes every configuration, the active subscription node and the
+  /// selection. For forgetting an account.
+  static Future<void> clearAll() async {
+    final index = await _loadIndex();
+    for (final config in index.configs) {
+      final file = await _configFile(config.id);
+      if (await file.exists()) await file.delete();
+    }
+    for (final name in [
+      _subscriptionFileName,
+      _indexFileName,
+      _legacyFileName,
+    ]) {
+      final file = await _file(name);
+      if (await file.exists()) await file.delete();
+    }
   }
 
   /// Compatibility for old call sites: delete only the selected configuration.

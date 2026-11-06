@@ -54,7 +54,8 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen>
+    with WidgetsBindingObserver {
   List<StoredConfig> configs = const [];
 
   /// Null until it has been read. Rendering a switch before then would show it
@@ -69,12 +70,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     onConfigChanged();
     unawaited(_loadUpdateChecks());
+    // What the last hand-over to the installer came to (#73).
+    if (UpdateFlow.isSupported) unawaited(updates.reconcile());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(updates.resumed());
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     updates.removeListener(_onUpdateStage);
     updates.dispose();
     super.dispose();
@@ -89,6 +99,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (updates.stage == UpdateStage.found ||
         updates.stage == UpdateStage.needsPermission ||
         updates.stage == UpdateStage.handOverFailed ||
+        updates.stage == UpdateStage.notInstalled ||
         updates.stage == UpdateStage.failed) {
       unawaited(_showUpdateDialog());
     }
@@ -105,11 +116,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Text(switch (stage) {
           UpdateStage.found => l10n.updateFound(update?.version ?? ''),
           UpdateStage.needsPermission => l10n.checkForUpdates,
+          UpdateStage.notInstalled => l10n.updateNotInstalled,
           _ => l10n.updateFailed,
         }),
         content: Text(switch (stage) {
           UpdateStage.found => '',
           UpdateStage.needsPermission => l10n.updateNeedsPermission,
+          UpdateStage.notInstalled => l10n.updateNotInstalledExplanation,
           _ =>
             updates.failure == DownloadFailure.untrusted
                 ? l10n.updateNotOurs
@@ -135,6 +148,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ((update?.sizeBytes ?? 0) / 1048576).toStringAsFixed(0),
                 ),
               ),
+            ),
+          if (stage == UpdateStage.notInstalled)
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () {
+                Navigator.of(dialog).pop();
+                updates.dismiss();
+                unawaited(updates.check());
+              },
+              child: Text(l10n.updateTryAgain),
             ),
           if (stage == UpdateStage.needsPermission)
             CupertinoDialogAction(
@@ -168,6 +191,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> onConfigChanged() async {
     final loaded = await ConfigStore.list();
     if (mounted) setState(() => configs = loaded);
+  }
+
+  /// Asks first. One tap used to remove the account with no way back short
+  /// of finding the invitation again (#103).
+  Future<void> _confirmForget(BuildContext context, AccessScope scope) async {
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (dialog) => CupertinoAlertDialog(
+        title: Text(l10n.forgetAccountTitle),
+        content: Text(l10n.forgetAccountMessage),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialog).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.of(dialog).pop(true),
+            child: Text(l10n.forgetAccountConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    final changeAccess = scope.onChanged;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    await changeAccess(false);
   }
 
   String _themeLabel(AppLocalizations l10n, CaeloThemeMode? mode) =>
@@ -291,13 +342,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _Row(
                         label: l10n.forgetAccount,
                         labelColour: palette.danger,
-                        onTap: () {
-                          final changeAccess = accessScope.onChanged;
-                          Navigator.of(
-                            context,
-                          ).popUntil((route) => route.isFirst);
-                          changeAccess(false);
-                        },
+                        onTap: () => _confirmForget(context, accessScope),
                       ),
                   ],
                 ),

@@ -311,4 +311,49 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get updateHandOverFailed =>
       'Caelo could not start the installer. The download is fine; Android would not open it.';
+
+  @override
+  String get automaticServer => 'Automatic';
+
+  @override
+  String get automaticServerDescription => 'Picks one that works';
+
+  @override
+  String get automaticallyChosen => 'Chosen automatically';
+
+  @override
+  String get noServers =>
+      'There are no servers yet. Add a subscription in Settings.';
+
+  @override
+  String get noServerReachable =>
+      'No server answered. Check the internet connection and try again.';
+
+  @override
+  String get chosenServerUnreachable =>
+      'This server is not answering. Pick another one or choose Automatic.';
+
+  @override
+  String get forgetAccountTitle => 'Disconnect the account?';
+
+  @override
+  String get forgetAccountMessage =>
+      'Its servers and configurations will be removed from this device. To come back you will need the invitation link.';
+
+  @override
+  String get forgetAccountConfirm => 'Disconnect';
+
+  @override
+  String get updateNotInstalled => 'The update was not installed';
+
+  @override
+  String get updateNotInstalledExplanation =>
+      'If you cancelled the installation, nothing is wrong — you can try again. If Android said the package conflicts with an existing one, uninstall Caelo and install the new version from the releases page.';
+
+  @override
+  String get updateTryAgain => 'Try again';
+
+  @override
+  String get subscriptionGone =>
+      'Your subscription no longer works. Get a new invitation link, then go to Settings → Disconnect account and paste it.';
 }

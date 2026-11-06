@@ -13,11 +13,16 @@ class ServerDrawer extends StatefulWidget {
     required this.locked,
     required this.limitedScope,
     this.selectedLatencyMs,
+    this.showActive = false,
     super.key,
   });
 
   final ServerSelectionController controller;
   final bool locked;
+
+  /// Whether the header names the server actually in use rather than the
+  /// choice. They differ when the choice is "automatic".
+  final bool showActive;
   final bool limitedScope;
   final int? selectedLatencyMs;
 
@@ -128,17 +133,34 @@ class _ServerDrawerState extends State<ServerDrawer> {
                 ),
                 child: LayoutBuilder(
                   builder: (context, sheetConstraints) {
+                    // Latency for every server or for none (#109). A column
+                    // with gaps reads as servers that are broken, when they
+                    // are only not measured yet.
+                    // Counted over servers that can be dialled: one the
+                    // subscription offers and would not issue keys for has
+                    // nothing to measure, and must not hide everyone else's.
+                    final measurable = widget.controller.servers.where(
+                      (server) => server.connectable,
+                    );
+                    final showLatency =
+                        measurable.isNotEmpty &&
+                        measurable.every((server) => server.measured);
                     final showsServerList =
                         sheetConstraints.maxHeight >= 152 + CaeloSpace.xl * 2;
                     return Column(
                       children: [
                         _PeekHeader(
                           selected: widget.controller.selected,
+                          active: widget.showActive
+                              ? widget.controller.active
+                              : null,
                           locked: widget.locked,
                           limitedScope: widget.limitedScope,
-                          latencyMs:
-                              widget.selectedLatencyMs ??
-                              widget.controller.selected?.latencyMs,
+                          latencyMs: widget.showActive
+                              ? widget.selectedLatencyMs
+                              : showLatency
+                              ? widget.controller.selected?.latencyMs
+                              : null,
                           onDragUpdate: updateExtent,
                           onDragEnd: settleExtent,
                           onTap: toggleFromTap,
@@ -205,15 +227,8 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                               server ==
                                                   widget.controller.selected,
                                           preparing: preparing,
-                                          latencyMs:
-                                              server ==
-                                                      widget
-                                                          .controller
-                                                          .selected &&
-                                                  widget.selectedLatencyMs !=
-                                                      null
-                                              ? widget.selectedLatencyMs
-                                              : server.latencyMs,
+                                          showLatency:
+                                              showLatency && server.connectable,
                                           onPressed:
                                               widget.locked ||
                                                   !server.available ||
@@ -260,6 +275,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
 class _PeekHeader extends StatelessWidget {
   const _PeekHeader({
     required this.selected,
+    required this.active,
     required this.locked,
     required this.limitedScope,
     required this.onDragUpdate,
@@ -270,6 +286,9 @@ class _PeekHeader extends StatelessWidget {
   });
 
   final ServerOption? selected;
+
+  /// The server in use, when there is a connection and it is worth naming.
+  final ServerOption? active;
   final bool locked;
   final bool limitedScope;
   final ValueChanged<double> onDragUpdate;
@@ -282,7 +301,11 @@ class _PeekHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
     final l10n = AppLocalizations.of(context);
-    final server = selected;
+    final choice = selected;
+    // The automatic entry names itself until it has picked something, then
+    // the header names what it picked and says it was picked for you.
+    final pickedForYou = choice != null && choice.automatic && active != null;
+    final server = pickedForYou ? active : choice;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -342,22 +365,31 @@ class _PeekHeader extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  server?.name ?? '—',
+                                  _name(server, l10n),
+                                  key: const ValueKey('selected-server-name'),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: CaeloTheme.title(
                                     palette,
                                   ).copyWith(fontSize: 24),
                                 ),
+                                // Two lines fit the header; a description
+                                // longer than that is not a description.
                                 Text(
                                   limitedScope
                                       ? l10n.localTunnelOnly
+                                      : pickedForYou
+                                      ? l10n.automaticallyChosen
                                       : _description(server, l10n),
-                                  maxLines: 1,
+                                  key: const ValueKey(
+                                    'selected-server-description',
+                                  ),
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: CaeloTheme.body(palette).copyWith(
                                     color: palette.muted,
-                                    fontSize: 17,
+                                    fontSize: 15,
+                                    height: 1.2,
                                   ),
                                 ),
                               ],
@@ -399,7 +431,7 @@ class _ServerRow extends StatelessWidget {
     required this.server,
     required this.selected,
     required this.onPressed,
-    required this.latencyMs,
+    this.showLatency = false,
     this.preparing = false,
   });
 
@@ -409,7 +441,10 @@ class _ServerRow extends StatelessWidget {
   /// Keys for this server are being asked for right now.
   final bool preparing;
   final VoidCallback? onPressed;
-  final int? latencyMs;
+
+  /// Whether this row shows its measurement: a latency, or a dash for a
+  /// server that did not answer.
+  final bool showLatency;
 
   @override
   Widget build(BuildContext context) {
@@ -453,19 +488,20 @@ class _ServerRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    server.name,
+                    _name(server, AppLocalizations.of(context)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: CaeloTheme.body(
                       palette,
                     ).copyWith(fontSize: 20, fontWeight: FontWeight.w600),
                   ),
+                  // Wraps rather than ends in an ellipsis: the description
+                  // is how somebody tells two servers in one country apart.
                   Text(
                     preparing
                         ? AppLocalizations.of(context).serverPreparing
                         : _description(server, AppLocalizations.of(context)),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    key: ValueKey('server-description-${server.id}'),
                     style: CaeloTheme.body(
                       palette,
                     ).copyWith(color: palette.muted, fontSize: 17),
@@ -473,43 +509,34 @@ class _ServerRow extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox(
-              width: 120,
-              child: Row(
-                children: [
-                  SizedBox(
-                    key: ValueKey('server-latency-${server.id}'),
-                    width: 76,
-                    child: preparing
-                        ? const Align(
-                            alignment: Alignment.centerRight,
-                            child: CupertinoActivityIndicator(radius: 9),
-                          )
-                        : Text(
-                            latencyMs != null
-                                ? AppLocalizations.of(
-                                    context,
-                                  ).latency(latencyMs!)
-                                : '',
-                            textAlign: TextAlign.right,
-                            style: CaeloTheme.body(
-                              palette,
-                            ).copyWith(color: palette.muted, fontSize: 18),
-                          ),
-                  ),
-                  const SizedBox(width: CaeloSpace.md),
-                  SizedBox(
-                    width: 28,
-                    child: selected
-                        ? Icon(
-                            CupertinoIcons.check_mark_circled_solid,
-                            color: palette.accent,
-                            size: 28,
-                          )
-                        : null,
-                  ),
-                ],
+            if (showLatency)
+              Padding(
+                padding: const EdgeInsets.only(left: CaeloSpace.sm),
+                child: Text(
+                  switch (server.latencyMs) {
+                    final latency? => AppLocalizations.of(
+                      context,
+                    ).latency(latency),
+                    null => '—',
+                  },
+                  key: ValueKey('server-latency-${server.id}'),
+                  style: CaeloTheme.body(
+                    palette,
+                  ).copyWith(color: palette.muted, fontSize: 17),
+                ),
               ),
+            const SizedBox(width: CaeloSpace.sm),
+            SizedBox(
+              width: 28,
+              child: preparing
+                  ? const CupertinoActivityIndicator(radius: 9)
+                  : selected
+                  ? Icon(
+                      CupertinoIcons.check_mark_circled_solid,
+                      color: palette.accent,
+                      size: 28,
+                    )
+                  : null,
             ),
           ],
         ),
@@ -518,7 +545,16 @@ class _ServerRow extends StatelessWidget {
   }
 }
 
+String _name(ServerOption? server, AppLocalizations l10n) {
+  if (server == null) return '—';
+  if (server.automatic) return l10n.automaticServer;
+  return server.name;
+}
+
 String _description(ServerOption? server, AppLocalizations l10n) {
+  if (server != null && server.automatic) {
+    return l10n.automaticServerDescription;
+  }
   final value = server?.description.trim() ?? '';
   if (value.isNotEmpty) return value;
   return server?.configId == null ? '' : l10n.customServerDescription;

@@ -18,9 +18,8 @@ traffic, and how to raise it. One at a time.
 What does not live here is subscriptions. A subscription is a way of delivering a document
 — a link, a request, a refresh interval, a cached last-good copy, a remaining-traffic
 header, several sources merged. A tunnel executes none of it, and the app is where the user
-edits it, so that is where it belongs. Nor does the order in which nodes are tried: it
-comes from the server, and a client that recomputed it would be guessing at something it
-was told.
+edits it, so that is where it belongs. Nor does choosing which node to use: that is the
+app's, measured from the device, because the server cannot know where the device is.
 
 What must stay in one place is connection state, because state kept in two will eventually
 disagree with itself about what is connected.

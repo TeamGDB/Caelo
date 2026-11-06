@@ -2,7 +2,7 @@
 # Pinned rather than left to CocoaPods to guess. iOS 13 is Flutter's own
 # floor, and the same reasoning as Android's minSdk applies: the audience for
 # this is disproportionately on old hardware.
-platform :ios, '13.0'
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'

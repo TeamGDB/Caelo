@@ -344,5 +344,30 @@
   "updateHandOverFailed": "Caelo could not start the installer. The download is fine; Android would not open it.",
   "@updateHandOverFailed": {
     "description": "Shown when the file downloaded and verified but the system installer could not be started. Deliberately says the download is not the problem."
+  },
+  "automaticServer": "Automatic",
+  "@automaticServer": {
+    "description": "The entry in the server list that picks a working server by itself."
+  },
+  "automaticServerDescription": "Picks one that works",
+  "automaticallyChosen": "Chosen automatically",
+  "@automaticallyChosen": {
+    "description": "Under the server name on Home when the automatic entry picked it."
+  },
+  "noServers": "There are no servers yet. Add a subscription in Settings.",
+  "noServerReachable": "No server answered. Check the internet connection and try again.",
+  "chosenServerUnreachable": "This server is not answering. Pick another one or choose Automatic.",
+  "forgetAccountTitle": "Disconnect the account?",
+  "forgetAccountMessage": "Its servers and configurations will be removed from this device. To come back you will need the invitation link.",
+  "forgetAccountConfirm": "Disconnect",
+  "updateNotInstalled": "The update was not installed",
+  "updateNotInstalledExplanation": "If you cancelled the installation, nothing is wrong — you can try again. If Android said the package conflicts with an existing one, uninstall Caelo and install the new version from the releases page.",
+  "@updateNotInstalledExplanation": {
+    "description": "Android does not report why an installation did not happen; these are the two likely reasons (#73)."
+  },
+  "updateTryAgain": "Try again",
+  "subscriptionGone": "Your subscription no longer works. Get a new invitation link, then go to Settings → Disconnect account and paste it.",
+  "@subscriptionGone": {
+    "description": "Connecting failed and the subscription server said the link is unknown: revoked or expired (#106)."
   }
 }

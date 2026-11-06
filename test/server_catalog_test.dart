@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:caelo/core/server_catalog.dart';
 import 'package:caelo/core/subscription.dart';
+import 'package:caelo/core/subscription_fetcher.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_server_catalog.dart';
@@ -20,6 +21,9 @@ class _MeasuringCatalog implements ServerCatalog {
 
   @override
   Future<int?> measureLatency(ServerOption server) async => 73;
+
+  @override
+  Future<void> activate(ServerOption server) async {}
 }
 
 class _RefreshingCatalog implements ServerCatalog {
@@ -35,6 +39,9 @@ class _RefreshingCatalog implements ServerCatalog {
     if (measurements == 2) secondMeasurement.complete();
     return 72 + measurements;
   }
+
+  @override
+  Future<void> activate(ServerOption server) async {}
 }
 
 void main() {
@@ -46,6 +53,8 @@ void main() {
         const FakeServerCatalog(),
         readSelected: () async => saved,
         writeSelected: (id) async => saved = id,
+        activateConfiguration: (_) async {},
+        activateNode: (_, _) async {},
       );
       addTearDown(controller.dispose);
 
@@ -69,11 +78,11 @@ void main() {
     addTearDown(controller.dispose);
 
     await controller.load();
-    expect(controller.servers.single.name, 'Office');
+    expect(controller.servers.first.automatic, isTrue);
+    expect(controller.servers.last.name, 'Office');
     await Future<void>.delayed(Duration.zero);
 
-    expect(controller.servers.single.latencyMs, 73);
-    expect(controller.selected?.latencyMs, 73);
+    expect(controller.servers.last.latencyMs, 73);
   });
 
   test('refreshes latency without overlapping measurement cycles', () async {
@@ -93,7 +102,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(catalog.measurements, 2);
-    expect(controller.servers.single.latencyMs, 74);
+    expect(controller.servers.last.latencyMs, 74);
   });
 
   test('test catalog contains no endpoint or configuration material', () async {
@@ -177,4 +186,24 @@ void main() {
       expect(activatedNode, 'north');
     },
   );
+
+  test('an offer the subscription would not issue is left out', () async {
+    const subscription = Subscription(
+      id: 'account',
+      url: 'https://example.invalid/subscription',
+      available: [
+        AvailableServer(id: 'truffle', name: 'Truffle'),
+        AvailableServer(id: 'neo', name: 'Neo'),
+      ],
+    );
+    SubscriptionFetcher.refused.add('account:truffle');
+    addTearDown(SubscriptionFetcher.refused.clear);
+    final catalog = SubscriptionServerCatalog(
+      loadSubscriptions: () async => const [subscription],
+      loadConfigurations: () async => const [],
+    );
+
+    final names = (await catalog.load()).map((server) => server.name);
+    expect(names, ['Neo']);
+  });
 }

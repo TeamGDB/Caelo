@@ -109,6 +109,45 @@ abstract final class SettingsStore {
     await _save(settings);
   }
 
+  /// The server the last successful connection went through (#112).
+  static Future<String?> lastConnectedServerId() async =>
+      (await _load())['lastConnectedServerId'] as String?;
+
+  static Future<void> setLastConnectedServerId(String id) async {
+    final settings = Map<String, dynamic>.from(await _load());
+    settings['lastConnectedServerId'] = id;
+    await _save(settings);
+  }
+
+  /// Puts a server chosen under the old behaviour back to automatic, once.
+  ///
+  /// Before automatic existed, picking a server by hand was the only way to
+  /// connect at all, so a saved choice says nothing about a preference (#109).
+  static Future<void> migrateSelection() async {
+    final settings = Map<String, dynamic>.from(await _load());
+    if (settings['selectionVersion'] == _selectionVersion) return;
+    settings['selectionVersion'] = _selectionVersion;
+    settings['selectedServerId'] = '';
+    await _save(settings);
+  }
+
+  static const _selectionVersion = 2;
+
+  /// The build last handed to the system installer, until it is known whether
+  /// it installed (#73).
+  static Future<int?> pendingUpdateBuild() async =>
+      (await _load())['pendingUpdateBuild'] as int?;
+
+  static Future<void> setPendingUpdateBuild(int? build) async {
+    final settings = Map<String, dynamic>.from(await _load());
+    if (build == null) {
+      settings.remove('pendingUpdateBuild');
+    } else {
+      settings['pendingUpdateBuild'] = build;
+    }
+    await _save(settings);
+  }
+
   /// Whether the diagnostic log is being kept.
   ///
   /// Off by default, and stored rather than assumed: someone who turned it on

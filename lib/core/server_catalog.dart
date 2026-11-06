@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import 'config_store.dart';
+import 'diagnostics.dart';
+import 'tunnel.dart';
+import 'tunnel_controller.dart';
 import 'ffi/core_library.dart';
 import 'node_chooser.dart';
 import 'settings_store.dart';
@@ -23,7 +26,27 @@ class ServerOption {
     this.nodeId,
     this.serverId,
     this.available = true,
+    this.automatic = false,
+    this.unreachable = false,
   });
+
+  /// The entry that stands for "pick one that works". Not a server: it has no
+  /// configuration, and its name and description are the interface's to say.
+  const ServerOption.automatic()
+    : id = automaticId,
+      name = '',
+      description = '',
+      flag = '⚡️',
+      latencyMs = null,
+      configId = null,
+      subscriptionId = null,
+      nodeId = null,
+      serverId = null,
+      available = true,
+      automatic = true,
+      unreachable = false;
+
+  static const automaticId = 'auto';
 
   final String id;
   final String name;
@@ -41,10 +64,30 @@ class ServerOption {
 
   final bool available;
 
+  /// Whether this is the automatic entry rather than a server.
+  final bool automatic;
+
+  /// Measured, and nothing came back. A result, as much as a latency is.
+  final bool unreachable;
+
+  /// Whether the last measurement reached a verdict either way.
+  bool get measured => latencyMs != null || unreachable;
+
+  /// Whether this can be dialled as it stands.
+  bool get connectable =>
+      !automatic &&
+      available &&
+      !needsKeys &&
+      (configId != null || nodeId != null);
+
   /// Whether picking this costs a round trip to the subscription.
   bool get needsKeys => nodeId == null && serverId != null;
 
-  ServerOption withLatency(int latencyMs) => ServerOption(
+  ServerOption withLatency(int latencyMs) => _measured(latencyMs, false);
+
+  ServerOption withUnreachable() => _measured(null, true);
+
+  ServerOption _measured(int? latencyMs, bool unreachable) => ServerOption(
     id: id,
     name: name,
     description: description,
@@ -55,6 +98,8 @@ class ServerOption {
     nodeId: nodeId,
     serverId: serverId,
     available: available,
+    automatic: automatic,
+    unreachable: unreachable,
   );
 }
 
@@ -62,7 +107,12 @@ class ServerOption {
 abstract interface class ServerCatalog {
   Future<List<ServerOption>> load();
 
+  /// A latency through the server, or null if it carried nothing.
   Future<int?> measureLatency(ServerOption server);
+
+  /// Makes [server] the configuration the tunnel will dial, without pinning
+  /// it and without adding anything to the person's own configurations.
+  Future<void> activate(ServerOption server);
 }
 
 class SubscriptionServerCatalog implements ServerCatalog {
@@ -111,7 +161,10 @@ class SubscriptionServerCatalog implements ServerCatalog {
       // нет, поэтому и узла нет: он появится, когда его выберут.
       for (final subscription in subscriptions)
         for (final server in subscription.available)
-          if (!server.ready)
+          if (!server.ready &&
+              !SubscriptionFetcher.refused.contains(
+                '${subscription.id}:${server.id}',
+              ))
             ServerOption(
               id: 'offer:${subscription.id}:${server.id}',
               name: server.name,
@@ -148,6 +201,19 @@ class SubscriptionServerCatalog implements ServerCatalog {
     }
   }
 
+  @override
+  Future<void> activate(ServerOption server) async {
+    if (server.configId case final id?) {
+      await ConfigStore.select(id);
+      return;
+    }
+    final endpoint = _subscriptionEndpoints[server.id];
+    if (endpoint == null) {
+      throw StateError('the server has no configuration to activate');
+    }
+    await ConfigStore.activateSubscriptionNode(endpoint);
+  }
+
   static Future<Map<String, dynamic>> _probe(String configuration) =>
       CoreLibrary.measureLatency(
         configuration,
@@ -165,7 +231,12 @@ class ServerSelectionController extends ChangeNotifier {
     this.grantServer = SubscriptionFetcher.enable,
     this.readSubscription = SubscriptionStore.byId,
     this.activateNode = _activateNode,
-    this.latencyRefreshInterval = const Duration(seconds: 5),
+    this.refreshSubscriptions = _refreshSubscriptions,
+    this.latencyRefreshInterval = const Duration(minutes: 5),
+    this.probeConcurrency = 8,
+    this.fastestGrace = const Duration(milliseconds: 1500),
+    this.readLastConnected = SettingsStore.lastConnectedServerId,
+    this.writeLastConnected = SettingsStore.setLastConnectedServerId,
   });
 
   final ServerCatalog catalog;
@@ -180,9 +251,37 @@ class ServerSelectionController extends ChangeNotifier {
   /// storage, which is what a test has instead of a filesystem.
   final Future<Subscription?> Function(String) readSubscription;
   final Future<void> Function(String, String) activateNode;
+
+  /// Fetches every subscription again, regardless of schedule. Used once per
+  /// connection, when nothing answered: the likeliest cause after "no
+  /// network" is keys that were rotated on the server since the last fetch.
+  ///
+  /// Answers whether every subscription was refused by its server as unknown.
+  final Future<bool> Function() refreshSubscriptions;
+
+  /// How long to wait between re-measuring the list. Long: each measurement is
+  /// a real handshake with every server, which costs battery and tells each of
+  /// them the app is open.
   final Duration? latencyRefreshInterval;
+
+  /// How many servers are probed at once when choosing automatically.
+  final int probeConcurrency;
+
+  /// How long the others get once the first server has answered.
+  final Duration fastestGrace;
+
+  final Future<String?> Function() readLastConnected;
+  final Future<void> Function(String) writeLastConnected;
+
+  /// The automatic entry first, then every server.
   List<ServerOption> servers = const [];
+
+  /// What the person chose: a server, or the automatic entry.
   ServerOption? selected;
+
+  /// The server the last connection was actually made through. Differs from
+  /// [selected] when that is the automatic entry.
+  ServerOption? active;
 
   /// The server being prepared, if one is.
   ///
@@ -195,42 +294,143 @@ class ServerSelectionController extends ChangeNotifier {
 
   /// Whether a choice is waiting on the subscription.
   bool get isPreparing => preparing != null;
+
+  /// Called when a reload no longer has the server the last connection went
+  /// through: the subscription removed it (#111). The tunnel is still on it,
+  /// and the peer is about to disappear from under it.
+  void Function(ServerOption removed)? onActiveRemoved;
+
+  /// Whether the automatic entry is the choice.
+  bool get isAutomatic => selected?.automatic ?? true;
+
   int _loadGeneration = 0;
+
+  /// Measurements in flight, by server id, so a connection can wait for one
+  /// instead of probing the same server at the same moment.
+  final _measuring = <String, Future<int?>>{};
+  int _measureGeneration = 0;
   Timer? _latencyRefreshTimer;
+  bool _tunnelActive = false;
+
+  /// Told by the app whenever the tunnel goes up or down.
+  ///
+  /// Measuring while connected is not only wasted: probing the connected
+  /// node is a second device with the same key, and the server hands the
+  /// session to whichever handshook last — the live tunnel goes deaf until it
+  /// handshakes again (#102).
+  set tunnelActive(bool active) {
+    if (active == _tunnelActive) return;
+    _tunnelActive = active;
+    _measureGeneration++;
+    _latencyRefreshTimer?.cancel();
+    if (!active) _scheduleMeasurement(const Duration(seconds: 2));
+  }
+
+  bool get tunnelActive => _tunnelActive;
 
   Future<void> load() async {
-    _latencyRefreshTimer?.cancel();
     final generation = ++_loadGeneration;
     final loaded = await catalog.load();
     final savedId = await readSelected();
-    servers = loaded;
-    selected = loaded.where((server) => server.id == savedId).firstOrNull;
-    selected ??= loaded.firstOrNull;
+    if (generation != _loadGeneration) return;
+    // What was measured survives a reload: the list is rebuilt from storage
+    // every time keys arrive, and wiping the column each time would flicker.
+    final previous = {for (final server in servers) server.id: server};
+    ServerOption carry(ServerOption server) {
+      final before = previous[server.id];
+      if (before == null || server.latencyMs != null) return server;
+      if (before.latencyMs case final latency?) {
+        return server.withLatency(latency);
+      }
+      return before.unreachable ? server.withUnreachable() : server;
+    }
+
+    servers = [
+      if (loaded.isNotEmpty) const ServerOption.automatic(),
+      ...loaded.map(carry),
+    ];
+    selected =
+        servers.where((server) => server.id == savedId).firstOrNull ??
+        servers.firstOrNull;
+    final wasActive = active;
+    active = wasActive == null
+        ? null
+        : servers.where((server) => server.id == wasActive.id).firstOrNull;
     notifyListeners();
-    unawaited(_measureLatencies(generation));
+    if (wasActive != null && active == null) {
+      Diagnostics.record('the server in use was removed: ${wasActive.name}');
+      onActiveRemoved?.call(wasActive);
+    }
+    _measureGeneration++;
+    _latencyRefreshTimer?.cancel();
+    if (!_tunnelActive) unawaited(_measureLatencies(_measureGeneration));
+  }
+
+  void _scheduleMeasurement(Duration after) {
+    _latencyRefreshTimer?.cancel();
+    final generation = _measureGeneration;
+    _latencyRefreshTimer = Timer(after, () {
+      if (generation == _measureGeneration && !_tunnelActive) {
+        unawaited(_measureLatencies(generation));
+      }
+    });
   }
 
   Future<void> _measureLatencies(int generation) async {
     for (final server in [...servers]) {
-      if (generation != _loadGeneration) return;
-      final latency = await catalog.measureLatency(server);
-      if (generation != _loadGeneration || latency == null) continue;
-      final measured = server.withLatency(latency);
-      servers = [
-        for (final current in servers)
-          if (current.id == server.id) measured else current,
-      ];
-      if (selected?.id == server.id) selected = measured;
-      notifyListeners();
-    }
-    if (generation != _loadGeneration) return;
-    final interval = latencyRefreshInterval;
-    if (interval != null) {
-      _latencyRefreshTimer = Timer(
-        interval,
-        () => unawaited(_measureLatencies(generation)),
+      if (generation != _measureGeneration || _tunnelActive) return;
+      if (!server.connectable) continue;
+      final pending = catalog.measureLatency(server);
+      _measuring[server.id] = pending;
+      int? latency;
+      try {
+        latency = await pending;
+      } on Object {
+        latency = null;
+      } finally {
+        if (identical(_measuring[server.id], pending)) {
+          _measuring.remove(server.id);
+        }
+      }
+      if (generation != _measureGeneration) continue;
+      Diagnostics.record(
+        latency == null
+            ? 'measure: ${server.name} did not answer'
+            : 'measure: ${server.name} ${latency}ms',
       );
+      if (latency == null) {
+        _recordUnreachable(server.id);
+      } else {
+        _recordLatency(server.id, latency);
+      }
     }
+    if (generation != _measureGeneration) return;
+    final interval = latencyRefreshInterval;
+    if (interval != null) _scheduleMeasurement(interval);
+  }
+
+  void _recordUnreachable(String id) {
+    servers = [
+      for (final current in servers)
+        if (current.id == id) current.withUnreachable() else current,
+    ];
+    if (selected?.id == id) selected = selected!.withUnreachable();
+    notifyListeners();
+  }
+
+  void _recordLatency(String id, int latency) {
+    ServerOption? measured;
+    servers = [
+      for (final current in servers)
+        if (current.id == id)
+          measured = current.withLatency(latency)
+        else
+          current,
+    ];
+    if (measured == null) return;
+    if (selected?.id == id) selected = measured;
+    if (active?.id == id) active = measured;
+    notifyListeners();
   }
 
   Future<void> select(ServerOption server) async {
@@ -280,6 +480,276 @@ class ServerSelectionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Decides what the next connection goes through and makes it the active
+  /// configuration. The [TunnelController] calls this before every attempt.
+  ///
+  /// A server picked by hand is used as it is: the person chose it, and
+  /// quietly connecting somewhere else would make the list a lie. The tunnel
+  /// itself proves whether it answers.
+  ///
+  /// Automatic takes the fastest server that carries a real request from this
+  /// device, asking the one that worked last time first (#112). The backend
+  /// cannot know where somebody is; the device can measure it. If nothing
+  /// answers, subscriptions are fetched again and the list is tried once more,
+  /// then keys are asked for on offered servers, before giving up.
+  Future<PreparedConnection> prepareConnection(
+    Set<String> tried,
+    bool Function() cancelled,
+  ) async {
+    final choice = selected;
+    if (choice != null && !choice.automatic) {
+      if (tried.contains(choice.id)) {
+        return const PreparedConnection.failed(
+          TunnelFailure.chosenServerUnreachable,
+        );
+      }
+      if (!choice.connectable) {
+        return const PreparedConnection.failed(
+          TunnelFailure.chosenServerUnreachable,
+        );
+      }
+      await catalog.activate(choice);
+      active = choice;
+      notifyListeners();
+      return PreparedConnection.ready(choice.id, latencyMs: choice.latencyMs);
+    }
+
+    // The server the last connection went through is used straight away,
+    // without a probe: it is almost always still the right answer, and the
+    // tunnel proves it with a handshake anyway. If it does not come up, the
+    // controller asks again with it in [tried], and the rest are compared.
+    // Passed over when a recent measurement shows another server clearly
+    // faster, so a phone that moved cities does not stay on a far server.
+    if (tried.isEmpty) {
+      final lastId = await readLastConnected().catchError((_) => null);
+      final last = servers
+          .where((server) => server.connectable && server.id == lastId)
+          .firstOrNull;
+      if (last != null && !_clearlyBeaten(last, servers)) {
+        Diagnostics.record('using the server that worked last: ${last.name}');
+        await catalog.activate(last);
+        if (cancelled()) return const PreparedConnection.cancelled();
+        active = last;
+        notifyListeners();
+        return PreparedConnection.ready(
+          last.id,
+          retryable: true,
+          latencyMs: last.latencyMs,
+        );
+      }
+    }
+
+    var found = await _fastest(tried, cancelled);
+    if (cancelled()) return const PreparedConnection.cancelled();
+    var gone = false;
+
+    if (found == null && tried.isEmpty) {
+      // Keys may have been rotated since the last fetch, or a subscription
+      // whose cache was empty may have servers now.
+      gone = await _refreshAndReload();
+      if (cancelled()) return const PreparedConnection.cancelled();
+      found = await _fastest(tried, cancelled);
+      if (cancelled()) return const PreparedConnection.cancelled();
+    }
+
+    // Nothing with keys answered. A subscription that hands out keys on demand
+    // may still have servers that work; ask for a few (#107).
+    if (found == null && !gone) {
+      found = await _provisionUntilWorking(cancelled);
+      if (cancelled()) return const PreparedConnection.cancelled();
+    }
+
+    if (found == null) {
+      final anything = servers.any(
+        (server) => server.connectable || server.needsKeys,
+      );
+      return PreparedConnection.failed(
+        gone
+            ? TunnelFailure.subscriptionGone
+            : anything
+            ? TunnelFailure.noServerReachable
+            : TunnelFailure.noServers,
+      );
+    }
+
+    final (server, latency) = found;
+    await catalog.activate(server);
+    _recordLatency(server.id, latency);
+    active =
+        servers.where((each) => each.id == server.id).firstOrNull ?? server;
+    notifyListeners();
+    return PreparedConnection.ready(
+      server.id,
+      retryable: true,
+      latencyMs: latency,
+    );
+  }
+
+  /// True when every subscription was just refused as unknown.
+  Future<bool> _refreshAndReload() async {
+    var gone = false;
+    try {
+      gone = await refreshSubscriptions();
+    } on Object catch (error) {
+      Diagnostics.record(
+        'subscription refresh before retry failed',
+        error: error,
+      );
+    }
+    await load();
+    return gone;
+  }
+
+  /// How many offered servers one connection may ask keys for.
+  static const maxProvisionPerConnection = 3;
+
+  /// Asks for keys on offered servers, in list order, one at a time, and
+  /// returns the first new node that carries traffic.
+  ///
+  /// One at a time and few: each request provisions a peer on a real server,
+  /// and a phone on a network that blocks everything would otherwise ask for
+  /// keys on every server the link offers.
+  Future<(ServerOption, int)?> _provisionUntilWorking(
+    bool Function() cancelled,
+  ) async {
+    final offers = servers
+        .where((server) => server.needsKeys && server.available)
+        .take(maxProvisionPerConnection)
+        .toList();
+    for (final offer in offers) {
+      if (cancelled()) return null;
+      preparing = offer;
+      notifyListeners();
+      try {
+        Diagnostics.record('asking for keys on ${offer.name}');
+        if (!await requestKeys(offer)) continue;
+        await load();
+        if (cancelled()) return null;
+        final node = servers
+            .where(
+              (candidate) =>
+                  candidate.subscriptionId == offer.subscriptionId &&
+                  candidate.name == offer.name &&
+                  candidate.connectable,
+            )
+            .firstOrNull;
+        if (node == null) continue;
+        int? latency;
+        try {
+          latency = await catalog.measureLatency(node);
+        } on Object {
+          latency = null;
+        }
+        if (latency != null) return (node, latency);
+      } on Object catch (error) {
+        Diagnostics.record('asking for keys failed', error: error);
+      } finally {
+        preparing = null;
+        notifyListeners();
+      }
+    }
+    return null;
+  }
+
+  /// How much faster another server has to have measured before the one that
+  /// worked last time is passed over without being asked.
+  static const clearlyFaster = 0.7;
+
+  /// The fastest candidate that carries traffic (#112).
+  ///
+  /// Every candidate is asked at once. Slow ones are not waited for
+  /// to time out: once one answers, the rest get [fastestGrace], and the
+  /// lowest latency among those that answered wins. Ties go to the
+  /// subscription's order.
+  Future<(ServerOption, int)?> _fastest(
+    Set<String> tried,
+    bool Function() cancelled,
+  ) async {
+    final candidates = servers
+        .where((server) => server.connectable && !tried.contains(server.id))
+        .toList();
+    if (candidates.isEmpty) return null;
+
+    final answered = <(ServerOption, int)>[];
+    final settled = Completer<void>();
+    var outstanding = candidates.length;
+    var next = 0;
+    var finished = false;
+    Timer? grace;
+
+    void settle() {
+      if (!settled.isCompleted) settled.complete();
+    }
+
+    Future<void> worker() async {
+      while (next < candidates.length) {
+        final server = candidates[next++];
+        if (!finished && !cancelled()) {
+          final latency = await _probe(server);
+          if (latency != null && !finished) {
+            answered.add((server, latency));
+            grace ??= Timer(fastestGrace, settle);
+          }
+        }
+        if (--outstanding == 0) settle();
+      }
+    }
+
+    final workers = probeConcurrency.clamp(1, candidates.length);
+    for (var i = 0; i < workers; i++) {
+      unawaited(worker());
+    }
+    await settled.future;
+    finished = true;
+    grace?.cancel();
+
+    if (cancelled() || answered.isEmpty) return null;
+    answered.sort((a, b) {
+      final byLatency = a.$2.compareTo(b.$2);
+      if (byLatency != 0) return byLatency;
+      return candidates.indexOf(a.$1).compareTo(candidates.indexOf(b.$1));
+    });
+    return answered.first;
+  }
+
+  bool _clearlyBeaten(ServerOption last, List<ServerOption> candidates) {
+    final own = last.latencyMs;
+    if (own == null) return false;
+    return candidates.any(
+      (other) =>
+          other.id != last.id &&
+          other.connectable &&
+          other.latencyMs != null &&
+          other.latencyMs! < own * clearlyFaster,
+    );
+  }
+
+  Future<int?> _probe(ServerOption server) async {
+    int? latency;
+    try {
+      // A measurement of this server already in flight is the answer.
+      // Starting a second one would be two devices handshaking with one key
+      // at once; the server takes one and the other waits out a retry.
+      latency = await (_measuring[server.id] ?? catalog.measureLatency(server));
+    } on Object {
+      latency = null;
+    }
+    Diagnostics.record(
+      latency == null
+          ? 'probe: ${server.name} did not answer'
+          : 'probe: ${server.name} answered in ${latency}ms',
+    );
+    return latency;
+  }
+
+  /// Remembers the server the tunnel came up through, so the next connection
+  /// asks it first. Called once the tunnel reports connected.
+  Future<void> rememberActive() async {
+    final server = active;
+    if (server == null) return;
+    await writeLastConnected(server.id).catchError((_) {});
+  }
+
   /// Asks the subscription for keys on a server it offers.
   ///
   /// Separate and injectable so the picker can be driven in a test without a
@@ -297,6 +767,18 @@ class ServerSelectionController extends ChangeNotifier {
     return await grantServer(subscription, serverId) != null;
   }
 
+  /// Forgets everything held in memory. For when the account is forgotten.
+  void clear() {
+    _loadGeneration++;
+    _measureGeneration++;
+    _latencyRefreshTimer?.cancel();
+    servers = const [];
+    selected = null;
+    active = null;
+    preparing = null;
+    notifyListeners();
+  }
+
   static Future<void> _activateNode(
     String subscriptionId,
     String nodeId,
@@ -311,9 +793,16 @@ class ServerSelectionController extends ChangeNotifier {
     await ConfigStore.activateSubscriptionNode(node.endpoint);
   }
 
+  static Future<bool> _refreshSubscriptions() async {
+    final refreshed = await SubscriptionFetcher.refreshDue(force: true);
+    return refreshed.isNotEmpty &&
+        refreshed.every((subscription) => subscription.isGone);
+  }
+
   @override
   void dispose() {
     _loadGeneration++;
+    _measureGeneration++;
     _latencyRefreshTimer?.cancel();
     super.dispose();
   }

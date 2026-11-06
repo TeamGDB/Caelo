@@ -25,6 +25,7 @@ import (
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
+	"github.com/TeamGDB/Caelo/core/internal/probe"
 )
 
 // ErrNotConnected is returned by operations that need a live tunnel.
@@ -161,9 +162,13 @@ func (s *Session) Check(url string, timeout time.Duration) (*Reachability, error
 	}
 	defer response.Body.Close()
 
-	body, err := io.ReadAll(io.LimitReader(response.Body, 4096))
+	// Refused past the limit rather than truncated; see probe.MaxBody (#51).
+	body, err := io.ReadAll(io.LimitReader(response.Body, probe.MaxBody+1))
 	if err != nil {
 		return nil, fmt.Errorf("reading response: %w", err)
+	}
+	if len(body) > probe.MaxBody {
+		return nil, fmt.Errorf("response from %s is larger than %d bytes", url, probe.MaxBody)
 	}
 
 	return &Reachability{

@@ -52,7 +52,12 @@ class HomeScreen extends StatelessWidget {
                         PowerButton(
                           phase: status.phase,
                           label: buttonLabel,
-                          onPressed: controller.toggle,
+                          // Nothing to do while tearing down (#11). Disabled
+                          // rather than queued: somebody pressing it then is
+                          // usually making sure it is off.
+                          onPressed: status.phase == TunnelPhase.disconnecting
+                              ? null
+                              : controller.toggle,
                           semanticLabel:
                               status.phase == TunnelPhase.connected ||
                                   status.phase == TunnelPhase.connecting
@@ -92,7 +97,16 @@ class HomeScreen extends StatelessWidget {
             Positioned.fill(
               child: ServerDrawer(
                 controller: servers,
-                locked: status.phase != TunnelPhase.disconnected,
+                // Open after a failure: that is exactly when somebody wants a
+                // different server (#104).
+                locked:
+                    status.phase == TunnelPhase.connecting ||
+                    status.phase == TunnelPhase.connected ||
+                    status.phase == TunnelPhase.disconnecting,
+                showActive:
+                    status.phase == TunnelPhase.connecting ||
+                    status.phase == TunnelPhase.connected ||
+                    status.phase == TunnelPhase.disconnecting,
                 selectedLatencyMs: status.phase == TunnelPhase.connected
                     ? status.pingMs
                     : null,
@@ -135,6 +149,10 @@ String? _explain(TunnelFailure? failure, AppLocalizations l10n) =>
     switch (failure) {
       TunnelFailure.serviceOlderThanApp => l10n.serviceOlderThanApp,
       TunnelFailure.appOlderThanService => l10n.appOlderThanService,
+      TunnelFailure.noServers => l10n.noServers,
+      TunnelFailure.noServerReachable => l10n.noServerReachable,
+      TunnelFailure.chosenServerUnreachable => l10n.chosenServerUnreachable,
+      TunnelFailure.subscriptionGone => l10n.subscriptionGone,
       null => null,
     };
 
