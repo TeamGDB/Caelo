@@ -227,6 +227,16 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
 
   Future<void> reconnectDifferently() => _client.reconnectDifferently();
 
+  /// Takes the tunnel down and brings it up again, choosing afresh. For when
+  /// the server it was using went away (#111). Does nothing unless connected:
+  /// an attempt in flight will choose from the current list anyway, and a
+  /// tunnel that is down was not asked to come up.
+  Future<void> reconnect() async {
+    if (value.phase != TunnelPhase.connected) return;
+    await _client.disconnect();
+    await _connect();
+  }
+
   @override
   void dispose() {
     _attempt++;

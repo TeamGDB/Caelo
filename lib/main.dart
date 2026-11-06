@@ -114,6 +114,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   /// moment to see whether they changed, but not every few seconds.
   DateTime _lastRefresh = DateTime.now();
   static const _refreshOnResumeAfter = Duration(minutes: 15);
+  Timer? _periodicRefresh;
 
   /// The system tunnel wherever there is one, and the in-process tunnel where
   /// there is not.
@@ -142,6 +143,18 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     // The system scheme can change while the app is open, and the palette is
     // resolved from it.
     WidgetsBinding.instance.addObserver(this);
+    // The server in use was removed from the subscription: move the tunnel
+    // somewhere that still exists rather than leave it on a peer about to
+    // vanish (#111).
+    _servers.onActiveRemoved = (_) => unawaited(_controller.reconnect());
+    // Somebody who keeps the app on screen should see servers come and go as
+    // well as somebody who reopens it (#111).
+    _periodicRefresh = Timer.periodic(_refreshOnResumeAfter, (_) {
+      final state = WidgetsBinding.instance.lifecycleState;
+      if (_accessGranted && state == AppLifecycleState.resumed) {
+        unawaited(_loadServers());
+      }
+    });
     _controller.addListener(_onTunnelChanged);
     unawaited(_loadServers());
     // After the setting has been read, not before: the updater is handed the
@@ -237,6 +250,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _periodicRefresh?.cancel();
     _controller.removeListener(_onTunnelChanged);
     _controller.dispose();
     _servers.dispose();

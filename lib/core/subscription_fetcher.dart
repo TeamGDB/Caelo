@@ -278,7 +278,13 @@ abstract final class SubscriptionFetcher {
     var granted = 0;
     for (final subscription in await subscriptions()) {
       if (subscription.isGone) continue;
-      final missing = subscription.available.where((server) => !server.ready);
+      // A server that answered 404 this run is not asked again until the
+      // next one: the check runs every quarter of an hour.
+      final missing = subscription.available.where(
+        (server) =>
+            !server.ready &&
+            !refused.contains('${subscription.id}:${server.id}'),
+      );
       var any = false;
       for (final server in missing) {
         if (await grant(subscription, server.id)) {

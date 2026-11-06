@@ -440,6 +440,36 @@ void main() {
     expect(await tester.runAsync(ConfigStore.list), isEmpty);
   });
 
+  testWidgets('a server removed while connected through it: the tunnel '
+      'moves to another (#111)', (tester) async {
+    await launch(tester);
+    await onboard(tester);
+    await pressPower(tester);
+    expect(tunnel.dialled, [_helsinki]);
+
+    // The backend removes Helsinki; the next refresh brings the list without
+    // it. Stored the way a refresh stores it.
+    await tester.runAsync(() async {
+      final subscription = (await SubscriptionStore.all()).single;
+      await SubscriptionStore.save(
+        subscription.copyWith(nodes: _nodes.skip(1).toList()),
+      );
+    });
+    // Coming back from Settings reloads the list, as a refresh does.
+    await tester.tap(find.bySemanticsLabel('Настройки'));
+    await settle(tester, rounds: 10);
+    await tester.tap(find.byType(CupertinoNavigationBarBackButton));
+    await waitFor(tester, () => tunnel.dialled.length == 2);
+    await waitFor(tester, () => power(tester).phase == TunnelPhase.connected);
+
+    expect(tunnel.dialled, [_helsinki, _stockholm]);
+    expect(headerName(tester), 'Stockholm');
+    await pressPower(tester);
+    await openServers(tester);
+    expect(row(':sto'), findsOneWidget);
+    expect(row(':hel'), findsNothing);
+  });
+
   group('forgetting the account', () {
     Future<void> openForget(WidgetTester tester) async {
       await tester.tap(find.bySemanticsLabel('Настройки'));

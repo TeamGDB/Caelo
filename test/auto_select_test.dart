@@ -505,6 +505,51 @@ void main() {
     });
   });
 
+  group('a server removed from the subscription (#111)', () {
+    test('says so when it was the one in use', () async {
+      catalog = _ScriptedCatalog([_node('a'), _node('b')], answers: {'a': 5});
+      servers = build();
+      final removed = <String>[];
+      servers.onActiveRemoved = (server) => removed.add(server.id);
+      await servers.load();
+      await servers.prepareConnection({}, never);
+
+      catalog.list = [_node('b')];
+      await servers.load();
+
+      expect(removed, ['a']);
+      expect(servers.active, isNull);
+      expect(servers.servers.map((s) => s.id), [ServerOption.automaticId, 'b']);
+    });
+
+    test('says nothing when another server was removed', () async {
+      catalog = _ScriptedCatalog([_node('a'), _node('b')], answers: {'a': 5});
+      servers = build();
+      final removed = <String>[];
+      servers.onActiveRemoved = (server) => removed.add(server.id);
+      await servers.load();
+      await servers.prepareConnection({}, never);
+
+      catalog.list = [_node('a')];
+      await servers.load();
+
+      expect(removed, isEmpty);
+      expect(servers.active?.id, 'a');
+    });
+
+    test('a removed server picked by hand falls back to automatic', () async {
+      catalog = _ScriptedCatalog([_node('a'), _node('b')]);
+      servers = build();
+      await servers.load();
+      await servers.select(servers.servers.firstWhere((s) => s.id == 'b'));
+
+      catalog.list = [_node('a')];
+      await servers.load();
+
+      expect(servers.selected?.automatic, isTrue);
+    });
+  });
+
   test('clear forgets everything held in memory', () async {
     catalog = _ScriptedCatalog([_node('a')], answers: {'a': 5});
     servers = build();

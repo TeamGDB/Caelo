@@ -286,6 +286,11 @@ class ServerSelectionController extends ChangeNotifier {
   /// Whether a choice is waiting on the subscription.
   bool get isPreparing => preparing != null;
 
+  /// Called when a reload no longer has the server the last connection went
+  /// through: the subscription removed it (#111). The tunnel is still on it,
+  /// and the peer is about to disappear from under it.
+  void Function(ServerOption removed)? onActiveRemoved;
+
   /// Whether the automatic entry is the choice.
   bool get isAutomatic => selected?.automatic ?? true;
 
@@ -334,11 +339,15 @@ class ServerSelectionController extends ChangeNotifier {
     selected =
         servers.where((server) => server.id == savedId).firstOrNull ??
         servers.firstOrNull;
-    final activeId = active?.id;
-    active = activeId == null
+    final wasActive = active;
+    active = wasActive == null
         ? null
-        : servers.where((server) => server.id == activeId).firstOrNull;
+        : servers.where((server) => server.id == wasActive.id).firstOrNull;
     notifyListeners();
+    if (wasActive != null && active == null) {
+      Diagnostics.record('the server in use was removed: ${wasActive.name}');
+      onActiveRemoved?.call(wasActive);
+    }
     _measureGeneration++;
     _latencyRefreshTimer?.cancel();
     if (!_tunnelActive) unawaited(_measureLatencies(_measureGeneration));

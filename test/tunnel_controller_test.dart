@@ -220,6 +220,42 @@ void main() {
       expect(controller.value.pingMs, 87);
     });
 
+    test(
+      'reconnect goes down and comes back up, choosing again (#111)',
+      () async {
+        var prepared = 0;
+        final controller = TunnelController(
+          scripted,
+          prepare: (tried, cancelled) async =>
+              PreparedConnection.ready('n${prepared++}', retryable: true),
+        );
+        addTearDown(controller.dispose);
+
+        await controller.toggle();
+        await controller.reconnect();
+
+        expect(prepared, 2);
+        expect(scripted.connects, 2);
+        expect(controller.value.phase, TunnelPhase.connected);
+      },
+    );
+
+    test('reconnect leaves a tunnel that is down alone', () async {
+      var prepared = 0;
+      final controller = TunnelController(
+        scripted,
+        prepare: (tried, cancelled) async {
+          prepared++;
+          return const PreparedConnection.ready('a');
+        },
+      );
+      addTearDown(controller.dispose);
+
+      await controller.reconnect();
+      expect(prepared, 0);
+      expect(scripted.connects, 0);
+    });
+
     test('a prepare that throws reads as a failed attempt', () async {
       final controller = TunnelController(
         scripted,
