@@ -169,6 +169,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     final phase = _controller.value.phase;
     _servers.tunnelActive =
         phase != TunnelPhase.disconnected && phase != TunnelPhase.failed;
+    if (phase == TunnelPhase.connected) unawaited(_servers.rememberActive());
   }
 
   @override

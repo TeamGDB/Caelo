@@ -11,9 +11,11 @@ abstract final class AccountData {
     Future<void> Function()? clearSubscriptions,
     Future<void> Function()? clearConfigurations,
     Future<void> Function(String)? writeSelected,
+    Future<void> Function(String)? writeLastConnected,
   }) async {
     await (clearSubscriptions ?? SubscriptionStore.clear)();
     await (clearConfigurations ?? ConfigStore.clearAll)();
     await (writeSelected ?? SettingsStore.setSelectedServerId)('');
+    await (writeLastConnected ?? SettingsStore.setLastConnectedServerId)('');
   }
 }

@@ -67,10 +67,11 @@ edits, so it lives in Flutter.
 The rule that does not move is connection state. That exists in exactly one place, because
 state kept in two will eventually disagree with itself about what is connected.
 
-Nodes are tried in the order the server gives them. Measurement is available where it
-helps — `caelo_probe` answers whether a configuration really carries traffic, on a
-userspace stack, without touching the machine's networking or a tunnel already up — but
-the order is the server's, not something the client recomputes.
+Automatic choice connects through the fastest node that carries traffic from this device,
+asking the one that worked last time first. The server cannot know where somebody is
+standing; the device can measure it. `caelo_probe` answers whether a configuration really
+carries traffic, on a userspace stack, without touching the machine's networking or a
+tunnel already up. The server's order is how the list is shown and how ties are broken.
 
 **Caelo will fork nothing.** [sing-box](https://github.com/SagerNet/sing-box) is to be
 imported as an ordinary Go module, with the core registering its own `amneziawg` endpoint

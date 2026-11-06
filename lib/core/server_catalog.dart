@@ -233,7 +233,10 @@ class ServerSelectionController extends ChangeNotifier {
     this.activateNode = _activateNode,
     this.refreshSubscriptions = _refreshSubscriptions,
     this.latencyRefreshInterval = const Duration(minutes: 5),
-    this.probeConcurrency = 4,
+    this.probeConcurrency = 8,
+    this.fastestGrace = const Duration(milliseconds: 1500),
+    this.readLastConnected = SettingsStore.lastConnectedServerId,
+    this.writeLastConnected = SettingsStore.setLastConnectedServerId,
   });
 
   final ServerCatalog catalog;
@@ -263,6 +266,12 @@ class ServerSelectionController extends ChangeNotifier {
 
   /// How many servers are probed at once when choosing automatically.
   final int probeConcurrency;
+
+  /// How long the others get once the first server has answered.
+  final Duration fastestGrace;
+
+  final Future<String?> Function() readLastConnected;
+  final Future<void> Function(String) writeLastConnected;
 
   /// The automatic entry first, then every server.
   List<ServerOption> servers = const [];
@@ -295,6 +304,10 @@ class ServerSelectionController extends ChangeNotifier {
   bool get isAutomatic => selected?.automatic ?? true;
 
   int _loadGeneration = 0;
+
+  /// Measurements in flight, by server id, so a connection can wait for one
+  /// instead of probing the same server at the same moment.
+  final _measuring = <String, Future<int?>>{};
   int _measureGeneration = 0;
   Timer? _latencyRefreshTimer;
   bool _tunnelActive = false;
@@ -367,7 +380,18 @@ class ServerSelectionController extends ChangeNotifier {
     for (final server in [...servers]) {
       if (generation != _measureGeneration || _tunnelActive) return;
       if (!server.connectable) continue;
-      final latency = await catalog.measureLatency(server);
+      final pending = catalog.measureLatency(server);
+      _measuring[server.id] = pending;
+      int? latency;
+      try {
+        latency = await pending;
+      } on Object {
+        latency = null;
+      } finally {
+        if (identical(_measuring[server.id], pending)) {
+          _measuring.remove(server.id);
+        }
+      }
       if (generation != _measureGeneration) continue;
       Diagnostics.record(
         latency == null
@@ -463,11 +487,11 @@ class ServerSelectionController extends ChangeNotifier {
   /// quietly connecting somewhere else would make the list a lie. The tunnel
   /// itself proves whether it answers.
   ///
-  /// Automatic works down the list in the order it is shown — the
-  /// subscription's order, then the person's own configurations — probing
-  /// several at once on a userspace stack, and takes the first in that order
-  /// that carried a real request. If none did, subscriptions are fetched again
-  /// and the list is tried once more before giving up.
+  /// Automatic takes the fastest server that carries a real request from this
+  /// device, asking the one that worked last time first (#112). The backend
+  /// cannot know where somebody is; the device can measure it. If nothing
+  /// answers, subscriptions are fetched again and the list is tried once more,
+  /// then keys are asked for on offered servers, before giving up.
   Future<PreparedConnection> prepareConnection(
     Set<String> tried,
     bool Function() cancelled,
@@ -490,7 +514,32 @@ class ServerSelectionController extends ChangeNotifier {
       return PreparedConnection.ready(choice.id, latencyMs: choice.latencyMs);
     }
 
-    var found = await _firstWorking(tried, cancelled);
+    // The server the last connection went through is used straight away,
+    // without a probe: it is almost always still the right answer, and the
+    // tunnel proves it with a handshake anyway. If it does not come up, the
+    // controller asks again with it in [tried], and the rest are compared.
+    // Passed over when a recent measurement shows another server clearly
+    // faster, so a phone that moved cities does not stay on a far server.
+    if (tried.isEmpty) {
+      final lastId = await readLastConnected().catchError((_) => null);
+      final last = servers
+          .where((server) => server.connectable && server.id == lastId)
+          .firstOrNull;
+      if (last != null && !_clearlyBeaten(last, servers)) {
+        Diagnostics.record('using the server that worked last: ${last.name}');
+        await catalog.activate(last);
+        if (cancelled()) return const PreparedConnection.cancelled();
+        active = last;
+        notifyListeners();
+        return PreparedConnection.ready(
+          last.id,
+          retryable: true,
+          latencyMs: last.latencyMs,
+        );
+      }
+    }
+
+    var found = await _fastest(tried, cancelled);
     if (cancelled()) return const PreparedConnection.cancelled();
     var gone = false;
 
@@ -499,7 +548,7 @@ class ServerSelectionController extends ChangeNotifier {
       // whose cache was empty may have servers now.
       gone = await _refreshAndReload();
       if (cancelled()) return const PreparedConnection.cancelled();
-      found = await _firstWorking(tried, cancelled);
+      found = await _fastest(tried, cancelled);
       if (cancelled()) return const PreparedConnection.cancelled();
     }
 
@@ -602,12 +651,17 @@ class ServerSelectionController extends ChangeNotifier {
     return null;
   }
 
-  /// The first candidate, in list order, that carried traffic.
+  /// How much faster another server has to have measured before the one that
+  /// worked last time is passed over without being asked.
+  static const clearlyFaster = 0.7;
+
+  /// The fastest candidate that carries traffic (#112).
   ///
-  /// Probes run [probeConcurrency] at a time, but the answer respects order:
-  /// a later server answering first does not win over an earlier one that is
-  /// still being asked. Order is the subscription's decision.
-  Future<(ServerOption, int)?> _firstWorking(
+  /// Every candidate is asked at once. Slow ones are not waited for
+  /// to time out: once one answers, the rest get [fastestGrace], and the
+  /// lowest latency among those that answered wins. Ties go to the
+  /// subscription's order.
+  Future<(ServerOption, int)?> _fastest(
     Set<String> tried,
     bool Function() cancelled,
   ) async {
@@ -616,31 +670,28 @@ class ServerSelectionController extends ChangeNotifier {
         .toList();
     if (candidates.isEmpty) return null;
 
-    var finished = false;
-    bool stop() => finished || cancelled();
-    final results = [for (final _ in candidates) Completer<int?>()];
+    final answered = <(ServerOption, int)>[];
+    final settled = Completer<void>();
+    var outstanding = candidates.length;
     var next = 0;
+    var finished = false;
+    Timer? grace;
+
+    void settle() {
+      if (!settled.isCompleted) settled.complete();
+    }
 
     Future<void> worker() async {
       while (next < candidates.length) {
-        final index = next++;
-        if (stop()) {
-          results[index].complete(null);
-          continue;
+        final server = candidates[next++];
+        if (!finished && !cancelled()) {
+          final latency = await _probe(server);
+          if (latency != null && !finished) {
+            answered.add((server, latency));
+            grace ??= Timer(fastestGrace, settle);
+          }
         }
-        int? latency;
-        try {
-          latency = await catalog.measureLatency(candidates[index]);
-        } on Object {
-          latency = null;
-        }
-        final name = candidates[index].name;
-        Diagnostics.record(
-          latency == null
-              ? 'probe: $name did not answer'
-              : 'probe: $name answered in ${latency}ms',
-        );
-        results[index].complete(latency);
+        if (--outstanding == 0) settle();
       }
     }
 
@@ -648,17 +699,55 @@ class ServerSelectionController extends ChangeNotifier {
     for (var i = 0; i < workers; i++) {
       unawaited(worker());
     }
+    await settled.future;
+    finished = true;
+    grace?.cancel();
 
+    if (cancelled() || answered.isEmpty) return null;
+    answered.sort((a, b) {
+      final byLatency = a.$2.compareTo(b.$2);
+      if (byLatency != 0) return byLatency;
+      return candidates.indexOf(a.$1).compareTo(candidates.indexOf(b.$1));
+    });
+    return answered.first;
+  }
+
+  bool _clearlyBeaten(ServerOption last, List<ServerOption> candidates) {
+    final own = last.latencyMs;
+    if (own == null) return false;
+    return candidates.any(
+      (other) =>
+          other.id != last.id &&
+          other.connectable &&
+          other.latencyMs != null &&
+          other.latencyMs! < own * clearlyFaster,
+    );
+  }
+
+  Future<int?> _probe(ServerOption server) async {
+    int? latency;
     try {
-      for (var index = 0; index < candidates.length; index++) {
-        final latency = await results[index].future;
-        if (cancelled()) return null;
-        if (latency != null) return (candidates[index], latency);
-      }
-      return null;
-    } finally {
-      finished = true;
+      // A measurement of this server already in flight is the answer.
+      // Starting a second one would be two devices handshaking with one key
+      // at once; the server takes one and the other waits out a retry.
+      latency = await (_measuring[server.id] ?? catalog.measureLatency(server));
+    } on Object {
+      latency = null;
     }
+    Diagnostics.record(
+      latency == null
+          ? 'probe: ${server.name} did not answer'
+          : 'probe: ${server.name} answered in ${latency}ms',
+    );
+    return latency;
+  }
+
+  /// Remembers the server the tunnel came up through, so the next connection
+  /// asks it first. Called once the tunnel reports connected.
+  Future<void> rememberActive() async {
+    final server = active;
+    if (server == null) return;
+    await writeLastConnected(server.id).catchError((_) {});
   }
 
   /// Asks the subscription for keys on a server it offers.

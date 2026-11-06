@@ -109,6 +109,16 @@ abstract final class SettingsStore {
     await _save(settings);
   }
 
+  /// The server the last successful connection went through (#112).
+  static Future<String?> lastConnectedServerId() async =>
+      (await _load())['lastConnectedServerId'] as String?;
+
+  static Future<void> setLastConnectedServerId(String id) async {
+    final settings = Map<String, dynamic>.from(await _load());
+    settings['lastConnectedServerId'] = id;
+    await _save(settings);
+  }
+
   /// Puts a server chosen under the old behaviour back to automatic, once.
   ///
   /// Before automatic existed, picking a server by hand was the only way to

@@ -125,7 +125,8 @@ void main() {
     ConfigStore.directory = () async => directory;
     SubscriptionStore.forget();
     tunnel = _DeviceTunnel();
-    answers = {_helsinki: 40, _stockholm: 30, _frankfurt: 90};
+    // Helsinki is the fastest, Stockholm next: automatic takes the fastest.
+    answers = {_helsinki: 30, _stockholm: 40, _frankfurt: 90};
     probed = [];
   });
 
@@ -468,6 +469,25 @@ void main() {
     await openServers(tester);
     expect(row(':sto'), findsOneWidget);
     expect(row(':hel'), findsNothing);
+  });
+
+  testWidgets('the next connection goes straight to the last server, probing '
+      'nothing (#112)', (tester) async {
+    await launch(tester);
+    await onboard(tester);
+    await pressPower(tester);
+    await pressPower(tester);
+    // Leave measuring behind: only what connecting asks for counts here.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    probed.clear();
+
+    await pressPower(tester);
+
+    expect(power(tester).phase, TunnelPhase.connected);
+    expect(tunnel.dialled, [_helsinki, _helsinki]);
+    expect(probed, isEmpty);
   });
 
   group('forgetting the account', () {

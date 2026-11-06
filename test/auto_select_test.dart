@@ -67,6 +67,7 @@ void main() {
   late ServerSelectionController servers;
   late int refreshes;
   String? saved;
+  String? last;
 
   ServerSelectionController build({
     Future<bool> Function()? refresh,
@@ -75,6 +76,9 @@ void main() {
     final controller = ServerSelectionController(
       catalog,
       readSubscription: (id) async => Subscription(id: id, url: 'https://x'),
+      readLastConnected: () async => last,
+      writeLastConnected: (id) async => last = id,
+      fastestGrace: const Duration(milliseconds: 30),
       grantServer: grant ?? (_, _) async => null,
       readSelected: () async => saved,
       writeSelected: (id) async => saved = id,
@@ -98,6 +102,7 @@ void main() {
 
   setUp(() {
     saved = null;
+    last = null;
     refreshes = 0;
   });
 
@@ -130,52 +135,155 @@ void main() {
     expect(servers.servers, isEmpty);
   });
 
-  test('picks the first server that answers, in list order', () async {
-    catalog = _ScriptedCatalog(
-      [_node('a'), _node('b'), _node('c')],
-      answers: {'b': 40, 'c': 10},
+  group('the fastest, with the last one first (#112)', () {
+    test('takes the fastest of those that answer', () async {
+      catalog = _ScriptedCatalog(
+        [_node('a'), _node('b'), _node('c')],
+        answers: {'b': 40, 'c': 10},
+      );
+      servers = build();
+      await servers.load();
+
+      final prepared = await servers.prepareConnection({}, never);
+
+      expect(prepared.id, 'c');
+      expect(prepared.retryable, isTrue);
+      expect(prepared.latencyMs, 10);
+      expect(catalog.activated, ['c']);
+      expect(servers.active?.id, 'c');
+      // Automatic stays the choice; only what it picked changed.
+      expect(servers.selected?.automatic, isTrue);
+    });
+
+    test('a tie goes to the subscription\'s order', () async {
+      catalog = _ScriptedCatalog(
+        [_node('a'), _node('b')],
+        answers: {'a': 20, 'b': 20},
+      );
+      servers = build();
+      await servers.load();
+
+      expect((await servers.prepareConnection({}, never)).id, 'a');
+    });
+
+    test('does not wait for a slow server to finish', () async {
+      catalog = _ScriptedCatalog(
+        [_node('slow'), _node('fast')],
+        answers: {'slow': 1, 'fast': 50},
+      );
+      catalog.delays['slow'] = const Duration(seconds: 2);
+      servers = build();
+      await servers.load();
+
+      final watch = Stopwatch()..start();
+      final prepared = await servers.prepareConnection({}, never);
+      expect(prepared.id, 'fast');
+      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
+
+    test('asks every candidate at once, up to eight', () async {
+      catalog = _ScriptedCatalog(
+        [for (var i = 0; i < 10; i++) _node('n$i')],
+        answers: {'n9': 20},
+      );
+      for (var i = 0; i < 10; i++) {
+        catalog.delays['n$i'] = const Duration(milliseconds: 5);
+      }
+      servers = build();
+      await servers.load();
+
+      final prepared = await servers.prepareConnection({}, never);
+      expect(prepared.id, 'n9');
+      expect(catalog.maxInFlight, 8);
+    });
+
+    test('the last one that worked is used straight away, unprobed', () async {
+      last = 'b';
+      catalog = _ScriptedCatalog(
+        [_node('a'), _node('b')],
+        answers: {'a': 5, 'b': 80},
+      );
+      servers = build();
+      await servers.load();
+
+      final prepared = await servers.prepareConnection({}, never);
+      expect(prepared.id, 'b');
+      expect(prepared.retryable, isTrue);
+      expect(catalog.probed, isEmpty);
+      expect(catalog.activated, ['b']);
+    });
+
+    test('when the last one does not come up, the rest are compared', () async {
+      last = 'b';
+      catalog = _ScriptedCatalog(
+        [_node('a'), _node('b'), _node('c')],
+        answers: {'a': 30, 'b': 1, 'c': 10},
+      );
+      servers = build();
+      await servers.load();
+
+      // The controller asks again with the failed one in [tried].
+      final prepared = await servers.prepareConnection({'b'}, never);
+      expect(prepared.id, 'c');
+      expect(catalog.probed, isNot(contains('b')));
+    });
+
+    test('a measurement in flight is waited for, not doubled', () async {
+      catalog = _ScriptedCatalog([_node('a')], answers: {'a': 42});
+      catalog.delays['a'] = const Duration(milliseconds: 40);
+      servers = ServerSelectionController(
+        catalog,
+        readSelected: () async => null,
+        writeSelected: (_) async {},
+        activateConfiguration: (_) async {},
+        activateNode: (_, _) async {},
+        readLastConnected: () async => null,
+        writeLastConnected: (_) async {},
+        latencyRefreshInterval: null,
+        fastestGrace: const Duration(milliseconds: 10),
+      );
+      // Measuring starts on load, and is still going when connecting begins.
+      await servers.load();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+
+      final prepared = await servers.prepareConnection({}, never);
+      expect(prepared.id, 'a');
+      expect(catalog.probed, ['a'], reason: 'one probe, shared');
+    });
+
+    test(
+      'the last one is passed over when another measured clearly faster',
+      () async {
+        last = 'b';
+        catalog = _ScriptedCatalog(
+          [_node('a'), _node('b')],
+          answers: {'a': 20, 'b': 200},
+        );
+        servers = build();
+        await servers.load();
+        servers.servers = [
+          for (final s in servers.servers)
+            s.id == 'a'
+                ? s.withLatency(20)
+                : s.id == 'b'
+                ? s.withLatency(200)
+                : s,
+        ];
+
+        final prepared = await servers.prepareConnection({}, never);
+        expect(prepared.id, 'a');
+      },
     );
-    servers = build();
-    await servers.load();
 
-    final prepared = await servers.prepareConnection({}, never);
+    test('remembers the server once connected', () async {
+      catalog = _ScriptedCatalog([_node('a')], answers: {'a': 5});
+      servers = build();
+      await servers.load();
+      await servers.prepareConnection({}, never);
 
-    expect(prepared.id, 'b');
-    expect(prepared.retryable, isTrue);
-    expect(prepared.latencyMs, 40);
-    expect(catalog.activated, ['b']);
-    expect(servers.active?.id, 'b');
-    // Automatic stays the choice; only what it picked changed.
-    expect(servers.selected?.automatic, isTrue);
-  });
-
-  test('an earlier server still being asked beats a later fast one', () async {
-    catalog = _ScriptedCatalog(
-      [_node('slow'), _node('fast')],
-      answers: {'slow': 300, 'fast': 5},
-    );
-    catalog.delays['slow'] = const Duration(milliseconds: 50);
-    servers = build();
-    await servers.load();
-
-    final prepared = await servers.prepareConnection({}, never);
-    expect(prepared.id, 'slow');
-  });
-
-  test('probes several servers at once, but not all of them', () async {
-    catalog = _ScriptedCatalog(
-      [for (var i = 0; i < 10; i++) _node('n$i')],
-      answers: {'n9': 20},
-    );
-    for (var i = 0; i < 10; i++) {
-      catalog.delays['n$i'] = const Duration(milliseconds: 5);
-    }
-    servers = build();
-    await servers.load();
-
-    final prepared = await servers.prepareConnection({}, never);
-    expect(prepared.id, 'n9');
-    expect(catalog.maxInFlight, inInclusiveRange(2, 4));
+      await servers.rememberActive();
+      expect(last, 'a');
+    });
   });
 
   test('skips maintenance, offers without keys, and what was tried', () async {
