@@ -356,6 +356,10 @@ func (s *store) serveState(w http.ResponseWriter, r *http.Request, token string)
 	// would look up that device's own nodes. What matters for the contract is
 	// that an unknown header is ignored rather than rejected.
 	device := r.Header.Get("X-Caelo-Device")
+	// X-Caelo-Device-Name (percent-encoded UTF-8) and X-Caelo-Platform
+	// ("android 14") say what the device is, for a server that lists devices
+	// to a person. Descriptive only and optional; this example lists nothing,
+	// so it reads neither.
 
 	type nodeState struct {
 		ID      string `json:"id"`
