@@ -1,5 +1,8 @@
 name: Package
 
+# One-off publishing recovery for #115, kept off main and the release tag.
+# Reuse only the successful Android, Linux, and Windows artifacts of v0.3.0.
+
 on:
   workflow_dispatch:
   push:
@@ -52,10 +55,13 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             echo "value=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
           else
-            echo "value=0.1.0+${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            # One-off recovery for #115: publish the existing tagged artifacts
+            # after the owner chose to defer Apple account agreements.
+            echo "value=0.3.0" >> "$GITHUB_OUTPUT"
           fi
 
   android:
+    if: false
     runs-on: ubuntu-latest
     needs: version
     # The version the release calls itself, rather than whatever git
@@ -176,6 +182,7 @@ jobs:
         with: { name: android-aab, path: dist/*.aab, if-no-files-found: error }
 
   linux:
+    if: false
     runs-on: ubuntu-latest
     needs: version
     # The version the release calls itself, rather than whatever git
@@ -220,6 +227,7 @@ jobs:
         with: { name: linux-x64-tarball, path: dist/*.tar.gz, if-no-files-found: error }
 
   macos:
+    if: false
     runs-on: macos-latest
     needs: version
     # The version the release calls itself, rather than whatever git
@@ -301,6 +309,7 @@ jobs:
   # on this job -- a failed upload should not hold back four platforms that have
   # something to ship.
   ios:
+    if: false
     runs-on: macos-latest
     needs: version
     # The version the release calls itself, rather than whatever git
@@ -440,6 +449,7 @@ jobs:
         run: ./scripts/ci-apple-signing.sh teardown ios
 
   windows:
+    if: false
     runs-on: windows-latest
     needs: version
     # The version the release calls itself, rather than whatever git
@@ -474,20 +484,46 @@ jobs:
     # at a time by anyone with the link -- which is what every other client in
     # this space ships and what people expect to find.
     #
-    # Runs on dispatch as well as on tags, so the release page can be looked at
-    # before there is anything to release. A dispatch run stays a draft.
-    needs: [version, android, linux, macos, windows]
+    # This branch publishes existing artifacts only after explicit dispatch.
+    needs: version
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     outputs:
       publishable: ${{ steps.gate.outputs.value }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: v0.3.0
+      - name: Verify the source run built this tag on every included platform
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/TeamGDB/Caelo/actions/runs/42172764038 > "$RUNNER_TEMP/source-run.json"
+          gh api repos/TeamGDB/Caelo/actions/runs/42172764038/jobs > "$RUNNER_TEMP/source-jobs.json"
+          jq -e --arg sha "$(git rev-parse HEAD)" \
+            '.head_sha == $sha and .head_branch == "v0.3.0" and .event == "push" and .status == "completed"' \
+            "$RUNNER_TEMP/source-run.json"
+          for platform in android linux windows; do
+            jq -e --arg name "$platform" \
+              '.jobs | any(.name == $name and .conclusion == "success")' \
+              "$RUNNER_TEMP/source-jobs.json"
+          done
       - uses: actions/download-artifact@v8
         with:
           path: incoming
           merge-multiple: true
+          run-id: 42172764038
+          github-token: ${{ github.token }}
+      - name: Require every Android and desktop package before publishing
+        run: |
+          for suffix in android7+-arm64-v8a.apk android7+-armeabi-v7a.apk \
+            android7+-x86_64.apk android7+-universal.apk android.aab \
+            linux-x64.deb linux-x64.rpm linux-x64.AppImage linux-x64.AppImage.zsync \
+            linux-x64.tar.gz windows-x64-setup.exe windows-x64-portable.zip; do
+            test -s "incoming/Caelo-0.3.0-$suffix"
+          done
 
       - name: Build the update manifests
         env:
@@ -496,6 +532,7 @@ jobs:
           # first attempted on the day it has to work.
           APPCAST_KEY: ${{ secrets.APPCAST_ED25519_KEY }}
         run: |
+          test -n "$APPCAST_KEY"
           ./scripts/make-appcast.sh "${{ needs.version.outputs.value }}" incoming pages
           # Rendered from the manifest rather than from the artifacts again, so
           # the page and the manifest cannot disagree about what exists or what
@@ -527,7 +564,7 @@ jobs:
         # clearing it would have published every dispatch run as a real release
         # under a tag like v0.1.0+12.
         run: |
-          if [[ "$PUBLISH_TAGGED_RELEASES" == "true" && "${GITHUB_REF}" == refs/tags/v* ]]; then
+          if [[ "$PUBLISH_TAGGED_RELEASES" == "true" && "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$GITHUB_REF" == refs/heads/publish-0.3.0-without-apple ]]; then
             echo "value=true" >> "$GITHUB_OUTPUT"
           else
             echo "value=false" >> "$GITHUB_OUTPUT"
@@ -538,6 +575,7 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           draft: ${{ steps.gate.outputs.value != 'true' }}
+          make_latest: true
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.version.outputs.value) }}
           name: Caelo ${{ needs.version.outputs.value }}
           files: incoming/*
@@ -546,7 +584,6 @@ jobs:
             | --- | --- |
             | Android | one APK per architecture, or the universal one if unsure |
             | Linux | `.deb`, `.rpm`, AppImage, or the tarball |
-            | macOS | `.dmg` — drag Caelo into Applications |
             | Windows | installer, or the portable zip to run from a stick |
 
             ### Windows will warn, and it is right to
@@ -565,8 +602,9 @@ jobs:
             shasum -a 256 Caelo-*-windows-x64-setup.exe
             ```
 
-            macOS is signed with a Developer ID and notarised by Apple, and opens
-            without ceremony.
+            Apple packages are deferred for this release while the account's
+            required agreements are resolved. No macOS package or TestFlight
+            build is included.
 
   pages:
     # Serving the manifest is a separate job from writing it, because it happens
