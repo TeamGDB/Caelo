@@ -97,4 +97,37 @@ void main() {
       expect((await ConfigStore.list()).single.name, 'Personal');
     },
   );
+
+  test(
+    'importing the same file twice keeps one configuration (#103)',
+    () async {
+      final first = await ConfigStore.create('Work', _first);
+      await ConfigStore.create('Personal', _second);
+      final again = await ConfigStore.create('Work copy', '$_first\n');
+
+      expect(again.id, first.id);
+      expect(await ConfigStore.list(), hasLength(2));
+      // Importing it again also makes it the one in use.
+      expect(await ConfigStore.read(), _first);
+    },
+  );
+
+  test('clearAll leaves nothing to connect with', () async {
+    await ConfigStore.create('Work', _first);
+    await ConfigStore.activateSubscriptionNode('{"type":"amneziawg"}');
+
+    await ConfigStore.clearAll();
+
+    expect(await ConfigStore.list(), isEmpty);
+    expect(await ConfigStore.read(), isNull);
+    expect(directory.listSync(), isEmpty);
+  });
+
+  test('a subscription node never shows up as a configuration', () async {
+    for (var i = 0; i < 5; i++) {
+      await ConfigStore.activateSubscriptionNode('{"n":$i}');
+    }
+    expect(await ConfigStore.list(), isEmpty);
+    expect(await ConfigStore.read(), '{"n":4}');
+  });
 }

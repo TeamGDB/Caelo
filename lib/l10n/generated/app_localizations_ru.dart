@@ -310,4 +310,48 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get updateHandOverFailed =>
       'Не удалось запустить установщик. Файл скачан и проверен — его не открыл Android.';
+
+  @override
+  String get automaticServer => 'Автоматически';
+
+  @override
+  String get automaticServerDescription => 'Выбирается сам';
+
+  @override
+  String get automaticallyChosen => 'Выбран автоматически';
+
+  @override
+  String get noServers => 'Серверов пока нет. Добавьте подписку в настройках.';
+
+  @override
+  String get noServerReachable =>
+      'Ни один сервер не ответил. Проверьте интернет и попробуйте ещё раз.';
+
+  @override
+  String get chosenServerUnreachable =>
+      'Этот сервер не отвечает. Выберите другой или «Автоматически».';
+
+  @override
+  String get forgetAccountTitle => 'Отключить аккаунт?';
+
+  @override
+  String get forgetAccountMessage =>
+      'Серверы и конфигурации будут удалены с этого устройства. Чтобы вернуться, понадобится ссылка приглашения.';
+
+  @override
+  String get forgetAccountConfirm => 'Отключить';
+
+  @override
+  String get updateNotInstalled => 'Обновление не установилось';
+
+  @override
+  String get updateNotInstalledExplanation =>
+      'Если вы отменили установку, ничего страшного — можно попробовать ещё раз. Если Android сообщил о конфликте пакетов, удалите Caelo и установите новую версию со страницы релизов.';
+
+  @override
+  String get updateTryAgain => 'Попробовать снова';
+
+  @override
+  String get subscriptionGone =>
+      'Подписка больше не действует. Получите новую ссылку приглашения и вставьте её: Настройки → Отключить аккаунт.';
 }

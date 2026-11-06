@@ -98,6 +98,13 @@ abstract final class SubscriptionStore {
     await _write(remaining);
   }
 
+  /// Removes every subscription, and with them the private keys they held.
+  static Future<void> clear() async {
+    _cache = const [];
+    final file = await AppStorage.file(_fileName);
+    if (await file.exists()) await file.delete();
+  }
+
   /// Moves a subscription in the list. The order here is the person's, not the
   /// server's: the server orders nodes, the person orders subscriptions.
   static Future<void> reorder(int from, int to) async {

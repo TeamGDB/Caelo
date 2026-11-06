@@ -32,4 +32,7 @@ class FakeServerCatalog implements ServerCatalog {
 
   @override
   Future<int?> measureLatency(ServerOption server) async => server.latencyMs;
+
+  @override
+  Future<void> activate(ServerOption server) async {}
 }

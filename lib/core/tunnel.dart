@@ -30,6 +30,24 @@ enum TunnelFailure {
   /// This application is older than the privileged service, which happens when
   /// the service was updated by a package manager and the application was not.
   appOlderThanService,
+
+  /// There is nothing to connect through: no subscription node and no
+  /// configuration of the person's own.
+  noServers,
+
+  /// Every server was tried, the subscription was refreshed and they were
+  /// tried again, and none of them carried traffic. Most often the network
+  /// itself, which is the thing worth suggesting.
+  noServerReachable,
+
+  /// The server the person picked by hand did not answer. Said separately
+  /// because the remedy is different: pick another, or go back to automatic.
+  chosenServerUnreachable,
+
+  /// Nothing answered, and the subscription's server, asked again, said the
+  /// link is no longer a subscription. A new invitation is the remedy, not the
+  /// network (#106).
+  subscriptionGone,
 }
 
 /// Which protocol carried the connection.

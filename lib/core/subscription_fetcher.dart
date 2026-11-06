@@ -340,10 +340,7 @@ abstract final class SubscriptionFetcher {
       final response = await request.close().timeout(timeout);
 
       if (response.statusCode == 404 || response.statusCode == 403) {
-        throw const SubscriptionFailed(
-          'the server does not recognise this subscription',
-          gone: true,
-        );
+        throw const SubscriptionFailed(subscriptionGoneMessage, gone: true);
       }
       if (response.statusCode >= 400) {
         throw SubscriptionFailed('the server answered ${response.statusCode}');

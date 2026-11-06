@@ -13,11 +13,16 @@ class ServerDrawer extends StatefulWidget {
     required this.locked,
     required this.limitedScope,
     this.selectedLatencyMs,
+    this.showActive = false,
     super.key,
   });
 
   final ServerSelectionController controller;
   final bool locked;
+
+  /// Whether the header names the server actually in use rather than the
+  /// choice. They differ when the choice is "automatic".
+  final bool showActive;
   final bool limitedScope;
   final int? selectedLatencyMs;
 
@@ -134,11 +139,14 @@ class _ServerDrawerState extends State<ServerDrawer> {
                       children: [
                         _PeekHeader(
                           selected: widget.controller.selected,
+                          active: widget.showActive
+                              ? widget.controller.active
+                              : null,
                           locked: widget.locked,
                           limitedScope: widget.limitedScope,
-                          latencyMs:
-                              widget.selectedLatencyMs ??
-                              widget.controller.selected?.latencyMs,
+                          latencyMs: widget.showActive
+                              ? widget.selectedLatencyMs
+                              : widget.controller.selected?.latencyMs,
                           onDragUpdate: updateExtent,
                           onDragEnd: settleExtent,
                           onTap: toggleFromTap,
@@ -205,15 +213,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                               server ==
                                                   widget.controller.selected,
                                           preparing: preparing,
-                                          latencyMs:
-                                              server ==
-                                                      widget
-                                                          .controller
-                                                          .selected &&
-                                                  widget.selectedLatencyMs !=
-                                                      null
-                                              ? widget.selectedLatencyMs
-                                              : server.latencyMs,
+                                          latencyMs: server.latencyMs,
                                           onPressed:
                                               widget.locked ||
                                                   !server.available ||
@@ -260,6 +260,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
 class _PeekHeader extends StatelessWidget {
   const _PeekHeader({
     required this.selected,
+    required this.active,
     required this.locked,
     required this.limitedScope,
     required this.onDragUpdate,
@@ -270,6 +271,9 @@ class _PeekHeader extends StatelessWidget {
   });
 
   final ServerOption? selected;
+
+  /// The server in use, when there is a connection and it is worth naming.
+  final ServerOption? active;
   final bool locked;
   final bool limitedScope;
   final ValueChanged<double> onDragUpdate;
@@ -282,7 +286,11 @@ class _PeekHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = CaeloColors.of(context);
     final l10n = AppLocalizations.of(context);
-    final server = selected;
+    final choice = selected;
+    // The automatic entry names itself until it has picked something, then
+    // the header names what it picked and says it was picked for you.
+    final pickedForYou = choice != null && choice.automatic && active != null;
+    final server = pickedForYou ? active : choice;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -342,7 +350,8 @@ class _PeekHeader extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  server?.name ?? '—',
+                                  _name(server, l10n),
+                                  key: const ValueKey('selected-server-name'),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: CaeloTheme.title(
@@ -352,6 +361,8 @@ class _PeekHeader extends StatelessWidget {
                                 Text(
                                   limitedScope
                                       ? l10n.localTunnelOnly
+                                      : pickedForYou
+                                      ? l10n.automaticallyChosen
                                       : _description(server, l10n),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -453,7 +464,7 @@ class _ServerRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    server.name,
+                    _name(server, AppLocalizations.of(context)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: CaeloTheme.body(
@@ -518,7 +529,16 @@ class _ServerRow extends StatelessWidget {
   }
 }
 
+String _name(ServerOption? server, AppLocalizations l10n) {
+  if (server == null) return '—';
+  if (server.automatic) return l10n.automaticServer;
+  return server.name;
+}
+
 String _description(ServerOption? server, AppLocalizations l10n) {
+  if (server != null && server.automatic) {
+    return l10n.automaticServerDescription;
+  }
   final value = server?.description.trim() ?? '';
   if (value.isNotEmpty) return value;
   return server?.configId == null ? '' : l10n.customServerDescription;

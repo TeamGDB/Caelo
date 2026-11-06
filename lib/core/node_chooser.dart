@@ -152,7 +152,9 @@ abstract final class NodeChooser {
     Duration perNode = perNode,
   }) async {
     final chosen = await choose(among: among, perNode: perNode);
-    await ConfigStore.write(chosen.node.endpoint);
+    // Through the slot reserved for subscription nodes. Creating a named
+    // configuration here added one to the person's own list per connect (#103).
+    await ConfigStore.activateSubscriptionNode(chosen.node.endpoint);
     return chosen;
   }
 }

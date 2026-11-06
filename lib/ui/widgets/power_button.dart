@@ -20,7 +20,10 @@ class PowerButton extends StatefulWidget {
 
   final TunnelPhase phase;
   final String label;
-  final VoidCallback onPressed;
+
+  /// Null while pressing would do nothing — tearing down, where a press is
+  /// ignored rather than queued (#11).
+  final VoidCallback? onPressed;
   final String semanticLabel;
 
   @override

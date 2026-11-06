@@ -298,6 +298,10 @@ class Subscription {
 
   bool get hasNodes => nodes.isNotEmpty;
 
+  /// The server said, at the last refresh, that this link is not one of its
+  /// subscriptions: revoked, expired, or never was.
+  bool get isGone => lastError == subscriptionGoneMessage;
+
   /// The node to try first: whatever was pinned, then the server's order.
   SubscriptionNode? get preferred {
     if (nodes.isEmpty) return null;
@@ -413,6 +417,12 @@ class Subscription {
     );
   }
 }
+
+/// What a refresh records when the server says the link is not a
+/// subscription. Recorded as text like every other failure, and compared here
+/// so the interface can tell "revoked" from "unreachable" (#106).
+const subscriptionGoneMessage =
+    'the server does not recognise this subscription';
 
 /// The media type a server uses to say it sent the richer document.
 const caeloDocumentType = 'application/vnd.caelo.subscription+json';

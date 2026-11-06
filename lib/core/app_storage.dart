@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Where Caelo keeps things between launches.
@@ -20,6 +21,11 @@ abstract final class AppStorage {
     _resolved = directory;
     return directory;
   }
+
+  /// Points storage somewhere else, or back to the platform's place with null.
+  /// A test has a temporary directory instead of an application container.
+  @visibleForTesting
+  static set testDirectory(Directory? directory) => _resolved = directory;
 
   static Future<File> file(String name) async =>
       File('${(await directory()).path}/$name');

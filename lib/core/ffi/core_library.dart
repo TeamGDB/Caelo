@@ -20,6 +20,8 @@ typedef _SetFlag = Pointer<Utf8> Function(int);
 typedef _Check = Pointer<Utf8> Function(Pointer<Utf8>, int);
 typedef _FreeNative = Void Function(Pointer<Utf8>);
 typedef _Free = void Function(Pointer<Utf8>);
+typedef _WaitNative = Pointer<Utf8> Function(Int32);
+typedef _Wait = Pointer<Utf8> Function(int);
 
 /// What the core reports about itself.
 class CoreVersion {
@@ -361,6 +363,28 @@ abstract final class CoreLibrary {
         malloc.free(config);
       }
     });
+  }
+
+  /// Waits until the hosted tunnel has completed a handshake with its peer, or
+  /// until [timeout] runs out. True only when the peer actually answered.
+  ///
+  /// Android calls the tunnel up the moment the descriptor is adopted, which is
+  /// before a single packet has reached the server. Saying "connected" then is
+  /// saying it over a tunnel that may never carry anything.
+  static Future<bool> waitHandshakeFd(Duration timeout) async {
+    final timeoutMs = timeout.inMilliseconds;
+    final result = await Isolate.run(() {
+      final library = _open();
+      return _require(
+        _consume(
+          library,
+          library.lookupFunction<_WaitNative, _Wait>('caelo_wait_handshake_fd')(
+            timeoutMs,
+          ),
+        ),
+      );
+    });
+    return result['handshake'] == true;
   }
 
   /// The sockets carrying tunnel traffic, for the platform to exclude from its

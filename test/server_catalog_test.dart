@@ -20,6 +20,9 @@ class _MeasuringCatalog implements ServerCatalog {
 
   @override
   Future<int?> measureLatency(ServerOption server) async => 73;
+
+  @override
+  Future<void> activate(ServerOption server) async {}
 }
 
 class _RefreshingCatalog implements ServerCatalog {
@@ -35,6 +38,9 @@ class _RefreshingCatalog implements ServerCatalog {
     if (measurements == 2) secondMeasurement.complete();
     return 72 + measurements;
   }
+
+  @override
+  Future<void> activate(ServerOption server) async {}
 }
 
 void main() {
@@ -69,11 +75,11 @@ void main() {
     addTearDown(controller.dispose);
 
     await controller.load();
-    expect(controller.servers.single.name, 'Office');
+    expect(controller.servers.first.automatic, isTrue);
+    expect(controller.servers.last.name, 'Office');
     await Future<void>.delayed(Duration.zero);
 
-    expect(controller.servers.single.latencyMs, 73);
-    expect(controller.selected?.latencyMs, 73);
+    expect(controller.servers.last.latencyMs, 73);
   });
 
   test('refreshes latency without overlapping measurement cycles', () async {
@@ -93,7 +99,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(catalog.measurements, 2);
-    expect(controller.servers.single.latencyMs, 74);
+    expect(controller.servers.last.latencyMs, 74);
   });
 
   test('test catalog contains no endpoint or configuration material', () async {

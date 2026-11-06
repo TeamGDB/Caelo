@@ -661,6 +661,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Caelo could not start the installer. The download is fine; Android would not open it.'**
   String get updateHandOverFailed;
+
+  /// The entry in the server list that picks a working server by itself.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic'**
+  String get automaticServer;
+
+  /// No description provided for @automaticServerDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Picks one that works'**
+  String get automaticServerDescription;
+
+  /// Under the server name on Home when the automatic entry picked it.
+  ///
+  /// In en, this message translates to:
+  /// **'Chosen automatically'**
+  String get automaticallyChosen;
+
+  /// No description provided for @noServers.
+  ///
+  /// In en, this message translates to:
+  /// **'There are no servers yet. Add a subscription in Settings.'**
+  String get noServers;
+
+  /// No description provided for @noServerReachable.
+  ///
+  /// In en, this message translates to:
+  /// **'No server answered. Check the internet connection and try again.'**
+  String get noServerReachable;
+
+  /// No description provided for @chosenServerUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'This server is not answering. Pick another one or choose Automatic.'**
+  String get chosenServerUnreachable;
+
+  /// No description provided for @forgetAccountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect the account?'**
+  String get forgetAccountTitle;
+
+  /// No description provided for @forgetAccountMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Its servers and configurations will be removed from this device. To come back you will need the invitation link.'**
+  String get forgetAccountMessage;
+
+  /// No description provided for @forgetAccountConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get forgetAccountConfirm;
+
+  /// No description provided for @updateNotInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'The update was not installed'**
+  String get updateNotInstalled;
+
+  /// Android does not report why an installation did not happen; these are the two likely reasons (#73).
+  ///
+  /// In en, this message translates to:
+  /// **'If you cancelled the installation, nothing is wrong — you can try again. If Android said the package conflicts with an existing one, uninstall Caelo and install the new version from the releases page.'**
+  String get updateNotInstalledExplanation;
+
+  /// No description provided for @updateTryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get updateTryAgain;
+
+  /// Connecting failed and the subscription server said the link is unknown: revoked or expired (#106).
+  ///
+  /// In en, this message translates to:
+  /// **'Your subscription no longer works. Get a new invitation link, then go to Settings → Disconnect account and paste it.'**
+  String get subscriptionGone;
 }
 
 class _AppLocalizationsDelegate
