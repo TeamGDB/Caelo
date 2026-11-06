@@ -144,6 +144,11 @@ func requestMeasurements(
 	return status, body, elapsed, &measured, nil
 }
 
+// MaxBody is the largest response a probe reads. The same ceiling the app puts
+// on the update manifest it fetches directly, so that a request moved through
+// the tunnel does not quietly accept less.
+const MaxBody = 256 * 1024
+
 func fetch(ctx context.Context, client *http.Client, url string) (string, string, time.Duration, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -155,10 +160,16 @@ func fetch(ctx context.Context, client *http.Client, url string) (string, string
 	if err != nil {
 		return "", "", 0, fmt.Errorf("fetching %s through the tunnel: %w", url, err)
 	}
-	body, readErr := io.ReadAll(io.LimitReader(response.Body, 4096))
+	// One byte past the limit, so that a body which does not fit is refused
+	// rather than cut short. A truncated update manifest parses as nothing and
+	// reads as "no update", silently and for good (#51).
+	body, readErr := io.ReadAll(io.LimitReader(response.Body, MaxBody+1))
 	closeErr := response.Body.Close()
 	if readErr != nil {
 		return "", "", 0, fmt.Errorf("reading response: %w", readErr)
+	}
+	if len(body) > MaxBody {
+		return "", "", 0, fmt.Errorf("response from %s is larger than %d bytes", url, MaxBody)
 	}
 	if closeErr != nil {
 		return "", "", 0, fmt.Errorf("closing response: %w", closeErr)
