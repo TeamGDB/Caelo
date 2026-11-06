@@ -535,18 +535,7 @@ class ServerSelectionController extends ChangeNotifier {
           (server.id == active?.id || (fresh && !server.unreachable))) {
         continue;
       }
-      final pending = catalog.measureLatency(server);
-      _measuring[server.id] = pending;
-      int? latency;
-      try {
-        latency = await pending;
-      } on Object {
-        latency = null;
-      } finally {
-        if (identical(_measuring[server.id], pending)) {
-          _measuring.remove(server.id);
-        }
-      }
+      final latency = await _measureOnce(server);
       if (generation != _measureGeneration) continue;
       Diagnostics.record(
         latency == null
@@ -853,12 +842,7 @@ class ServerSelectionController extends ChangeNotifier {
             )
             .firstOrNull;
         if (node == null) continue;
-        int? latency;
-        try {
-          latency = await catalog.measureLatency(node);
-        } on Object {
-          latency = null;
-        }
+        final latency = await _measureOnce(node);
         if (latency != null) return (node, latency);
       } on Object catch (error) {
         Diagnostics.record('asking for keys failed', error: error);
@@ -938,16 +922,32 @@ class ServerSelectionController extends ChangeNotifier {
     return pick;
   }
 
+  /// Measures [server], or joins the measurement of it already in flight.
+  ///
+  /// Every probe of a server goes through here: background measuring,
+  /// choosing at connect, provisioning. Two at once are two devices with one
+  /// key, and the server keeps a single session per key: the one that
+  /// handshook last is answered and the other reads as a dead server. That
+  /// was fi-pine answering every other time on an iPhone (#146).
+  Future<int?> _measureOnce(ServerOption server) {
+    final inFlight = _measuring[server.id];
+    if (inFlight != null) return inFlight;
+    final pending = catalog
+        .measureLatency(server)
+        .then<int?>((latency) => latency, onError: (_) => null);
+    _measuring[server.id] = pending;
+    unawaited(
+      pending.whenComplete(() {
+        if (identical(_measuring[server.id], pending)) {
+          _measuring.remove(server.id);
+        }
+      }),
+    );
+    return pending;
+  }
+
   Future<int?> _probe(ServerOption server) async {
-    int? latency;
-    try {
-      // A measurement of this server already in flight is the answer.
-      // Starting a second one would be two devices handshaking with one key
-      // at once; the server takes one and the other waits out a retry.
-      latency = await (_measuring[server.id] ?? catalog.measureLatency(server));
-    } on Object {
-      latency = null;
-    }
+    final latency = await _measureOnce(server);
     Diagnostics.record(
       latency == null
           ? 'probe: ${server.name} did not answer'
