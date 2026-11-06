@@ -12,14 +12,18 @@ import '../l10n/generated/app_localizations.dart';
 /// The switch in Settings has defaulted to on since #51, yet on Android
 /// nothing looked unless somebody opened Settings and pressed Check now, so a
 /// person who installed a release never heard of the next one. This checks
-/// at launch and when the app comes back after [every], and asks before
+/// at every launch and every time the app comes back (#148), at most once
+/// per [every], and asks before
 /// downloading anything. [UpdateCheck] honours the switch.
 class UpdatePrompt extends StatefulWidget {
   const UpdatePrompt({
     required this.child,
     this.flow,
     this.enabled,
-    this.every = const Duration(hours: 12),
+    // A floor, not a schedule: coming back from a system dialog (the VPN
+    // prompt, the installer) is a return too, and checking twice within a
+    // minute would only show the same offer twice (#148).
+    this.every = const Duration(minutes: 1),
     super.key,
   });
 
