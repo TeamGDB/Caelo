@@ -417,15 +417,34 @@ abstract final class SubscriptionFetcher {
         results.add(subscription);
         continue;
       }
-      final now = await peek(subscription);
+      final offered = <AvailableServer>[];
+      final now = await peek(subscription, catalogue: offered);
       if (now != null && now != known) {
         Diagnostics.record('subscription changed ahead of schedule');
         results.add(await refresh(subscription));
         continue;
       }
+      // The version covers the nodes this device has keys for, not what the
+      // subscription offers: a server added in the panel has no keys yet and
+      // leaves the version as it was (#145). The catalogue says so instead.
+      if (now != null && !sameCatalogue(offered, subscription.available)) {
+        Diagnostics.record('servers offered changed');
+        final updated = subscription.copyWith(available: offered.toList());
+        await SubscriptionStore.save(updated);
+        results.add(updated);
+        continue;
+      }
       results.add(subscription);
     }
     return results;
+  }
+
+  /// Whether two catalogues offer the same servers in the same state.
+  static bool sameCatalogue(List<AvailableServer> a, List<AvailableServer> b) {
+    String key(AvailableServer server) =>
+        '${server.id}|${server.ready}|${server.name}|${server.country}';
+    return a.map(key).toSet().difference(b.map(key).toSet()).isEmpty &&
+        b.map(key).toSet().difference(a.map(key).toSet()).isEmpty;
   }
 
   /// Every node from every subscription, each subscription's own order kept.
