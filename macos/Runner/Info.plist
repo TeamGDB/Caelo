@@ -38,5 +38,7 @@
 	<false/>
 	<key>SUEnableAutomaticChecks</key>
 	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>Caelo uses the camera only to read the QR code of your subscription when you sign in.</string>
 </dict>
 </plist>

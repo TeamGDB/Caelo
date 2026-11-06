@@ -1,6 +1,7 @@
 import 'package:caelo/core/account_gateway.dart';
 import 'package:caelo/l10n/generated/app_localizations.dart';
 import 'package:caelo/theme/palette.dart';
+import 'package:caelo/ui/qr_scan_screen.dart';
 import 'package:caelo/ui/welcome_screen.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -8,18 +9,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _Gateway implements AccountGateway {
   String? invitation;
-  int qrCalls = 0;
 
   @override
   Future<AccountSession> acceptInvitation(String invitation) async {
     this.invitation = invitation;
     if (!invitation.startsWith('https://')) throw const InvalidInvitation();
-    return const AccountSession(displayName: 'Test');
-  }
-
-  @override
-  Future<AccountSession> signInWithQr() async {
-    qrCalls++;
     return const AccountSession(displayName: 'Test');
   }
 }
@@ -29,6 +23,8 @@ Future<void> _pumpWelcome(
   required AccountGateway gateway,
   required Future<void> Function() onGranted,
   Locale locale = const Locale('en'),
+  Future<String?> Function(BuildContext)? scanQr,
+  bool showQr = true,
 }) async {
   final palette = CaeloThemeMode.light.resolve(Brightness.light);
   await tester.pumpWidget(
@@ -42,7 +38,12 @@ Future<void> _pumpWelcome(
           GlobalWidgetsLocalizations.delegate,
         ],
         supportedLocales: AppLocalizations.supportedLocales,
-        home: WelcomeScreen(gateway: gateway, onGranted: onGranted),
+        home: WelcomeScreen(
+          gateway: gateway,
+          onGranted: onGranted,
+          scanQr: scanQr,
+          showQr: showQr,
+        ),
       ),
     ),
   );
@@ -84,7 +85,7 @@ void main() {
     expect(granted, isTrue);
   });
 
-  testWidgets('uses the account gateway for QR when it becomes available', (
+  testWidgets('a scanned QR code signs in with the link it carries (#142)', (
     tester,
   ) async {
     final gateway = _Gateway();
@@ -93,28 +94,51 @@ void main() {
       tester,
       gateway: gateway,
       onGranted: () async => granted = true,
+      scanQr: (_) async => 'https://sub.example.invalid/s/token',
     );
 
     await tester.tap(find.text('Sign in with QR'));
     await tester.pumpAndSettle();
-    expect(gateway.qrCalls, 1);
+    expect(gateway.invitation, 'https://sub.example.invalid/s/token');
     expect(granted, isTrue);
   });
 
-  testWidgets('does not create a demo account when QR is unavailable', (
-    tester,
-  ) async {
+  testWidgets('closing the scanner changes nothing', (tester) async {
+    final gateway = _Gateway();
     var granted = false;
     await _pumpWelcome(
       tester,
-      gateway: const SubscriptionAccountGateway(),
+      gateway: gateway,
       onGranted: () async => granted = true,
+      scanQr: (_) async => null,
     );
 
     await tester.tap(find.text('Sign in with QR'));
     await tester.pumpAndSettle();
-
-    expect(find.textContaining('QR sign-in is not available'), findsOneWidget);
+    expect(gateway.invitation, isNull);
     expect(granted, isFalse);
+  });
+
+  testWidgets('no QR button where there is no camera to speak of', (
+    tester,
+  ) async {
+    await _pumpWelcome(
+      tester,
+      gateway: _Gateway(),
+      onGranted: () async {},
+      showQr: false,
+    );
+    expect(find.text('Sign in with QR'), findsNothing);
+  });
+
+  test('only an https link is taken from a code', () {
+    expect(
+      invitationFromCode(' https://a.example/sub/x '),
+      'https://a.example/sub/x',
+    );
+    expect(invitationFromCode('http://a.example/sub/x'), isNull);
+    expect(invitationFromCode('WIFI:S:home;P:secret;;'), isNull);
+    expect(invitationFromCode('[Interface]\nPrivateKey = x'), isNull);
+    expect(invitationFromCode(null), isNull);
   });
 }

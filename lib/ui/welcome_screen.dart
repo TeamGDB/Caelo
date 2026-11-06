@@ -2,18 +2,29 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/cupertino.dart';
 
 import '../core/account_gateway.dart';
+
 import '../core/config_store.dart';
 import '../l10n/generated/app_localizations.dart';
 import '../theme/app_theme.dart';
 import '../theme/palette.dart';
+import 'qr_scan_screen.dart';
 import 'widgets/caelo_surface.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({
     required this.gateway,
     required this.onGranted,
+    this.scanQr,
+    this.showQr,
     super.key,
   });
+
+  /// Opens the camera and answers the link a QR code carried, or null. A seam
+  /// for tests; the scanner screen otherwise.
+  final Future<String?> Function(BuildContext)? scanQr;
+
+  /// Whether to offer signing in by QR. On phones and Macs by default.
+  final bool? showQr;
 
   final AccountGateway gateway;
   final Future<void> Function() onGranted;
@@ -55,28 +66,18 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     }
   }
 
+  /// Reads the panel's QR code and signs in with the link it carries, as if
+  /// it had been pasted (#142).
   Future<void> _signInWithQr() async {
-    final l10n = AppLocalizations.of(context);
-    try {
-      await widget.gateway.signInWithQr();
-      await widget.onGranted();
-    } on QrSignInUnavailable {
-      if (!mounted) return;
-      await showCupertinoDialog<void>(
-        context: context,
-        builder: (context) => CupertinoAlertDialog(
-          title: Text(l10n.qrLogin),
-          content: Text(l10n.qrUnavailableExplanation),
-          actions: [
-            CupertinoDialogAction(
-              isDefaultAction: true,
-              onPressed: () => Navigator.pop(context),
-              child: Text(l10n.done),
-            ),
-          ],
-        ),
-      );
-    }
+    final scan =
+        widget.scanQr ??
+        (context) => Navigator.of(context).push<String>(
+          CupertinoPageRoute(builder: (_) => const QrScanScreen()),
+        );
+    final link = await scan(context);
+    if (link == null || !mounted) return;
+    _invitation.text = link;
+    await _submitInvitation();
   }
 
   Future<void> _importConfiguration() async {
@@ -193,17 +194,18 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         ),
                       ),
                       const SizedBox(height: CaeloSpace.sm),
-                      CupertinoButton(
-                        onPressed: _busy ? null : _signInWithQr,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(CupertinoIcons.qrcode_viewfinder),
-                            const SizedBox(width: CaeloSpace.sm),
-                            Text(l10n.qrLogin),
-                          ],
+                      if (widget.showQr ?? qrSignInSupported)
+                        CupertinoButton(
+                          onPressed: _busy ? null : _signInWithQr,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(CupertinoIcons.qrcode_viewfinder),
+                              const SizedBox(width: CaeloSpace.sm),
+                              Text(l10n.qrLogin),
+                            ],
+                          ),
                         ),
-                      ),
                       const SizedBox(height: CaeloSpace.lg),
                       CupertinoButton(
                         padding: const EdgeInsets.symmetric(

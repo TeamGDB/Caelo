@@ -158,12 +158,6 @@ abstract class AppLocalizations {
   /// **'Sign in with QR'**
   String get qrLogin;
 
-  /// No description provided for @qrUnavailableExplanation.
-  ///
-  /// In en, this message translates to:
-  /// **'QR sign-in is not available yet. Use an invitation link.'**
-  String get qrUnavailableExplanation;
-
   /// No description provided for @importOwnConfiguration.
   ///
   /// In en, this message translates to:
@@ -763,6 +757,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{name} was removed from your subscription. Pick another server, or press again to connect automatically.'**
   String chosenServerRemoved(String name);
+
+  /// No description provided for @qrPointCamera.
+  ///
+  /// In en, this message translates to:
+  /// **'Point the camera at the subscription\'s QR code in the panel'**
+  String get qrPointCamera;
+
+  /// No description provided for @qrNotInvitation.
+  ///
+  /// In en, this message translates to:
+  /// **'This QR code is not a Caelo invitation. Open the subscription in the panel and scan its code.'**
+  String get qrNotInvitation;
+
+  /// No description provided for @qrCameraUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The camera is not available. Allow Caelo to use it in the system settings, or paste the invitation link instead.'**
+  String get qrCameraUnavailable;
 }
 
 class _AppLocalizationsDelegate

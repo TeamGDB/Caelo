@@ -41,10 +41,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get qrLogin => 'Sign in with QR';
 
   @override
-  String get qrUnavailableExplanation =>
-      'QR sign-in is not available yet. Use an invitation link.';
-
-  @override
   String get importOwnConfiguration => 'Import your own configuration file';
 
   @override
@@ -372,4 +368,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String chosenServerRemoved(String name) {
     return '$name was removed from your subscription. Pick another server, or press again to connect automatically.';
   }
+
+  @override
+  String get qrPointCamera =>
+      'Point the camera at the subscription\'s QR code in the panel';
+
+  @override
+  String get qrNotInvitation =>
+      'This QR code is not a Caelo invitation. Open the subscription in the panel and scan its code.';
+
+  @override
+  String get qrCameraUnavailable =>
+      'The camera is not available. Allow Caelo to use it in the system settings, or paste the invitation link instead.';
 }
