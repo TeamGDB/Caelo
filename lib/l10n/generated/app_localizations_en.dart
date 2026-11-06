@@ -380,4 +380,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get qrCameraUnavailable =>
       'The camera is not available. Allow Caelo to use it in the system settings, or paste the invitation link instead.';
+
+  @override
+  String get updateInstall => 'Update';
+
+  @override
+  String get updateInstallingNow => 'Installing the update…';
+
+  @override
+  String get updateLinuxFailed =>
+      'The update did not install. You can update by hand: sudo apt upgrade (or sudo dnf upgrade caelo).';
 }

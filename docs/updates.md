@@ -175,17 +175,23 @@ rude and a signal we have no business collecting.
 
 ## What Linux gets instead
 
-No updater. `/opt/caelo`, the binaries under `/usr` and the units in
+No updater of ours. `/opt/caelo`, the binaries under `/usr` and the units in
 `packaging/linux/systemd/` belong to the package manager, and an application that
 overwrites them from underneath itself breaks the next `apt upgrade` and leaves a
 machine nobody can reason about.
 
-`apt upgrade` and `dnf upgrade` already do this job correctly; they just have
-nothing to talk to yet (#46). The AppImage is the exception — a single file the
-user owns, installing nothing — and it updates itself through zsync (#47).
+What the app does instead (#150) is ask the package manager. On a copy installed from
+the deb or the rpm with the Caelo repository configured, it checks `latest.json` like
+the other platforms, and its Update button runs, through `pkexec` and the system's
+password prompt, the same upgrade `sudo apt upgrade` would perform for this one
+package: `apt-get update` limited to the Caelo source, then
+`apt-get install --only-upgrade caelo`; or `dnf upgrade --refresh caelo`. The app
+then restarts itself; the tunnel is held by the privileged service meanwhile.
+Nothing is downloaded or written by the app, and dismissing the password prompt
+leaves everything as it was.
 
-So on Linux `latest.json` exists only to support a line of text saying a newer
-version is available, and the command to get it. No download button.
+The AppImage is a single file the user owns, installing nothing, and it updates
+itself through zsync (#47). The tarball gets nothing: it has no owner to ask.
 
 ## What the check may not do
 

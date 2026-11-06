@@ -123,6 +123,8 @@ class _SettingsScreenState extends State<SettingsScreen>
           UpdateStage.found => '',
           UpdateStage.needsPermission => l10n.updateNeedsPermission,
           UpdateStage.notInstalled => l10n.updateNotInstalledExplanation,
+          UpdateStage.handOverFailed when !updates.needsDownload =>
+            l10n.updateLinuxFailed,
           _ =>
             updates.failure == DownloadFailure.untrusted
                 ? l10n.updateNotOurs
@@ -144,9 +146,11 @@ class _SettingsScreenState extends State<SettingsScreen>
                 unawaited(updates.download());
               },
               child: Text(
-                l10n.updateDownload(
-                  ((update?.sizeBytes ?? 0) / 1048576).toStringAsFixed(0),
-                ),
+                updates.needsDownload
+                    ? l10n.updateDownload(
+                        ((update?.sizeBytes ?? 0) / 1048576).toStringAsFixed(0),
+                      )
+                    : l10n.updateInstall,
               ),
             ),
           if (stage == UpdateStage.notInstalled)
@@ -180,6 +184,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     UpdateStage.downloading =>
       '${l10n.updateDownloading} ${(updates.progress * 100).toStringAsFixed(0)}%',
     UpdateStage.handedOver => l10n.updateInstalling,
+    UpdateStage.installing => l10n.updateInstallingNow,
     _ => '',
   };
 
@@ -406,7 +411,9 @@ class _SettingsScreenState extends State<SettingsScreen>
                         _Row(
                           label: l10n.checkNow,
                           value: _updateRowValue(l10n),
-                          onTap: updates.stage == UpdateStage.downloading
+                          onTap:
+                              updates.stage == UpdateStage.downloading ||
+                                  updates.stage == UpdateStage.installing
                               ? null
                               : () => unawaited(updates.check()),
                         ),
