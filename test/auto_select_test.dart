@@ -767,6 +767,35 @@ void main() {
     expect(servers.servers.firstWhere((s) => s.id == 'b').connectable, isTrue);
   });
 
+  test('a reload while measuring does not probe a server twice at once '
+      '(#146)', () async {
+    catalog = _ScriptedCatalog([_node('a')], answers: {'a': 30});
+    catalog.delays['a'] = const Duration(milliseconds: 40);
+    servers = ServerSelectionController(
+      catalog,
+      readSelected: () async => null,
+      writeSelected: (_) async {},
+      activateConfiguration: (_) async {},
+      activateNode: (_, _) async {},
+      readLastConnected: () async => null,
+      writeLastConnected: (_) async {},
+      checkSubscriptions: () async => false,
+      provisionOffers: () async => 0,
+      latencyRefreshInterval: null,
+      fastestGrace: const Duration(milliseconds: 10),
+    );
+    await servers.load();
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    // The list reloads (a refresh, keys arriving) while the first
+    // measurement of 'a' is still out, and somebody presses connect.
+    await servers.load();
+    final prepared = await servers.prepareConnection({}, never);
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+
+    expect(prepared.id, 'a');
+    expect(catalog.maxInFlight, 1, reason: 'one key, one probe at a time');
+  });
+
   group('moving to a faster server while connected (#132)', () {
     ServerSelectionController measuring() => ServerSelectionController(
       catalog,
