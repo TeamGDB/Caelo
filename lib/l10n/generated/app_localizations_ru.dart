@@ -394,4 +394,8 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get updateLinuxFailed =>
       'Обновление не установилось. Можно обновить вручную: sudo apt upgrade (или sudo dnf upgrade caelo).';
+
+  @override
+  String get updateWindowsHandOverFailed =>
+      'Не удалось запустить установщик. Файл скачан и проверен — попробуйте ещё раз или запустите установщик со страницы релизов.';
 }

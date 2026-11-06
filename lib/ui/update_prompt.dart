@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 
@@ -119,7 +120,9 @@ class _UpdatePromptState extends State<UpdatePrompt>
             ),
             UpdateStage.handOverFailed => Text(
               _flow.needsDownload
-                  ? l10n.updateHandOverFailed
+                  ? (Platform.isWindows
+                        ? l10n.updateWindowsHandOverFailed
+                        : l10n.updateHandOverFailed)
                   : l10n.updateLinuxFailed,
             ),
             _ => Text(

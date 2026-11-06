@@ -397,4 +397,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get updateLinuxFailed =>
       'The update did not install. You can update by hand: sudo apt upgrade (or sudo dnf upgrade caelo).';
+
+  @override
+  String get updateWindowsHandOverFailed =>
+      'Caelo could not start the installer. The download is fine; try again, or run the installer from the release page.';
 }

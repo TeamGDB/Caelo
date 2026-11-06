@@ -805,6 +805,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The update did not install. You can update by hand: sudo apt upgrade (or sudo dnf upgrade caelo).'**
   String get updateLinuxFailed;
+
+  /// No description provided for @updateWindowsHandOverFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Caelo could not start the installer. The download is fine; try again, or run the installer from the release page.'**
+  String get updateWindowsHandOverFailed;
 }
 
 class _AppLocalizationsDelegate

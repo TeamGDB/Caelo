@@ -393,5 +393,6 @@
   },
   "updateInstall": "Update",
   "updateInstallingNow": "Installing the update…",
-  "updateLinuxFailed": "The update did not install. You can update by hand: sudo apt upgrade (or sudo dnf upgrade caelo)."
+  "updateLinuxFailed": "The update did not install. You can update by hand: sudo apt upgrade (or sudo dnf upgrade caelo).",
+  "updateWindowsHandOverFailed": "Caelo could not start the installer. The download is fine; try again, or run the installer from the release page."
 }

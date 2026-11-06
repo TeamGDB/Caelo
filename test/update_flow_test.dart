@@ -134,20 +134,21 @@ void main() {
   test(
     'an early Windows installer exit has an uncertain, neutral outcome',
     () async {
-      var pendingWritten = false;
+      int? pending;
       final flow = UpdateFlow(
         look: () async => _update,
         fetch: (_, _) async => File('verified.exe'),
         canInstall: () async => true,
         install: (_) async => throw const WindowsInstallerStopped(),
-        writePending: (_) async => pendingWritten = true,
+        readPending: () async => pending,
+        writePending: (build) async => pending = build,
       );
       await flow.check();
       await flow.download();
 
       expect(flow.stage, UpdateStage.installerStopped);
       expect(flow.failure, isNull);
-      expect(pendingWritten, isFalse, reason: 'nothing was handed over');
+      expect(pending, isNull, reason: 'nothing was handed over');
       flow.dismiss();
       expect(flow.stage, UpdateStage.idle);
     },
@@ -244,6 +245,41 @@ void main() {
       await flow.reconcile();
 
       expect(flow.stage, UpdateStage.idle);
+      expect(pending, isNull);
+    });
+  });
+
+  group('the note survives a hand-over that ends the app (#152)', () {
+    test('it is written before the installer is started', () async {
+      int? pending;
+      int? whenInstalling;
+      final flow = UpdateFlow(
+        look: () async => _update,
+        fetch: (_, _) async => File('unused'),
+        canInstall: () async => true,
+        install: (_) async => whenInstalling = pending,
+        readPending: () async => pending,
+        writePending: (build) async => pending = build,
+      );
+      await flow.check();
+      await flow.download();
+      expect(whenInstalling, _update.build);
+      expect(pending, _update.build);
+    });
+
+    test('and taken back when the hand-over itself fails', () async {
+      int? pending;
+      final flow = UpdateFlow(
+        look: () async => _update,
+        fetch: (_, _) async => File('unused'),
+        canInstall: () async => true,
+        install: (_) async => throw StateError('no installer'),
+        readPending: () async => pending,
+        writePending: (build) async => pending = build,
+      );
+      await flow.check();
+      await flow.download();
+      expect(flow.stage, UpdateStage.handOverFailed);
       expect(pending, isNull);
     });
   });
