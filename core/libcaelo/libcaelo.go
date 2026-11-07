@@ -109,9 +109,10 @@ func caelo_probe(configText *C.char, url *C.char, timeoutMs C.int) *C.char {
 	return success(result)
 }
 
-// caelo_measure_latency proves a configuration and then measures one warm
-// HTTPS round trip through the same userspace tunnel. The first request remains
-// available as elapsed_ms; latency_ms is the value intended for the server UI.
+// caelo_measure_latency proves a configuration and reports the round trip of
+// its handshake as latency_ms: the time to the server and back, the value
+// intended for the UI (#154). The proving request remains available as
+// elapsed_ms.
 //
 //export caelo_measure_latency
 func caelo_measure_latency(configText *C.char, url *C.char, timeoutMs C.int) *C.char {

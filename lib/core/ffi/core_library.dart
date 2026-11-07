@@ -239,9 +239,9 @@ abstract final class CoreLibrary {
     });
   }
 
-  /// Measures a warm HTTPS round trip after first proving that the tunnel is
-  /// usable. Unlike [probe]'s elapsed time, `latency_ms` excludes the initial
-  /// WireGuard handshake and is the value intended for the server list.
+  /// Proves that the tunnel is usable, like [probe], and reports the round trip
+  /// of its handshake as `latency_ms`: the time to the server and back, which is
+  /// what a speed test calls ping and the value intended for the UI (#154).
   static Future<Map<String, dynamic>> measureLatency(
     String configText, {
     String url = 'https://ifconfig.me/ip',
