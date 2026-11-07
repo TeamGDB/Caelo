@@ -138,6 +138,12 @@ endpoint's rather than yours, it worked.
 Four Linux formats because "Linux" is not one thing. Nothing produced is signed or
 notarised yet, and an unsigned build must never be handed to anyone as a release.
 
+On Linux the `.deb` and `.rpm` add whoever installed them to the `caelo` group, which is
+what lets the app reach its service: the user behind `sudo` or `pkexec`, or, when a
+package was opened from the file manager, the people with a local graphical session.
+The group takes effect at the next login. If Caelo says it cannot reach its service,
+run `sudo usermod -aG caelo $USER` and log out and back in.
+
 ## Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md). Sign your commits off (`git commit -s`), and never

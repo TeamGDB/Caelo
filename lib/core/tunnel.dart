@@ -56,6 +56,14 @@ enum TunnelFailure {
   /// The server picked by hand was removed from the subscription (#128). The
   /// choice is back on automatic; the next press connects.
   chosenServerRemoved,
+
+  /// Linux: this user is in the caelo group, and this login predates it. A new
+  /// login is the remedy (#116).
+  serviceNeedsRelogin,
+
+  /// Linux: this user is not in the caelo group, so the service's socket
+  /// refuses them (#116).
+  serviceNeedsGroup,
 }
 
 /// Which protocol carried the connection.

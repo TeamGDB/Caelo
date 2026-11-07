@@ -171,6 +171,8 @@ String? _explain(
   TunnelFailure.chosenServerRemoved => l10n.chosenServerRemoved(
     removedName ?? '',
   ),
+  TunnelFailure.serviceNeedsRelogin => l10n.serviceNeedsRelogin,
+  TunnelFailure.serviceNeedsGroup => l10n.serviceNeedsGroup,
   null => null,
 };
 

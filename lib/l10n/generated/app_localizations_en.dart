@@ -401,4 +401,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get updateWindowsHandOverFailed =>
       'Caelo could not start the installer. The download is fine; try again, or run the installer from the release page.';
+
+  @override
+  String get serviceNeedsRelogin =>
+      'Caelo cannot reach its background service yet. Log out and back in (or restart) so this session picks up the access it was given.';
+
+  @override
+  String get serviceNeedsGroup =>
+      'Caelo is not allowed to reach its background service. In a terminal run: sudo usermod -aG caelo \$USER — then log out and back in.';
 }

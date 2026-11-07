@@ -744,6 +744,34 @@ void main() {
     expect(find.textContaining('Update Caelo'), findsOneWidget);
   });
 
+  // On Linux the socket refuses whoever is not in the caelo group, and the two
+  // remedies differ: a new login, or being added first (#116).
+  testWidgets('says how to get access to the service', (tester) async {
+    await pumpHome(tester, locale: const Locale('en'));
+
+    client.emit(
+      const TunnelStatus(
+        phase: TunnelPhase.failed,
+        failure: TunnelFailure.serviceNeedsGroup,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('sudo usermod -aG caelo \$USER'),
+      findsOneWidget,
+    );
+
+    client.emit(
+      const TunnelStatus(
+        phase: TunnelPhase.failed,
+        failure: TunnelFailure.serviceNeedsRelogin,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Log out and back in'), findsOneWidget);
+    expect(find.textContaining('usermod'), findsNothing);
+  });
+
   // Most failures are worth retrying and have nothing useful to add. An
   // explanation under every one of them would train people to ignore the place
   // the useful ones appear.

@@ -27,11 +27,39 @@ elif [ -n "${PKEXEC_UID:-}" ]; then
     INSTALLER="$(getent passwd "$PKEXEC_UID" | cut -d: -f1)"
 fi
 
-if [ -n "$INSTALLER" ] && ! id -nG "$INSTALLER" 2>/dev/null | tr ' ' '\n' | grep -qx "$GROUP"; then
-    usermod -aG "$GROUP" "$INSTALLER" || true
-    echo "Caelo: added $INSTALLER to the $GROUP group."
-    echo "Caelo: log out and back in for that to take effect."
+# Neither is set when a .deb is opened from the file manager: PackageKit installs
+# it, and leaves no trace of who asked (#116). Whoever clicked Install is sitting
+# at this machine, so the people with a local graphical session are taken
+# instead. Not remote ones: somebody logged in over ssh did not click anything.
+# Nobody at all, as in a container or an unattended install, leaves this empty,
+# as before.
+if [ -z "$INSTALLER" ] && command -v loginctl >/dev/null 2>&1; then
+    for session in $(loginctl list-sessions --no-legend 2>/dev/null | while read -r id _; do echo "$id"; done); do
+        name="" type="" remote="" class=""
+        for property in $(loginctl show-session "$session" -p Name -p Type -p Remote -p Class 2>/dev/null); do
+            case "$property" in
+                Name=*) name="${property#Name=}" ;;
+                Type=*) type="${property#Type=}" ;;
+                Remote=*) remote="${property#Remote=}" ;;
+                Class=*) class="${property#Class=}" ;;
+            esac
+        done
+        case "$type" in x11|wayland|mir) ;; *) continue ;; esac
+        [ "$remote" = "no" ] && [ "$class" = "user" ] && [ -n "$name" ] || continue
+        uid="$(id -u "$name" 2>/dev/null)" || continue
+        [ "$uid" -ge 1000 ] && [ "$uid" -lt 65534 ] || continue
+        case " $INSTALLER " in *" $name "*) continue ;; esac
+        INSTALLER="${INSTALLER:+$INSTALLER }$name"
+    done
 fi
+
+for person in $INSTALLER; do
+    if ! id -nG "$person" 2>/dev/null | tr ' ' '\n' | grep -qx "$GROUP"; then
+        usermod -aG "$GROUP" "$person" || true
+        echo "Caelo: added $person to the $GROUP group."
+        echo "Caelo: log out and back in for that to take effect."
+    fi
+done
 
 if [ -z "$INSTALLER" ]; then
     echo "Caelo: could not tell who is installing this."
