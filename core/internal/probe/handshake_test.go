@@ -1,10 +1,9 @@
 package probe
 
 import (
-	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"net"
 	"net/netip"
 	"testing"
 	"time"
@@ -12,7 +11,8 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/v3/conn"
 	"github.com/amnezia-vpn/amneziawg-go/v3/device"
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun/netstack"
-	"golang.org/x/crypto/curve25519"
+
+	"github.com/TeamGDB/Caelo/core/internal/awgtest"
 )
 
 func TestHandshakeClockPairsTheLastInitiationWithTheResponse(t *testing.T) {
@@ -81,9 +81,9 @@ func TestHandshakeClockPassesLinesOn(t *testing.T) {
 func TestHandshakeClockTimesARealHandshake(t *testing.T) {
 	t.Parallel()
 
-	serverKey, serverPublic := keyPair(t)
-	clientKey, clientPublic := keyPair(t)
-	port := freeUDPPort(t)
+	serverKey, serverPublic := hexKeyPair(t)
+	clientKey, clientPublic := hexKeyPair(t)
+	port := awgtest.FreeUDPPort(t)
 
 	serverAddr := netip.MustParseAddr("10.154.0.1")
 	clientAddr := netip.MustParseAddr("10.154.0.2")
@@ -144,27 +144,18 @@ func TestHandshakeClockTimesARealHandshake(t *testing.T) {
 	t.Fatal("the handshake completed unseen: has the device reworded its log lines?")
 }
 
-func keyPair(t *testing.T) (private, public string) {
+// hexKeyPair is a key pair as UAPI takes it.
+func hexKeyPair(t *testing.T) (private, public string) {
 	t.Helper()
-	var key [32]byte
-	if _, err := rand.Read(key[:]); err != nil {
-		t.Fatal(err)
-	}
-	key[0] &= 248
-	key[31] = key[31]&127 | 64
-	pub, err := curve25519.X25519(key[:], curve25519.Basepoint)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return hex.EncodeToString(key[:]), hex.EncodeToString(pub)
+	b64Private, b64Public := awgtest.KeyPair(t)
+	return toHex(t, b64Private), toHex(t, b64Public)
 }
 
-func freeUDPPort(t *testing.T) int {
+func toHex(t *testing.T, key string) string {
 	t.Helper()
-	socket, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+	raw, err := base64.StdEncoding.DecodeString(key)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer socket.Close()
-	return socket.LocalAddr().(*net.UDPAddr).Port
+	return hex.EncodeToString(raw)
 }
