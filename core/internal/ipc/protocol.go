@@ -77,6 +77,10 @@ type Response struct {
 	// an older app or service on the other end is unaffected (#118).
 	HandshakeUnix int64 `json:"handshake_unix,omitempty"`
 
+	// LatencyMs is the round trip to the server, measured from the traffic
+	// the tunnel carries. Optional in the same way (#156).
+	LatencyMs int64 `json:"latency_ms,omitempty"`
+
 	Core      string `json:"core,omitempty"`
 	AmneziaWG string `json:"amneziawg,omitempty"`
 

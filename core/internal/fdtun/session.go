@@ -26,6 +26,7 @@ import (
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
+	"github.com/TeamGDB/Caelo/core/internal/rtt"
 )
 
 // Status describes a live tunnel.
@@ -40,6 +41,10 @@ type Status struct {
 	// re-handshakes at least every two minutes, so an old one means the
 	// server has gone quiet (#118).
 	HandshakeUnix int64 `json:"handshake_unix,omitempty"`
+
+	// LatencyMs is the round trip to the server, measured from the traffic
+	// the tunnel carries (#156). Absent until a connection has been seen.
+	LatencyMs int64 `json:"latency_ms,omitempty"`
 }
 
 // Session is one tunnel on a host-provided device.
@@ -49,6 +54,7 @@ type Session struct {
 	device *device.Device
 	bind   conn.Bind
 	status Status
+	meter  *rtt.Meter
 }
 
 // New returns a Session with nothing up.
@@ -86,7 +92,8 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 	tunDevice = withMTU(tunDevice, cfg.MTU)
 
 	bind := conn.NewDefaultBind()
-	dev := device.NewDevice(tunDevice, bind, diag.DeviceLogger())
+	meter := rtt.New()
+	dev := device.NewDevice(rtt.Wrap(tunDevice, meter), bind, diag.DeviceLogger())
 
 	if err := dev.IpcSet(cfg.IPC()); err != nil {
 		dev.Close()
@@ -110,6 +117,7 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 
 	s.device = dev
 	s.bind = bind
+	s.meter = meter
 	s.status = Status{
 		Up:         true,
 		Endpoint:   cfg.Peer.Endpoint,
@@ -201,6 +209,7 @@ func (s *Session) stopLocked() {
 	s.device.Close()
 	s.device = nil
 	s.bind = nil
+	s.meter = nil
 	s.status = Status{}
 }
 
@@ -208,8 +217,10 @@ func (s *Session) stopLocked() {
 func (s *Session) Status() Status {
 	s.mu.Lock()
 	status := s.status
+	meter := s.meter
 	s.mu.Unlock()
 	if status.Up {
+		status.LatencyMs = meter.Milliseconds()
 		if uapi, err := s.uapi(); err == nil {
 			if at := handshake.Parse(uapi); !at.IsZero() {
 				status.HandshakeUnix = at.Unix()
