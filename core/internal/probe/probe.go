@@ -32,9 +32,10 @@ type Result struct {
 	Body       string        `json:"body"`
 	Elapsed    time.Duration `json:"-"`
 	ElapsedMs  int64         `json:"elapsed_ms"`
-	// LatencyMs is a warm HTTPS round trip through an already proven tunnel.
-	// It is intentionally separate from ElapsedMs, whose first request includes
-	// tunnel establishment and remains the availability metric used by callers.
+	// LatencyMs is the handshake's round trip: the time to the server and
+	// back, which is what a person comparing with a speed test means by ping
+	// (#154). ElapsedMs stays the whole first request, establishment included,
+	// and remains the availability metric used by callers.
 	LatencyMs *int64 `json:"latency_ms,omitempty"`
 }
 
@@ -49,9 +50,7 @@ type Options struct {
 	// Verbose logs device internals, including handshake progress, to stderr.
 	Verbose bool
 
-	// MeasureLatency follows the proving request with one more request over the
-	// same tunnel. The second request excludes WireGuard establishment and is
-	// suitable for a periodically refreshed value in the UI.
+	// MeasureLatency reports the handshake's round trip as LatencyMs.
 	MeasureLatency bool
 }
 
@@ -85,7 +84,8 @@ func Run(configText string, opts Options) (*Result, error) {
 	// rather than passed: a tunnel already up should start talking too.
 	diag.SetVerbose(opts.Verbose)
 
-	dev := device.NewDevice(tunnel, conn.NewDefaultBind(), diag.DeviceLogger())
+	clock := newHandshakeClock()
+	dev := device.NewDevice(tunnel, conn.NewDefaultBind(), clock.logger(diag.DeviceLogger()))
 	defer dev.Close()
 
 	if err := dev.IpcSet(cfg.IPC()); err != nil {
@@ -100,14 +100,17 @@ func Run(configText string, opts Options) (*Result, error) {
 
 	client := &http.Client{Transport: &http.Transport{DialContext: tnet.DialContext}}
 
-	status, body, elapsed, latencyMs, err := requestMeasurements(
-		ctx,
-		client,
-		opts.URL,
-		opts.MeasureLatency,
-	)
+	status, body, elapsed, err := fetch(ctx, client, opts.URL)
 	if err != nil {
 		return nil, err
+	}
+
+	var latencyMs *int64
+	if opts.MeasureLatency {
+		latencyMs, err = measureLatency(ctx, client, opts.URL, clock)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Result{
@@ -122,26 +125,31 @@ func Run(configText string, opts Options) (*Result, error) {
 	}, nil
 }
 
-func requestMeasurements(
+// measureLatency reports the round trip of the handshake that carried the
+// proving request.
+//
+// A request came back through the tunnel, so a handshake completed and the
+// clock saw it. Should it somehow not have — a library upgrade that rewords
+// its log lines, say — the figure falls back to what it was before #154, one
+// more request over the same connection, rather than turning a working server
+// into one with no figure.
+func measureLatency(
 	ctx context.Context,
 	client *http.Client,
 	url string,
-	measureLatency bool,
-) (string, string, time.Duration, *int64, error) {
-	status, body, elapsed, err := fetch(ctx, client, url)
-	if err != nil {
-		return "", "", 0, nil, err
+	clock *handshakeClock,
+) (*int64, error) {
+	if rtt, ok := clock.roundTrip(); ok {
+		ms := rtt.Milliseconds()
+		return &ms, nil
 	}
-	if !measureLatency {
-		return status, body, elapsed, nil, nil
-	}
-
+	diag.Logf("probe: the handshake was not timed; measuring a request instead")
 	_, _, latency, err := fetch(ctx, client, url)
 	if err != nil {
-		return "", "", 0, nil, fmt.Errorf("measuring latency: %w", err)
+		return nil, fmt.Errorf("measuring latency: %w", err)
 	}
-	measured := latency.Milliseconds()
-	return status, body, elapsed, &measured, nil
+	ms := latency.Milliseconds()
+	return &ms, nil
 }
 
 // MaxBody is the largest response a probe reads. The same ceiling the app puts
