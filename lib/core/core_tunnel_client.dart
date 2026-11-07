@@ -97,6 +97,11 @@ class CoreTunnelClient implements TunnelClient {
     _emit(const TunnelStatus.disconnected());
   }
 
+  /// This tunnel carries only this process, and its figure is the reachability
+  /// check's, already in the status.
+  @override
+  Future<int?> latency() async => null;
+
   @override
   Future<void> reconnectDifferently() async {
     // There is one configuration and therefore one node. This becomes real with

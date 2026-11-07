@@ -112,6 +112,20 @@ class TunnelStatus {
 ///
 /// The real implementation will speak gRPC to `caelo-core`. Until that exists,
 /// see `StubTunnelClient`.
+/// The live round trip in a tunnel status reply, as the core, the extension
+/// and the service all report it (#156), or null when there is none.
+///
+/// A reply from before the figure existed has no `latency_ms`; a tunnel that is
+/// not up has nothing to say whatever the reply carries; and anything that is
+/// not a positive whole number of milliseconds is not a figure.
+int? liveLatencyIn(Object? status) {
+  if (status is! Map || status['up'] != true) return null;
+  final latency = status['latency_ms'];
+  if (latency is! num || !latency.isFinite) return null;
+  final ms = latency.round();
+  return ms > 0 ? ms : null;
+}
+
 abstract interface class TunnelClient {
   /// What the core is doing right now.
   ///
@@ -141,6 +155,15 @@ abstract interface class TunnelClient {
   /// Abandon the current node and pick a different one. This is the escape
   /// hatch for "it says connected but nothing loads".
   Future<void> reconnectDifferently();
+
+  /// The round trip to the server right now, as the tunnel measures it from
+  /// the traffic it carries (#156).
+  ///
+  /// Null when there is no figure: nothing is up, no connection has crossed
+  /// the tunnel yet, or the core or service is from before this was reported.
+  /// Asked for every couple of seconds while the app is in front, so it must
+  /// be cheap and must not log.
+  Future<int?> latency();
 
   Future<void> dispose();
 }

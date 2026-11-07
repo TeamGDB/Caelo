@@ -106,6 +106,12 @@ final class VpnManager {
                 result(Self.name(for: manager?.connection.status ?? .invalid))
             }
 
+        // The extension's own status, with the live round trip (#156). Asked
+        // of the extension because it is the process that has the tunnel;
+        // nil when it is not running.
+        case "tunnelStatus":
+            ask("status", result)
+
         // Everything the tunnel knows lives in the other process. This is the
         // only way to see it.
         // Read from the shared container rather than asked for, so it works
@@ -183,7 +189,11 @@ final class VpnManager {
             }
             do {
                 try session.sendProviderMessage(Data(message.utf8)) { reply in
-                    result(reply.flatMap { String(data: $0, encoding: .utf8) })
+                    // The reply arrives on a queue of the system's choosing,
+                    // and a Flutter result has to be delivered on the main
+                    // thread.
+                    let text = reply.flatMap { String(data: $0, encoding: .utf8) }
+                    DispatchQueue.main.async { result(text) }
                 }
             } catch {
                 // The extension is not running, which is an ordinary state

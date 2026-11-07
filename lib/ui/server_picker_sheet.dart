@@ -45,14 +45,23 @@ class _ServerDrawerState extends State<ServerDrawer> {
     if (widget.locked && !oldWidget.locked) {
       _extent = null;
       if (_listController.hasClients) _listController.jumpTo(0);
+      _reportOpen(false);
+    }
+    if (!identical(widget.controller, oldWidget.controller)) {
+      oldWidget.controller.listOpen = false;
     }
   }
 
   @override
   void dispose() {
+    _reportOpen(false);
     _listController.dispose();
     super.dispose();
   }
+
+  /// Tells the list whether it is open in front of somebody: that is when
+  /// its servers are measured (#156).
+  void _reportOpen(bool open) => widget.controller.listOpen = open;
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +92,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
             _dragging = false;
             _extent = expand ? expanded : peek;
           });
+          _reportOpen(expand);
           if (!expand && _listController.hasClients) {
             _listController.jumpTo(0);
           }
@@ -94,6 +104,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
             _dragging = false;
             _extent = peek;
           });
+          _reportOpen(false);
           if (_listController.hasClients) _listController.jumpTo(0);
         }
 
@@ -106,6 +117,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
               _dragging = false;
               _extent = expanded;
             });
+            _reportOpen(true);
           }
         }
 

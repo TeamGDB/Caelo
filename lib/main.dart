@@ -211,6 +211,12 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The live ping is asked for only while somebody can see it (#156). An
+    // unfocused desktop window is still in view, so only hidden counts.
+    _controller.foreground =
+        state != AppLifecycleState.paused &&
+        state != AppLifecycleState.hidden &&
+        state != AppLifecycleState.detached;
     if (state == AppLifecycleState.resumed &&
         DesktopUpdater.isSupported &&
         _desktopUpdaterStarted) {

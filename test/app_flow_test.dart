@@ -76,6 +76,9 @@ class _DeviceTunnel implements TunnelClient {
   @override
   bool get coversWholeMachine => true;
 
+  @override
+  Future<int?> latency() async => null;
+
   void _emit(TunnelStatus status) {
     current = status;
     _changes.add(status);

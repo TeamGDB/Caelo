@@ -33,6 +33,19 @@ class FakeTunnelClient implements TunnelClient {
   @override
   Future<void> reconnectDifferently() async => calls.add('reconnect');
 
+  /// What [latency] answers; a function so a test can change it, throw, or
+  /// hold it open.
+  Future<int?> Function() latencyAnswer = () async => null;
+
+  /// How many times [latency] was asked.
+  int latencyAsked = 0;
+
+  @override
+  Future<int?> latency() {
+    latencyAsked++;
+    return latencyAnswer();
+  }
+
   @override
   Future<void> dispose() async {
     calls.add('dispose');

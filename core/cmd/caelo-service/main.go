@@ -306,6 +306,7 @@ func fromStatus(status systunnel.Status) ipc.Response {
 		SinceUnix:  status.SinceUnix,
 
 		HandshakeUnix: status.HandshakeUnix,
+		LatencyMs:     status.LatencyMs,
 	}
 }
 

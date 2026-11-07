@@ -465,6 +465,35 @@ class ServerSelectionController extends ChangeNotifier {
 
   bool get tunnelActive => _tunnelActive;
 
+  /// Whether the list is open in front of somebody (#156).
+  ///
+  /// Every measurement is a fresh handshake with a server, and a device that
+  /// knocks on several VPN addresses every few minutes stands out more than
+  /// anything else it does. So the list is measured when someone opens it to
+  /// look; in the background only while connected automatically, where moving
+  /// to a faster server depends on it (#132).
+  bool get listOpen => _listOpen;
+  bool _listOpen = false;
+  set listOpen(bool open) {
+    if (open == _listOpen) return;
+    _listOpen = open;
+    _measureGeneration++;
+    _latencyRefreshTimer?.cancel();
+    if (open) {
+      unawaited(_measureLatencies(_measureGeneration, justOpened: true));
+    } else if (_measuresInBackground) {
+      _scheduleMeasurement(const Duration(seconds: 2));
+    }
+  }
+
+  /// Whether the list is measured with nobody looking: only for moving to a
+  /// faster server while connected automatically (#132).
+  bool get _measuresInBackground => _tunnelActive && isAutomatic;
+
+  /// How old a figure may be and still be shown without asking again when
+  /// the list is opened.
+  static const freshOnOpen = Duration(minutes: 1);
+
   Future<void> load() async {
     final generation = ++_loadGeneration;
     final loaded = await catalog.load();
@@ -516,8 +545,12 @@ class ServerSelectionController extends ChangeNotifier {
     });
   }
 
-  Future<void> _measureLatencies(int generation) async {
+  Future<void> _measureLatencies(
+    int generation, {
+    bool justOpened = false,
+  }) async {
     if (!backgroundMeasurement) return;
+    if (!_listOpen && !_measuresInBackground) return;
     for (final server in [...servers]) {
       if (generation != _measureGeneration) return;
       if (!server.connectable) continue;
@@ -533,6 +566,14 @@ class ServerSelectionController extends ChangeNotifier {
           DateTime.now().difference(at) < const Duration(minutes: 4);
       if (_tunnelActive &&
           (server.id == active?.id || (fresh && !server.unreachable))) {
+        continue;
+      }
+      // Opened again a moment later: what was just measured stands.
+      if (justOpened &&
+          !_tunnelActive &&
+          at != null &&
+          !server.unreachable &&
+          DateTime.now().difference(at) < freshOnOpen) {
         continue;
       }
       final latency = await _measureOnce(server);
@@ -551,7 +592,9 @@ class ServerSelectionController extends ChangeNotifier {
     }
     if (generation != _measureGeneration) return;
     final interval = latencyRefreshInterval;
-    if (interval != null) _scheduleMeasurement(interval);
+    if (interval != null && (_listOpen || _measuresInBackground)) {
+      _scheduleMeasurement(interval);
+    }
   }
 
   void _recordUnreachable(String id) {

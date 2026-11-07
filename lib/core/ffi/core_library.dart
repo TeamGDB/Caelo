@@ -239,9 +239,10 @@ abstract final class CoreLibrary {
     });
   }
 
-  /// Proves that the tunnel is usable, like [probe], and reports the round trip
-  /// of its handshake as `latency_ms`: the time to the server and back, which is
-  /// what a speed test calls ping and the value intended for the UI (#154).
+  /// Proves that the tunnel is usable, like [probe], and reports `latency_ms`:
+  /// the round trip through the server and out of its exit to the nearest CDN.
+  /// It is what a speed test over the tunnel shows, the same figure the live
+  /// ping shows once connected, and the one servers are compared by (#156).
   static Future<Map<String, dynamic>> measureLatency(
     String configText, {
     String url = 'https://ifconfig.me/ip',

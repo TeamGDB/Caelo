@@ -2,123 +2,30 @@ package probe
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
-	"fmt"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"net/netip"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/amnezia-vpn/amneziawg-go/v3/conn"
-	"github.com/amnezia-vpn/amneziawg-go/v3/device"
-	"github.com/amnezia-vpn/amneziawg-go/v3/tun/netstack"
-	"golang.org/x/crypto/curve25519"
-
-	"github.com/TeamGDB/Caelo/core/internal/awg"
+	"github.com/TeamGDB/Caelo/core/internal/awgtest"
 )
 
-// obfuscation is a full AWG 1.5 set, so that the clock is shown to work when
-// headers and sizes no longer say what a packet is.
-const obfuscation = "Jc = 4\nJmin = 10\nJmax = 50\n" +
-	"S1 = 31\nS2 = 17\n" +
-	"H1 = 1000000-1000100\nH2 = 2000000-2000100\n" +
-	"H3 = 3000000-3000100\nH4 = 4000000-4000100\n"
-
-// loopbackServer is an AmneziaWG server on 127.0.0.1 with a web server inside
-// its tunnel, which answers with the server's tunnel address.
-type loopbackServer struct {
-	clientConfig string
-	url          string
-	requests     func() int
-}
-
-func startLoopbackServer(t *testing.T, extra string, delay time.Duration) loopbackServer {
-	t.Helper()
-
-	serverKey, serverPublic := base64KeyPair(t)
-	clientKey, clientPublic := base64KeyPair(t)
-	port := freeUDPPort(t)
-	serverAddr := netip.MustParseAddr("10.154.1.1")
-
-	serverCfg, err := awg.ParseConfig("[Interface]\n" +
-		"PrivateKey = " + serverKey + "\n" +
-		"Address = " + serverAddr.String() + "/32\n" + extra +
-		"[Peer]\n" +
-		"PublicKey = " + clientPublic + "\n" +
-		"AllowedIPs = 10.154.1.2/32\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	tun, tnet, err := netstack.CreateNetTUN(serverCfg.Addresses, nil, serverCfg.MTU)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Every packet the server sends is held back by delay, so the round trip
-	// is something to measure rather than loopback's microseconds.
-	var bind conn.Bind = conn.NewDefaultBind()
-	if delay > 0 {
-		bind = &delayedBind{Bind: bind, delay: delay}
-	}
-	dev := device.NewDevice(tun, bind, device.NewLogger(device.LogLevelSilent, ""))
-	t.Cleanup(dev.Close)
-
-	if err := dev.IpcSet(fmt.Sprintf("listen_port=%d\n", port) + serverCfg.IPC()); err != nil {
-		t.Fatal(err)
-	}
-	if err := dev.Up(); err != nil {
-		t.Fatal(err)
-	}
-
-	listener, err := tnet.ListenTCP(&net.TCPAddr{IP: serverAddr.AsSlice(), Port: 80})
-	if err != nil {
-		t.Fatal(err)
-	}
-	count := make(chan int, 1)
-	count <- 0
-	web := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		n := <-count
-		count <- n + 1
-		_, _ = w.Write([]byte(" " + serverAddr.String() + "\n"))
-	})}
-	go func() { _ = web.Serve(listener) }()
-	t.Cleanup(func() { _ = web.Close() })
-
-	return loopbackServer{
-		clientConfig: "[Interface]\n" +
-			"PrivateKey = " + clientKey + "\n" +
-			"Address = 10.154.1.2/32\n" + extra +
-			"[Peer]\n" +
-			"PublicKey = " + serverPublic + "\n" +
-			fmt.Sprintf("Endpoint = 127.0.0.1:%d\n", port) +
-			"AllowedIPs = 10.154.1.0/24\n",
-		url: "http://" + serverAddr.String() + "/",
-		requests: func() int {
-			n := <-count
-			count <- n
-			return n
-		},
-	}
-}
-
-func TestRunReportsTheHandshakeRoundTrip(t *testing.T) {
+func TestRunReportsTheRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	for name, extra := range map[string]string{
 		"plain WireGuard": "",
-		"obfuscated":      obfuscation,
+		"obfuscated":      awgtest.Obfuscation,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			server := startLoopbackServer(t, extra, 0)
+			server := awgtest.Start(t, awgtest.Options{Obfuscation: extra})
 
-			result, err := Run(server.clientConfig, Options{
-				URL:            server.url,
+			result, err := Run(server.ClientConfig, Options{
+				URL:            server.URL,
 				Timeout:        15 * time.Second,
 				MeasureLatency: true,
+				LatencyTarget:  awgtest.FarAddress.String() + ":80",
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -139,7 +46,7 @@ func TestRunReportsTheHandshakeRoundTrip(t *testing.T) {
 			}
 
 			// The figure is the handshake, not another request.
-			if got := server.requests(); got != 1 {
+			if got := server.Requests(); got != 1 {
 				t.Fatalf("server saw %d requests, want only the proving one", got)
 			}
 			if result.LatencyMs == nil {
@@ -158,12 +65,13 @@ func TestRunMeasuresOneRoundTripNotARequest(t *testing.T) {
 	t.Parallel()
 
 	const delay = 80 * time.Millisecond
-	server := startLoopbackServer(t, obfuscation, delay)
+	server := awgtest.Start(t, awgtest.Options{Obfuscation: awgtest.Obfuscation, Delay: delay})
 
-	result, err := Run(server.clientConfig, Options{
-		URL:            server.url,
+	result, err := Run(server.ClientConfig, Options{
+		URL:            server.URL,
 		Timeout:        15 * time.Second,
 		MeasureLatency: true,
+		LatencyTarget:  awgtest.FarAddress.String() + ":80",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -180,28 +88,28 @@ func TestRunMeasuresOneRoundTripNotARequest(t *testing.T) {
 
 func TestRunWithoutMeasuringLeavesLatencyOut(t *testing.T) {
 	t.Parallel()
-	server := startLoopbackServer(t, "", 0)
+	server := awgtest.Start(t, awgtest.Options{})
 
-	result, err := Run(server.clientConfig, Options{URL: server.url, Timeout: 15 * time.Second})
+	result, err := Run(server.ClientConfig, Options{URL: server.URL, Timeout: 15 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if result.LatencyMs != nil {
 		t.Fatalf("latency = %d, want none from a plain probe", *result.LatencyMs)
 	}
-	if got := server.requests(); got != 1 {
+	if got := server.Requests(); got != 1 {
 		t.Fatalf("server saw %d requests, want 1", got)
 	}
 }
 
 func TestRunFailsAgainstAServerThatDoesNotAnswer(t *testing.T) {
 	t.Parallel()
-	server := startLoopbackServer(t, "", 0)
+	server := awgtest.Start(t, awgtest.Options{})
 
 	// Same server, wrong obfuscation: it drops every packet, as a real one
 	// would. No figure is invented for it.
-	_, err := Run(strings.Replace(server.clientConfig, "[Peer]", "Jc = 3\nJmin = 10\nJmax = 20\nH1 = 77\n[Peer]", 1), Options{
-		URL:            server.url,
+	_, err := Run(strings.Replace(server.ClientConfig, "[Peer]", "Jc = 3\nJmin = 10\nJmax = 20\nH1 = 77\n[Peer]", 1), Options{
+		URL:            server.URL,
 		Timeout:        2 * time.Second,
 		MeasureLatency: true,
 	})
@@ -210,89 +118,131 @@ func TestRunFailsAgainstAServerThatDoesNotAnswer(t *testing.T) {
 	}
 }
 
-func TestMeasureLatencyUsesTheHandshakeWhenTimed(t *testing.T) {
+// A server that relays to an exit elsewhere: quick to shake hands with, slow
+// to get anywhere through. The figure is the whole way, as a speed test over
+// the tunnel would show it, not the first hop (#156).
+func TestRunMeasuresTheWayOutThroughARelay(t *testing.T) {
 	t.Parallel()
 
-	requests := 0
-	web := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests++ }))
-	defer web.Close()
+	const entry, exit = 20 * time.Millisecond, 70 * time.Millisecond
+	server := awgtest.Start(t, awgtest.Options{
+		Obfuscation: awgtest.Obfuscation,
+		Delay:       entry,
+		ExitDelay:   exit,
+	})
 
-	at := time.Unix(0, 0)
-	clock := newHandshakeClock()
-	clock.now = func() time.Time { return at }
-	clock.observe(sendingInitiation)
-	at = at.Add(37 * time.Millisecond)
-	clock.observe(receivedResponse)
-
-	latency, err := measureLatency(context.Background(), web.Client(), web.URL, clock)
+	result, err := Run(server.ClientConfig, Options{
+		// The proving request goes to the server itself, entry away: it
+		// must not stand in for the way out.
+		URL:            server.URL,
+		Timeout:        15 * time.Second,
+		MeasureLatency: true,
+		LatencyTarget:  awgtest.FarAddress.String() + ":80",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if latency == nil || *latency != 37 {
-		t.Fatalf("latency = %v, want 37", latency)
+	latency := time.Duration(*result.LatencyMs) * time.Millisecond
+	if whole := entry + exit; latency < whole || latency >= 2*whole {
+		t.Fatalf("latency = %v, want the whole way out, about %v, not the %v to the server", latency, whole, entry)
 	}
-	if requests != 0 {
-		t.Fatalf("requests = %d, want none", requests)
+	if server.Requests() != 1 {
+		t.Fatalf("server saw %d requests: timing the exit must send nothing over the connection", server.Requests())
+	}
+}
+
+func TestRunFallsBackToTheHandshakeWhenTheExitDoesNotAnswer(t *testing.T) {
+	t.Parallel()
+
+	const delay = 40 * time.Millisecond
+	server := awgtest.Start(t, awgtest.Options{Delay: delay})
+
+	started := time.Now()
+	result, err := Run(server.ClientConfig, Options{
+		URL:            server.URL,
+		Timeout:        15 * time.Second,
+		MeasureLatency: true,
+		// Nothing listens there: the connection is refused or never answered.
+		LatencyTarget: "10.154.9.9:443",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.LatencyMs == nil {
+		t.Fatal("no figure: a working server must keep one")
+	}
+	latency := time.Duration(*result.LatencyMs) * time.Millisecond
+	// The handshake's crypto is slow under the race detector, so only the
+	// floor is exact: a figure that is at least one round trip.
+	if latency < delay || latency > delay+500*time.Millisecond {
+		t.Fatalf("latency = %v, want the handshake, about %v", latency, delay)
+	}
+	if took := time.Since(started); took > exitDialTimeout+5*time.Second {
+		t.Fatalf("the probe took %v waiting for an exit that does not answer", took)
+	}
+}
+
+func sources(exit time.Duration, exitOK bool, handshake time.Duration, handshakeOK bool, request func() (time.Duration, error)) latencySources {
+	return latencySources{
+		exit:      func(context.Context) (time.Duration, bool) { return exit, exitOK },
+		handshake: func() (time.Duration, bool) { return handshake, handshakeOK },
+		request:   func(context.Context) (time.Duration, error) { return request() },
+	}
+}
+
+func TestMeasureLatencyPrefersTheWayOut(t *testing.T) {
+	t.Parallel()
+	asked := false
+	latency, err := measureLatency(context.Background(), sources(
+		93*time.Millisecond, true, 32*time.Millisecond, true,
+		func() (time.Duration, error) { asked = true; return 0, nil },
+	))
+	if err != nil || latency == nil || *latency != 93 {
+		t.Fatalf("latency = %v, %v; want 93 from the exit", latency, err)
+	}
+	if asked {
+		t.Fatal("a request was made although the exit answered")
+	}
+}
+
+func TestMeasureLatencyFallsBackToTheHandshake(t *testing.T) {
+	t.Parallel()
+	latency, err := measureLatency(context.Background(), sources(
+		0, false, 32*time.Millisecond, true,
+		func() (time.Duration, error) { t.Fatal("a request was made"); return 0, nil },
+	))
+	if err != nil || latency == nil || *latency != 32 {
+		t.Fatalf("latency = %v, %v; want 32 from the handshake", latency, err)
 	}
 }
 
 func TestMeasureLatencyFallsBackToARequest(t *testing.T) {
 	t.Parallel()
-
-	requests := 0
-	web := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests++ }))
-	defer web.Close()
-
-	latency, err := measureLatency(context.Background(), web.Client(), web.URL, newHandshakeClock())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if latency == nil || *latency < 0 {
-		t.Fatalf("latency = %v, want the request's time", latency)
-	}
-	if requests != 1 {
-		t.Fatalf("requests = %d, want one fallback request", requests)
+	latency, err := measureLatency(context.Background(), sources(
+		0, false, 0, false,
+		func() (time.Duration, error) { return 140 * time.Millisecond, nil },
+	))
+	if err != nil || latency == nil || *latency != 140 {
+		t.Fatalf("latency = %v, %v; want 140 from the request", latency, err)
 	}
 }
 
 func TestMeasureLatencyFallbackReportsAFailedRequest(t *testing.T) {
 	t.Parallel()
-
-	web := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	url := web.URL
-	web.Close()
-
-	if _, err := measureLatency(context.Background(), http.DefaultClient, url, newHandshakeClock()); err == nil {
+	if _, err := measureLatency(context.Background(), sources(
+		0, false, 0, false,
+		func() (time.Duration, error) { return 0, errors.New("refused") },
+	)); err == nil {
 		t.Fatal("a failed fallback request produced a figure")
 	}
 }
 
-func base64KeyPair(t *testing.T) (private, public string) {
-	t.Helper()
-	var key [32]byte
-	if _, err := rand.Read(key[:]); err != nil {
-		t.Fatal(err)
+func TestMeasureLatencyNeverReportsZero(t *testing.T) {
+	t.Parallel()
+	latency, _ := measureLatency(context.Background(), sources(
+		300*time.Microsecond, true, 0, false, nil,
+	))
+	if latency == nil || *latency != 1 {
+		t.Fatalf("latency = %v, want 1: zero reads as no figure in the app", latency)
 	}
-	key[0] &= 248
-	key[31] = key[31]&127 | 64
-	pub, err := curve25519.X25519(key[:], curve25519.Basepoint)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return base64.StdEncoding.EncodeToString(key[:]), base64.StdEncoding.EncodeToString(pub)
-}
-
-// delayedBind sends every packet late, like a server far away.
-type delayedBind struct {
-	conn.Bind
-	delay time.Duration
-}
-
-func (b *delayedBind) Send(bufs [][]byte, ep conn.Endpoint) error {
-	copied := make([][]byte, len(bufs))
-	for i, buf := range bufs {
-		copied[i] = append([]byte(nil), buf...)
-	}
-	time.AfterFunc(b.delay, func() { _ = b.Bind.Send(copied, ep) })
-	return nil
 }

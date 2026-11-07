@@ -23,6 +23,7 @@ import (
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
 	"github.com/TeamGDB/Caelo/core/internal/handshake"
+	"github.com/TeamGDB/Caelo/core/internal/rtt"
 	"github.com/TeamGDB/Caelo/core/internal/system"
 )
 
@@ -37,6 +38,10 @@ type Status struct {
 
 	// HandshakeUnix is when the peer last answered (#118).
 	HandshakeUnix int64 `json:"handshake_unix,omitempty"`
+
+	// LatencyMs is the round trip to the server, measured from the traffic
+	// the tunnel carries (#156). Absent until a connection has been seen.
+	LatencyMs int64 `json:"latency_ms,omitempty"`
 }
 
 // HandshakeTimeout is how long a new tunnel has to hear from its server
@@ -53,6 +58,7 @@ type Controller struct {
 	state   *system.State
 	network system.Config
 	status  Status
+	meter   *rtt.Meter
 }
 
 // New returns a Controller with nothing up.
@@ -103,7 +109,11 @@ func (c *Controller) Start(configText string) (*Status, error) {
 		return nil, fmt.Errorf("naming the tunnel interface: %w", err)
 	}
 
-	dev := device.NewDevice(tunDevice, conn.NewDefaultBind(), diag.DeviceLogger())
+	// Only the device sees the wrapper. tunDevice itself stays the platform's
+	// own type: deviceHandle reads the Windows LUID from it by type, and a
+	// wrapper there would hand routing an adapter handle of zero.
+	meter := rtt.New()
+	dev := device.NewDevice(rtt.Wrap(tunDevice, meter), conn.NewDefaultBind(), diag.DeviceLogger())
 
 	fail := func(err error) (*Status, error) {
 		dev.Close()
@@ -162,6 +172,7 @@ func (c *Controller) Start(configText string) (*Status, error) {
 	}
 
 	c.device = dev
+	c.meter = meter
 	c.state = state
 	c.network = network
 	c.status = Status{
@@ -199,6 +210,7 @@ func (c *Controller) stopLocked() error {
 
 	c.device.Close()
 	c.device = nil
+	c.meter = nil
 	c.state = nil
 	c.status = Status{}
 
@@ -210,7 +222,10 @@ func (c *Controller) Status() Status {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	status := c.status
-	if status.Up && c.device != nil {
+	if !status.Up {
+		return status
+	}
+	if c.device != nil {
 		var out strings.Builder
 		if err := c.device.IpcGetOperation(&out); err == nil {
 			if at := handshake.Parse(out.String()); !at.IsZero() {
@@ -218,6 +233,7 @@ func (c *Controller) Status() Status {
 			}
 		}
 	}
+	status.LatencyMs = c.meter.Milliseconds()
 	return status
 }
 

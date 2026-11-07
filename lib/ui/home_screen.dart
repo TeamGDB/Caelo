@@ -100,25 +100,30 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             Positioned.fill(
-              child: ServerDrawer(
-                controller: servers,
-                onPicked: controller.dismissFailure,
-                // Open after a failure: that is exactly when somebody wants a
-                // different server (#104).
-                locked:
-                    status.phase == TunnelPhase.connecting ||
-                    status.phase == TunnelPhase.connected ||
-                    status.phase == TunnelPhase.disconnecting,
-                showActive:
-                    status.phase == TunnelPhase.connecting ||
-                    status.phase == TunnelPhase.connected ||
-                    status.phase == TunnelPhase.disconnecting,
-                selectedLatencyMs: status.phase == TunnelPhase.connected
-                    ? status.pingMs
-                    : null,
-                limitedScope:
-                    status.phase == TunnelPhase.connected &&
-                    !controller.coversWholeMachine,
+              child: ValueListenableBuilder<int?>(
+                valueListenable: controller.livePingMs,
+                builder: (context, livePing, _) => ServerDrawer(
+                  controller: servers,
+                  onPicked: controller.dismissFailure,
+                  // Open after a failure: that is exactly when somebody wants a
+                  // different server (#104).
+                  locked:
+                      status.phase == TunnelPhase.connecting ||
+                      status.phase == TunnelPhase.connected ||
+                      status.phase == TunnelPhase.disconnecting,
+                  showActive:
+                      status.phase == TunnelPhase.connecting ||
+                      status.phase == TunnelPhase.connected ||
+                      status.phase == TunnelPhase.disconnecting,
+                  // Live while connected (#156), the probe's figure until the
+                  // tunnel has one.
+                  selectedLatencyMs: status.phase == TunnelPhase.connected
+                      ? livePing ?? status.pingMs
+                      : null,
+                  limitedScope:
+                      status.phase == TunnelPhase.connected &&
+                      !controller.coversWholeMachine,
+                ),
               ),
             ),
             // Mobile SafeArea starts below the status bar. macOS reports no

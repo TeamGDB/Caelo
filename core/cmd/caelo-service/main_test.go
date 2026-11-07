@@ -3,10 +3,12 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/TeamGDB/Caelo/core/internal/ipc"
+	"github.com/TeamGDB/Caelo/core/internal/systunnel"
 )
 
 // The controller is nil throughout. That is the property being tested as much
@@ -87,5 +89,35 @@ func TestUnknownCommandStillRefusedOnAMatchingProtocol(t *testing.T) {
 	// audience for that except someone probing.
 	if strings.Contains(response.Error, ipc.CommandConnect) {
 		t.Errorf("the refusal lists valid commands: %q", response.Error)
+	}
+}
+
+// The figure reaches the app, and only when there is one: an app from before
+// #156 decodes the reply as it always has.
+func TestStatusReplyCarriesTheRoundTripWhenThereIsOne(t *testing.T) {
+	t.Parallel()
+
+	with := fromStatus(systunnel.Status{Up: true, HandshakeUnix: 1_700_000_000, LatencyMs: 47})
+	if with.LatencyMs != 47 || with.HandshakeUnix != 1_700_000_000 || !with.Up || !with.OK {
+		t.Fatalf("reply = %+v", with)
+	}
+	encoded, _ := json.Marshal(with)
+	if !strings.Contains(string(encoded), `"latency_ms":47`) {
+		t.Fatalf("%s: latency_ms missing", encoded)
+	}
+
+	without, _ := json.Marshal(fromStatus(systunnel.Status{Up: true}))
+	if strings.Contains(string(without), "latency_ms") {
+		t.Fatalf("%s: no figure should mean no field", without)
+	}
+
+	// An older app's idea of the reply still decodes it.
+	var older struct {
+		OK            bool  `json:"ok"`
+		Up            bool  `json:"up"`
+		HandshakeUnix int64 `json:"handshake_unix"`
+	}
+	if err := json.Unmarshal(encoded, &older); err != nil || !older.OK || !older.Up || older.HandshakeUnix != 1_700_000_000 {
+		t.Fatalf("older app read %+v, %v", older, err)
 	}
 }

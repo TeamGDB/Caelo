@@ -611,6 +611,8 @@ void main() {
         writeSelected: (_) async {},
         latencyRefreshInterval: null,
       );
+      // Measured because somebody opened the list (#156).
+      servers.listOpen = true;
       await servers.load();
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
@@ -627,6 +629,8 @@ void main() {
         writeSelected: (_) async {},
         latencyRefreshInterval: null,
       );
+      // Measured because somebody opened the list (#156).
+      servers.listOpen = true;
       await servers.load();
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
@@ -645,6 +649,8 @@ void main() {
         writeSelected: (_) async {},
         latencyRefreshInterval: null,
       );
+      // Measured because somebody opened the list (#156).
+      servers.listOpen = true;
       await servers.load();
       await Future<void>.delayed(const Duration(milliseconds: 10));
       servers.tunnelActive = true;
@@ -661,6 +667,8 @@ void main() {
         writeSelected: (_) async {},
         latencyRefreshInterval: null,
       );
+      // Measured because somebody opened the list (#156).
+      servers.listOpen = true;
       await servers.load();
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
@@ -923,5 +931,169 @@ void main() {
     expect(servers.servers, isEmpty);
     expect(servers.selected, isNull);
     expect(servers.active, isNull);
+  });
+
+  group('when the list is measured (#156)', () {
+    ServerSelectionController measuring({Duration? interval}) =>
+        ServerSelectionController(
+          catalog,
+          readSelected: () async => saved,
+          writeSelected: (id) async => saved = id,
+          activateConfiguration: (_) async {},
+          activateNode: (_, _) async {},
+          readLastConnected: () async => null,
+          writeLastConnected: (_) async {},
+          checkSubscriptions: () async => false,
+          provisionOffers: () async => 0,
+          latencyRefreshInterval: interval,
+          fastestGrace: const Duration(milliseconds: 10),
+        );
+
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 20));
+
+    setUp(() => saved = null);
+
+    test('a list nobody opened is not measured while disconnected', () async {
+      catalog = _ScriptedCatalog(
+        [_node('a'), _node('b')],
+        answers: {'a': 5, 'b': 9},
+      );
+      servers = measuring();
+      await servers.load();
+      await settle();
+      servers.tunnelActive = false;
+      await servers.load();
+      await settle();
+
+      expect(catalog.probed, isEmpty);
+    });
+
+    test('opening the list measures every server in it', () async {
+      catalog = _ScriptedCatalog(
+        [_node('a'), _node('b')],
+        answers: {'a': 5, 'b': 9},
+      );
+      servers = measuring();
+      await servers.load();
+      servers.listOpen = true;
+      await settle();
+
+      expect(catalog.probed, unorderedEquals(['a', 'b']));
+      expect(servers.servers.firstWhere((s) => s.id == 'a').latencyMs, 5);
+      expect(servers.servers.firstWhere((s) => s.id == 'b').latencyMs, 9);
+    });
+
+    test('opened again a moment later, only a server that did not answer is '
+        'asked again', () async {
+      catalog = _ScriptedCatalog([_node('a'), _node('b')], answers: {'a': 5});
+      servers = measuring();
+      await servers.load();
+      servers.listOpen = true;
+      await settle();
+      servers.listOpen = false;
+      catalog.probed.clear();
+
+      servers.listOpen = true;
+      await settle();
+
+      expect(catalog.probed, ['b']);
+    });
+
+    test('while it stays open, it is measured again every interval', () async {
+      catalog = _ScriptedCatalog([_node('a')], answers: {'a': 5});
+      servers = measuring(interval: const Duration(milliseconds: 15));
+      await servers.load();
+      servers.listOpen = true;
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(catalog.probed.length, greaterThanOrEqualTo(3));
+      expect(catalog.maxInFlight, 1);
+    });
+
+    test('closing it stops the measuring', () async {
+      catalog = _ScriptedCatalog([_node('a')], answers: {'a': 5});
+      servers = measuring(interval: const Duration(milliseconds: 10));
+      await servers.load();
+      servers.listOpen = true;
+      await settle();
+      servers.listOpen = false;
+      catalog.probed.clear();
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+
+      expect(catalog.probed, isEmpty);
+    });
+
+    test('connected automatically, the others are measured in the '
+        'background, and never the one in use (#132, #102)', () async {
+      catalog = _ScriptedCatalog(
+        [_node('a'), _node('b')],
+        answers: {'a': 5, 'b': 50},
+      );
+      servers = measuring();
+      await servers.load();
+      final prepared = await servers.prepareConnection({}, never);
+      expect(prepared.id, 'a');
+      servers.tunnelActive = true;
+      catalog.probed.clear();
+      catalog.answers['c'] = 30;
+      catalog.list = [_node('a'), _node('b'), _node('c')];
+      await servers.load();
+      await settle();
+
+      expect(catalog.probed, contains('c'));
+      expect(catalog.probed, isNot(contains('a')));
+    });
+
+    test('connected through a server picked by hand, nothing is measured in '
+        'the background', () async {
+      catalog = _ScriptedCatalog(
+        [_node('a'), _node('b')],
+        answers: {'a': 5, 'b': 50},
+      );
+      servers = measuring();
+      await servers.load();
+      await servers.select(servers.servers.firstWhere((s) => s.id == 'b'));
+      await servers.prepareConnection({}, never);
+      servers.tunnelActive = true;
+      catalog.probed.clear();
+      catalog.answers['c'] = 30;
+      catalog.list = [_node('a'), _node('b'), _node('c')];
+      await servers.load();
+      await settle();
+
+      expect(catalog.probed, isEmpty);
+    });
+
+    test('disconnected again, the background measuring stops', () async {
+      catalog = _ScriptedCatalog([_node('a'), _node('b')], answers: {'a': 5});
+      servers = measuring();
+      await servers.load();
+      await servers.prepareConnection({}, never);
+      servers.tunnelActive = true;
+      servers.tunnelActive = false;
+      catalog.probed.clear();
+      catalog.answers['c'] = 30;
+      catalog.list = [_node('a'), _node('b'), _node('c')];
+      await servers.load();
+      await settle();
+
+      expect(catalog.probed, isEmpty);
+    });
+
+    test('opening the list while a server is being measured for connecting '
+        'joins that measurement (#146)', () async {
+      catalog = _ScriptedCatalog([_node('a')], answers: {'a': 30});
+      catalog.delays['a'] = const Duration(milliseconds: 40);
+      servers = measuring();
+      await servers.load();
+      final connecting = servers.prepareConnection({}, never);
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      servers.listOpen = true;
+      await connecting;
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+
+      expect(catalog.maxInFlight, 1, reason: 'one key, one probe at a time');
+    });
   });
 }
