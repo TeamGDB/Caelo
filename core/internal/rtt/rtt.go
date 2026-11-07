@@ -97,6 +97,16 @@ func (m *Meter) Latency() (time.Duration, bool) {
 	return least, true
 }
 
+// Forget drops everything measured so far, so that what comes next is
+// measured on its own.
+func (m *Meter) Forget() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.samples = m.samples[:0]
+	m.seen = false
+	m.last = 0
+}
+
 // Milliseconds is Latency in whole milliseconds for a status to carry, or
 // zero, which a status leaves out, when there is none yet. A round trip under
 // a millisecond is one rather than none. A nil Meter has none.

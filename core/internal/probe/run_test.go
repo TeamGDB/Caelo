@@ -2,8 +2,7 @@ package probe
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -11,7 +10,7 @@ import (
 	"github.com/TeamGDB/Caelo/core/internal/awgtest"
 )
 
-func TestRunReportsTheHandshakeRoundTrip(t *testing.T) {
+func TestRunReportsTheRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	for name, extra := range map[string]string{
@@ -26,6 +25,7 @@ func TestRunReportsTheHandshakeRoundTrip(t *testing.T) {
 				URL:            server.URL,
 				Timeout:        15 * time.Second,
 				MeasureLatency: true,
+				LatencyTarget:  awgtest.FarAddress.String() + ":80",
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -71,6 +71,7 @@ func TestRunMeasuresOneRoundTripNotARequest(t *testing.T) {
 		URL:            server.URL,
 		Timeout:        15 * time.Second,
 		MeasureLatency: true,
+		LatencyTarget:  awgtest.FarAddress.String() + ":80",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -117,59 +118,131 @@ func TestRunFailsAgainstAServerThatDoesNotAnswer(t *testing.T) {
 	}
 }
 
-func TestMeasureLatencyUsesTheHandshakeWhenTimed(t *testing.T) {
+// A server that relays to an exit elsewhere: quick to shake hands with, slow
+// to get anywhere through. The figure is the whole way, as a speed test over
+// the tunnel would show it, not the first hop (#156).
+func TestRunMeasuresTheWayOutThroughARelay(t *testing.T) {
 	t.Parallel()
 
-	requests := 0
-	web := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests++ }))
-	defer web.Close()
+	const entry, exit = 20 * time.Millisecond, 70 * time.Millisecond
+	server := awgtest.Start(t, awgtest.Options{
+		Obfuscation: awgtest.Obfuscation,
+		Delay:       entry,
+		ExitDelay:   exit,
+	})
 
-	at := time.Unix(0, 0)
-	clock := newHandshakeClock()
-	clock.now = func() time.Time { return at }
-	clock.observe(sendingInitiation)
-	at = at.Add(37 * time.Millisecond)
-	clock.observe(receivedResponse)
-
-	latency, err := measureLatency(context.Background(), web.Client(), web.URL, clock)
+	result, err := Run(server.ClientConfig, Options{
+		// The proving request goes to the server itself, entry away: it
+		// must not stand in for the way out.
+		URL:            server.URL,
+		Timeout:        15 * time.Second,
+		MeasureLatency: true,
+		LatencyTarget:  awgtest.FarAddress.String() + ":80",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if latency == nil || *latency != 37 {
-		t.Fatalf("latency = %v, want 37", latency)
+	latency := time.Duration(*result.LatencyMs) * time.Millisecond
+	if whole := entry + exit; latency < whole || latency >= 2*whole {
+		t.Fatalf("latency = %v, want the whole way out, about %v, not the %v to the server", latency, whole, entry)
 	}
-	if requests != 0 {
-		t.Fatalf("requests = %d, want none", requests)
+	if server.Requests() != 1 {
+		t.Fatalf("server saw %d requests: timing the exit must send nothing over the connection", server.Requests())
+	}
+}
+
+func TestRunFallsBackToTheHandshakeWhenTheExitDoesNotAnswer(t *testing.T) {
+	t.Parallel()
+
+	const delay = 40 * time.Millisecond
+	server := awgtest.Start(t, awgtest.Options{Delay: delay})
+
+	started := time.Now()
+	result, err := Run(server.ClientConfig, Options{
+		URL:            server.URL,
+		Timeout:        15 * time.Second,
+		MeasureLatency: true,
+		// Nothing listens there: the connection is refused or never answered.
+		LatencyTarget: "10.154.9.9:443",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.LatencyMs == nil {
+		t.Fatal("no figure: a working server must keep one")
+	}
+	latency := time.Duration(*result.LatencyMs) * time.Millisecond
+	// The handshake's crypto is slow under the race detector, so only the
+	// floor is exact: a figure that is at least one round trip.
+	if latency < delay || latency > delay+500*time.Millisecond {
+		t.Fatalf("latency = %v, want the handshake, about %v", latency, delay)
+	}
+	if took := time.Since(started); took > exitDialTimeout+5*time.Second {
+		t.Fatalf("the probe took %v waiting for an exit that does not answer", took)
+	}
+}
+
+func sources(exit time.Duration, exitOK bool, handshake time.Duration, handshakeOK bool, request func() (time.Duration, error)) latencySources {
+	return latencySources{
+		exit:      func(context.Context) (time.Duration, bool) { return exit, exitOK },
+		handshake: func() (time.Duration, bool) { return handshake, handshakeOK },
+		request:   func(context.Context) (time.Duration, error) { return request() },
+	}
+}
+
+func TestMeasureLatencyPrefersTheWayOut(t *testing.T) {
+	t.Parallel()
+	asked := false
+	latency, err := measureLatency(context.Background(), sources(
+		93*time.Millisecond, true, 32*time.Millisecond, true,
+		func() (time.Duration, error) { asked = true; return 0, nil },
+	))
+	if err != nil || latency == nil || *latency != 93 {
+		t.Fatalf("latency = %v, %v; want 93 from the exit", latency, err)
+	}
+	if asked {
+		t.Fatal("a request was made although the exit answered")
+	}
+}
+
+func TestMeasureLatencyFallsBackToTheHandshake(t *testing.T) {
+	t.Parallel()
+	latency, err := measureLatency(context.Background(), sources(
+		0, false, 32*time.Millisecond, true,
+		func() (time.Duration, error) { t.Fatal("a request was made"); return 0, nil },
+	))
+	if err != nil || latency == nil || *latency != 32 {
+		t.Fatalf("latency = %v, %v; want 32 from the handshake", latency, err)
 	}
 }
 
 func TestMeasureLatencyFallsBackToARequest(t *testing.T) {
 	t.Parallel()
-
-	requests := 0
-	web := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests++ }))
-	defer web.Close()
-
-	latency, err := measureLatency(context.Background(), web.Client(), web.URL, newHandshakeClock())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if latency == nil || *latency < 0 {
-		t.Fatalf("latency = %v, want the request's time", latency)
-	}
-	if requests != 1 {
-		t.Fatalf("requests = %d, want one fallback request", requests)
+	latency, err := measureLatency(context.Background(), sources(
+		0, false, 0, false,
+		func() (time.Duration, error) { return 140 * time.Millisecond, nil },
+	))
+	if err != nil || latency == nil || *latency != 140 {
+		t.Fatalf("latency = %v, %v; want 140 from the request", latency, err)
 	}
 }
 
 func TestMeasureLatencyFallbackReportsAFailedRequest(t *testing.T) {
 	t.Parallel()
-
-	web := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	url := web.URL
-	web.Close()
-
-	if _, err := measureLatency(context.Background(), http.DefaultClient, url, newHandshakeClock()); err == nil {
+	if _, err := measureLatency(context.Background(), sources(
+		0, false, 0, false,
+		func() (time.Duration, error) { return 0, errors.New("refused") },
+	)); err == nil {
 		t.Fatal("a failed fallback request produced a figure")
+	}
+}
+
+func TestMeasureLatencyNeverReportsZero(t *testing.T) {
+	t.Parallel()
+	latency, _ := measureLatency(context.Background(), sources(
+		300*time.Microsecond, true, 0, false, nil,
+	))
+	if latency == nil || *latency != 1 {
+		t.Fatalf("latency = %v, want 1: zero reads as no figure in the app", latency)
 	}
 }

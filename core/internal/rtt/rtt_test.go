@@ -359,3 +359,16 @@ func TestMillisecondsIsWhatAStatusCarries(t *testing.T) {
 		t.Fatalf("= %d, want 63", got)
 	}
 }
+
+func TestForgetStartsAfresh(t *testing.T) {
+	m, c := meterAt()
+	handshake(m, c, 50000, 20*time.Millisecond)
+	m.Forget()
+	if _, ok := m.Latency(); ok {
+		t.Fatal("a figure survived Forget")
+	}
+	handshake(m, c, 50001, 90*time.Millisecond)
+	if got := latency(t, m); got != 90*time.Millisecond {
+		t.Fatalf("latency = %v, want 90ms on its own, not the forgotten 20ms", got)
+	}
+}

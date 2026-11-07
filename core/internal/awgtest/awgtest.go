@@ -12,12 +12,15 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/amnezia-vpn/amneziawg-go/v3/conn"
 	"github.com/amnezia-vpn/amneziawg-go/v3/device"
+	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun/netstack"
 	"golang.org/x/crypto/curve25519"
 
@@ -34,6 +37,11 @@ const Obfuscation = "Jc = 4\nJmin = 10\nJmax = 50\n" +
 // Address is the server's address inside the tunnel.
 var Address = netip.MustParseAddr("10.154.1.1")
 
+// FarAddress is a host beyond the server: packets to it are held back by
+// Options.ExitDelay inside the server, as they would be on their way to an
+// exit in another country. It accepts TCP connections on port 80.
+var FarAddress = netip.MustParseAddr("10.154.2.1")
+
 // Options shape the server.
 type Options struct {
 	// Obfuscation lines, in .conf form, shared by server and client.
@@ -41,6 +49,9 @@ type Options struct {
 	// Delay holds back every packet the server sends, like a server far
 	// away, so that a round trip is something to measure.
 	Delay time.Duration
+	// ExitDelay holds back packets to FarAddress, like a server that relays
+	// to an exit elsewhere: the handshake is quick, the way out is not.
+	ExitDelay time.Duration
 }
 
 // Server is a running loopback server.
@@ -62,11 +73,10 @@ func Start(t testing.TB, opts Options) *Server {
 
 	serverKey, serverPublic := KeyPair(t)
 	clientKey, clientPublic := KeyPair(t)
-	port := FreeUDPPort(t)
 
 	cfg, err := awg.ParseConfig("[Interface]\n" +
 		"PrivateKey = " + serverKey + "\n" +
-		"Address = " + Address.String() + "/32\n" + opts.Obfuscation +
+		"Address = " + Address.String() + "/32, " + FarAddress.String() + "/32\n" + opts.Obfuscation +
 		"[Peer]\n" +
 		"PublicKey = " + clientPublic + "\n" +
 		"AllowedIPs = 10.154.1.2/32\n")
@@ -81,14 +91,20 @@ func Start(t testing.TB, opts Options) *Server {
 	if opts.Delay > 0 {
 		bind = &delayedBind{Bind: bind, delay: opts.Delay}
 	}
+	if opts.ExitDelay > 0 {
+		tunDevice = &farTun{Device: tunDevice, delay: opts.ExitDelay}
+	}
 	dev := device.NewDevice(tunDevice, bind, device.NewLogger(device.LogLevelSilent, ""))
 	t.Cleanup(dev.Close)
-	if err := dev.IpcSet(fmt.Sprintf("listen_port=%d\n", port) + cfg.IPC()); err != nil {
+	// Port 0, and the one the system chose read back: choosing a free port
+	// first and binding it later races with every other test doing the same.
+	if err := dev.IpcSet("listen_port=0\n" + cfg.IPC()); err != nil {
 		t.Fatal(err)
 	}
 	if err := dev.Up(); err != nil {
 		t.Fatal(err)
 	}
+	port := ListenPort(t, dev)
 
 	listener, err := tnet.ListenTCP(&net.TCPAddr{IP: Address.AsSlice(), Port: 80})
 	if err != nil {
@@ -101,7 +117,7 @@ func Start(t testing.TB, opts Options) *Server {
 			"[Peer]\n" +
 			"PublicKey = " + serverPublic + "\n" +
 			fmt.Sprintf("Endpoint = 127.0.0.1:%d\n", port) +
-			"AllowedIPs = 10.154.1.0/24\n",
+			"AllowedIPs = 10.154.0.0/16\n",
 		URL: "http://" + Address.String() + "/",
 	}
 	web := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -110,6 +126,21 @@ func Start(t testing.TB, opts Options) *Server {
 	})}
 	go func() { _ = web.Serve(listener) }()
 	t.Cleanup(func() { _ = web.Close() })
+
+	far, err := tnet.ListenTCP(&net.TCPAddr{IP: FarAddress.AsSlice(), Port: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		for {
+			connection, err := far.Accept()
+			if err != nil {
+				return
+			}
+			connection.Close()
+		}
+	}()
+	t.Cleanup(func() { _ = far.Close() })
 	return server
 }
 
@@ -129,6 +160,25 @@ func KeyPair(t testing.TB) (private, public string) {
 	return base64.StdEncoding.EncodeToString(key[:]), base64.StdEncoding.EncodeToString(pub)
 }
 
+// ListenPort is the UDP port a device is listening on.
+func ListenPort(t testing.TB, dev *device.Device) int {
+	t.Helper()
+	uapi, err := dev.IpcGet()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(uapi, "\n") {
+		if value, ok := strings.CutPrefix(line, "listen_port="); ok {
+			port, err := strconv.Atoi(value)
+			if err == nil && port > 0 {
+				return port
+			}
+		}
+	}
+	t.Fatalf("the device reports no listening port:\n%s", uapi)
+	return 0
+}
+
 // FreeUDPPort is a loopback port nothing was listening on a moment ago.
 func FreeUDPPort(t testing.TB) int {
 	t.Helper()
@@ -138,6 +188,31 @@ func FreeUDPPort(t testing.TB) int {
 	}
 	defer socket.Close()
 	return socket.LocalAddr().(*net.UDPAddr).Port
+}
+
+// farTun delivers packets for FarAddress to the server's stack late.
+type farTun struct {
+	tun.Device
+	delay time.Duration
+}
+
+func (f *farTun) Write(bufs [][]byte, offset int) (int, error) {
+	var now [][]byte
+	for _, buf := range bufs {
+		p := buf[offset:]
+		if len(p) >= 20 && p[0]>>4 == 4 && netip.AddrFrom4([4]byte(p[16:20])) == FarAddress {
+			late := append(make([]byte, offset), p...)
+			time.AfterFunc(f.delay, func() { _, _ = f.Device.Write([][]byte{late}, offset) })
+			continue
+		}
+		now = append(now, buf)
+	}
+	if len(now) > 0 {
+		if _, err := f.Device.Write(now, offset); err != nil {
+			return 0, err
+		}
+	}
+	return len(bufs), nil
 }
 
 // delayedBind sends every packet late.

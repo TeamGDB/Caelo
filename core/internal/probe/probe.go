@@ -21,6 +21,7 @@ import (
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
+	"github.com/TeamGDB/Caelo/core/internal/rtt"
 )
 
 // Result is what a probe found out.
@@ -32,10 +33,12 @@ type Result struct {
 	Body       string        `json:"body"`
 	Elapsed    time.Duration `json:"-"`
 	ElapsedMs  int64         `json:"elapsed_ms"`
-	// LatencyMs is the handshake's round trip: the time to the server and
-	// back, which is what a person comparing with a speed test means by ping
-	// (#154). ElapsedMs stays the whole first request, establishment included,
-	// and remains the availability metric used by callers.
+	// LatencyMs is the round trip from here, through the server and out of
+	// its exit, to the nearest CDN: what a speed test run over the tunnel
+	// shows, and what the live ping on the main screen measures (#154, #156).
+	// For a server that relays to an exit elsewhere it is the whole way, not
+	// the first hop. ElapsedMs stays the whole first request, establishment
+	// included, and remains the availability metric used by callers.
 	LatencyMs *int64 `json:"latency_ms,omitempty"`
 }
 
@@ -50,9 +53,23 @@ type Options struct {
 	// Verbose logs device internals, including handshake progress, to stderr.
 	Verbose bool
 
-	// MeasureLatency reports the handshake's round trip as LatencyMs.
+	// MeasureLatency reports LatencyMs.
 	MeasureLatency bool
+
+	// LatencyTarget is where the round trip out of the exit is timed to, as
+	// host:port with an address for a host, so no lookup is timed with it.
+	// Only a TCP handshake is made; nothing is sent over it. Empty means
+	// DefaultLatencyTarget.
+	LatencyTarget string
 }
+
+// DefaultLatencyTarget is Cloudflare's resolver: anycast, so it answers from
+// beside nearly every exit, and reachable wherever the tunnel exits.
+const DefaultLatencyTarget = "1.1.1.1:443"
+
+// exitDialTimeout bounds the one connection made to time the exit. It does
+// not answer within this, and the probe falls back rather than waits.
+const exitDialTimeout = 3 * time.Second
 
 // Run parses configText, brings the tunnel up, and fetches opts.URL through it.
 func Run(configText string, opts Options) (*Result, error) {
@@ -85,7 +102,8 @@ func Run(configText string, opts Options) (*Result, error) {
 	diag.SetVerbose(opts.Verbose)
 
 	clock := newHandshakeClock()
-	dev := device.NewDevice(tunnel, conn.NewDefaultBind(), clock.logger(diag.DeviceLogger()))
+	meter := rtt.New()
+	dev := device.NewDevice(rtt.Wrap(tunnel, meter), conn.NewDefaultBind(), clock.logger(diag.DeviceLogger()))
 	defer dev.Close()
 
 	if err := dev.IpcSet(cfg.IPC()); err != nil {
@@ -107,7 +125,18 @@ func Run(configText string, opts Options) (*Result, error) {
 
 	var latencyMs *int64
 	if opts.MeasureLatency {
-		latencyMs, err = measureLatency(ctx, client, opts.URL, clock)
+		target := opts.LatencyTarget
+		if target == "" {
+			target = DefaultLatencyTarget
+		}
+		latencyMs, err = measureLatency(ctx, latencySources{
+			exit:      func(ctx context.Context) (time.Duration, bool) { return timeExit(ctx, tnet, meter, target) },
+			handshake: clock.roundTrip,
+			request: func(ctx context.Context) (time.Duration, error) {
+				_, _, latency, err := fetch(ctx, client, opts.URL)
+				return latency, err
+			},
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -125,31 +154,59 @@ func Run(configText string, opts Options) (*Result, error) {
 	}, nil
 }
 
-// measureLatency reports the round trip of the handshake that carried the
-// proving request.
+// latencySources are the ways to time the round trip, best first.
+type latencySources struct {
+	// exit is the way out through the server's exit to a CDN beside it: the
+	// figure wanted (#156).
+	exit func(context.Context) (time.Duration, bool)
+	// handshake is the way to the server only, which for a server relaying
+	// to an exit elsewhere is the shorter part of the trip (#154).
+	handshake func() (time.Duration, bool)
+	// request is one more request over the proving connection, as before
+	// #154.
+	request func(context.Context) (time.Duration, error)
+}
+
+// measureLatency reports the best figure there is.
 //
-// A request came back through the tunnel, so a handshake completed and the
-// clock saw it. Should it somehow not have — a library upgrade that rewords
-// its log lines, say — the figure falls back to what it was before #154, one
-// more request over the same connection, rather than turning a working server
-// into one with no figure.
-func measureLatency(
-	ctx context.Context,
-	client *http.Client,
-	url string,
-	clock *handshakeClock,
-) (*int64, error) {
-	if rtt, ok := clock.roundTrip(); ok {
-		ms := rtt.Milliseconds()
+// Each fallback is what an earlier release measured, so a probe whose exit
+// will not take a connection still answers with a figure, as it did then,
+// rather than turning a working server into one without.
+func measureLatency(ctx context.Context, sources latencySources) (*int64, error) {
+	if rtt, ok := sources.exit(ctx); ok {
+		ms := max(rtt.Milliseconds(), 1)
 		return &ms, nil
 	}
-	diag.Logf("probe: the handshake was not timed; measuring a request instead")
-	_, _, latency, err := fetch(ctx, client, url)
+	if rtt, ok := sources.handshake(); ok {
+		diag.Logf("probe: the exit did not answer; reporting the handshake")
+		ms := max(rtt.Milliseconds(), 1)
+		return &ms, nil
+	}
+	diag.Logf("probe: neither the exit nor the handshake was timed; measuring a request instead")
+	latency, err := sources.request(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("measuring latency: %w", err)
 	}
-	ms := latency.Milliseconds()
+	ms := max(latency.Milliseconds(), 1)
 	return &ms, nil
+}
+
+// timeExit opens one TCP connection to target through the tunnel and closes
+// it, and reports the round trip the meter saw for it: the same figure, taken
+// the same way, as the live ping once connected. Only this connection counts;
+// the proving request may have gone somewhere nearer or further. A SYN that
+// had to be sent twice gives no figure (Karn's rule), and the probe falls back.
+func timeExit(ctx context.Context, tnet *netstack.Net, meter *rtt.Meter, target string) (time.Duration, bool) {
+	ctx, cancel := context.WithTimeout(ctx, exitDialTimeout)
+	defer cancel()
+	meter.Forget()
+	connection, err := tnet.DialContext(ctx, "tcp", target)
+	if err != nil {
+		diag.Logf("probe: timing the exit: %v", err)
+		return 0, false
+	}
+	connection.Close()
+	return meter.Latency()
 }
 
 // MaxBody is the largest response a probe reads. The same ceiling the app puts

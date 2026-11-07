@@ -83,7 +83,6 @@ func TestHandshakeClockTimesARealHandshake(t *testing.T) {
 
 	serverKey, serverPublic := hexKeyPair(t)
 	clientKey, clientPublic := hexKeyPair(t)
-	port := awgtest.FreeUDPPort(t)
 
 	serverAddr := netip.MustParseAddr("10.154.0.1")
 	clientAddr := netip.MustParseAddr("10.154.0.2")
@@ -95,14 +94,15 @@ func TestHandshakeClockTimesARealHandshake(t *testing.T) {
 	server := device.NewDevice(serverTun, conn.NewDefaultBind(), device.NewLogger(device.LogLevelSilent, ""))
 	defer server.Close()
 	if err := server.IpcSet(fmt.Sprintf(
-		"private_key=%s\nlisten_port=%d\npublic_key=%s\nallowed_ip=%s/32\n",
-		serverKey, port, clientPublic, clientAddr,
+		"private_key=%s\nlisten_port=0\npublic_key=%s\nallowed_ip=%s/32\n",
+		serverKey, clientPublic, clientAddr,
 	)); err != nil {
 		t.Fatal(err)
 	}
 	if err := server.Up(); err != nil {
 		t.Fatal(err)
 	}
+	port := awgtest.ListenPort(t, server)
 
 	clientTun, clientNet, err := netstack.CreateNetTUN([]netip.Addr{clientAddr}, nil, 1420)
 	if err != nil {
