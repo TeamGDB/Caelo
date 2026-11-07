@@ -249,6 +249,7 @@ class Subscription {
     this.pinnedId,
     this.stateVersion,
     this.available = const [],
+    this.fetchedAsDevice = false,
   });
 
   /// Stable across refreshes and renames, so that a pinned node and a
@@ -287,6 +288,12 @@ class Subscription {
   /// against a server that does not offer the catalogue, and then the node list
   /// is the whole of what there is.
   final List<AvailableServer> available;
+
+  /// Whether the last successful fetch carried the device headers.
+  ///
+  /// Clients before v0.2.0 sent none, and a server that keeps keys per device
+  /// does not know an installation it has never been told about (#159).
+  final bool fetchedAsDevice;
 
   /// A node the person chose by hand, by [SubscriptionNode.id].
   ///
@@ -349,6 +356,12 @@ class Subscription {
     return DateTime.now().difference(fetched) >= interval;
   }
 
+  /// Whether the server may never have heard of this device.
+  ///
+  /// A stored version means the state checks already carry the headers, so
+  /// only a subscription with neither is asked once more, out of schedule.
+  bool get isUnannounced => !fetchedAsDevice && stateVersion == null;
+
   Subscription copyWith({
     String? name,
     List<SubscriptionNode>? nodes,
@@ -361,6 +374,7 @@ class Subscription {
     bool clearPin = false,
     String? stateVersion,
     List<AvailableServer>? available,
+    bool? fetchedAsDevice,
   }) {
     return Subscription(
       id: id,
@@ -374,6 +388,7 @@ class Subscription {
       pinnedId: clearPin ? null : (pinnedId ?? this.pinnedId),
       stateVersion: stateVersion ?? this.stateVersion,
       available: available ?? this.available,
+      fetchedAsDevice: fetchedAsDevice ?? this.fetchedAsDevice,
     );
   }
 
@@ -391,6 +406,7 @@ class Subscription {
     if (stateVersion != null) 'stateVersion': stateVersion,
     if (available.isNotEmpty)
       'available': available.map((server) => server.toJson()).toList(),
+    if (fetchedAsDevice) 'fetchedAsDevice': true,
   };
 
   static Subscription fromJson(Map<String, dynamic> json) {
@@ -414,6 +430,7 @@ class Subscription {
           .whereType<Map<String, dynamic>>()
           .map(AvailableServer.fromJson)
           .toList(),
+      fetchedAsDevice: json['fetchedAsDevice'] == true,
     );
   }
 }
