@@ -167,6 +167,19 @@ void main() {
       updateInterval: interval,
     );
 
+    test('a subscription from before the device headers is unannounced '
+        '(#159)', () {
+      final old = Subscription.fromJson({'id': 'x', 'url': 'https://e/sub'});
+      expect(old.fetchedAsDevice, isFalse);
+      expect(old.isUnannounced, isTrue);
+      expect(old.copyWith(stateVersion: 'v').isUnannounced, isFalse);
+
+      final marked = old.copyWith(fetchedAsDevice: true);
+      expect(marked.toJson()['fetchedAsDevice'], isTrue);
+      expect(Subscription.fromJson(marked.toJson()).isUnannounced, isFalse);
+      expect(old.toJson().containsKey('fetchedAsDevice'), isFalse);
+    });
+
     test('a subscription never fetched is due', () {
       expect(due().isDue, isTrue);
     });

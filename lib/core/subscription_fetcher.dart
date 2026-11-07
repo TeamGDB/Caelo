@@ -73,6 +73,7 @@ abstract final class SubscriptionFetcher {
             !fetched.nodes.any((node) => node.id == subscription.pinnedId),
         stateVersion: seen.version,
         available: seen.servers,
+        fetchedAsDevice: true,
       );
 
       await SubscriptionStore.save(updated);
@@ -403,7 +404,13 @@ abstract final class SubscriptionFetcher {
     for (final subscription in await SubscriptionStore.all()) {
       // A disowned subscription is asked again every time: it lists nothing
       // while disowned (#140), so a one-off 404 must not hide it for long.
-      if (force || subscription.isDue || subscription.isGone) {
+      // One saved by a client older than the device headers is asked once,
+      // or its device stays unknown to the server until the next scheduled
+      // refresh, up to half a day away (#159).
+      if (force ||
+          subscription.isDue ||
+          subscription.isGone ||
+          subscription.isUnannounced) {
         results.add(await refresh(subscription));
         continue;
       }
