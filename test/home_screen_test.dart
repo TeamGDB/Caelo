@@ -32,6 +32,9 @@ void main() {
       writeSelected: (_) async {},
       activateConfiguration: (_) async {},
       activateNode: (_, _) async {},
+      // These tests set the list's figures themselves. Opening the list
+      // measures it (#156), which has its own tests below.
+      backgroundMeasurement: false,
     );
     serverController.servers = FakeServerCatalog.servers;
     serverController.selected = serverController.servers.first;
@@ -154,6 +157,117 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('42 ms'), findsNothing);
+  });
+
+  group('live ping (#156)', () {
+    const custom = ServerOption(
+      id: 'user-office',
+      name: 'Office',
+      description: 'Work network',
+      flag: '🏢',
+      configId: 'office',
+    );
+    const connected = TunnelStatus(
+      phase: TunnelPhase.connected,
+      node: 'Office',
+      pingMs: 42,
+    );
+
+    setUp(() {
+      serverController.servers = const [custom];
+      serverController.selected = custom;
+    });
+
+    testWidgets('replaces the probe figure while connected, and goes with '
+        'the tunnel', (tester) async {
+      client.latencyAnswer = () async => 37;
+      await pumpHome(tester, locale: const Locale('en'));
+
+      client.emit(connected);
+      await tester.pump(const Duration(milliseconds: 300));
+      // The fake answers outside the test's clock; let it.
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+      expect(find.text('37 ms'), findsOneWidget);
+      expect(find.text('42 ms'), findsNothing);
+
+      client.latencyAnswer = () async => 33;
+      await tester.runAsync(controller.askLatency);
+      await tester.pump();
+      expect(find.text('33 ms'), findsOneWidget);
+
+      client.emit(const TunnelStatus.disconnected());
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('33 ms'), findsNothing);
+      expect(find.text('42 ms'), findsNothing);
+    });
+
+    testWidgets('until there is one, the probe figure stays', (tester) async {
+      await pumpHome(tester, locale: const Locale('en'));
+      client.emit(connected);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('42 ms'), findsOneWidget);
+    });
+  });
+
+  group('opening the list (#156)', () {
+    testWidgets('tells it it is open, and closing it says so', (tester) async {
+      await pumpHome(tester, locale: const Locale('en'));
+      expect(serverController.listOpen, isFalse, reason: 'only peeking');
+
+      await tester.tap(find.byKey(const ValueKey('server-drag-handle')));
+      await tester.pumpAndSettle();
+      expect(serverController.listOpen, isTrue);
+
+      await tester.tap(find.byKey(const ValueKey('server-drag-handle')));
+      await tester.pumpAndSettle();
+      expect(serverController.listOpen, isFalse);
+    });
+
+    testWidgets('connecting closes it', (tester) async {
+      await pumpHome(tester, locale: const Locale('en'));
+      await tester.tap(find.byKey(const ValueKey('server-drag-handle')));
+      await tester.pumpAndSettle();
+      expect(serverController.listOpen, isTrue);
+
+      client.emit(const TunnelStatus(phase: TunnelPhase.connecting));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(serverController.listOpen, isFalse);
+    });
+
+    testWidgets('leaving the screen closes it', (tester) async {
+      await pumpHome(tester, locale: const Locale('en'));
+      await tester.tap(find.byKey(const ValueKey('server-drag-handle')));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox());
+      expect(serverController.listOpen, isFalse);
+    });
+
+    testWidgets('measures the servers in it', (tester) async {
+      final probed = <String>[];
+      final measuring = ServerSelectionController(
+        _CountingCatalog(probed),
+        readSelected: () async => null,
+        writeSelected: (_) async {},
+        activateConfiguration: (_) async {},
+        activateNode: (_, _) async {},
+        latencyRefreshInterval: null,
+      );
+      // tearDown disposes whichever is current; the one from setUp is ours.
+      addTearDown(serverController.dispose);
+      serverController = measuring;
+      await tester.runAsync(measuring.load);
+      await pumpHome(tester, locale: const Locale('en'));
+      expect(probed, isEmpty, reason: 'nobody opened it yet');
+
+      await tester.tap(find.byKey(const ValueKey('server-drag-handle')));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+
+      expect(probed, isNotEmpty);
+      expect(find.text('64 ms'), findsWidgets);
+    });
   });
 
   testWidgets('says so when an attempt fails', (tester) async {
@@ -662,4 +776,16 @@ void main() {
 
     expect(find.textContaining('Переустановите Caelo'), findsOneWidget);
   });
+}
+
+/// The fake catalog, counting what is measured and answering 64 ms.
+class _CountingCatalog extends FakeServerCatalog {
+  _CountingCatalog(this.probed);
+  final List<String> probed;
+
+  @override
+  Future<int?> measureLatency(ServerOption server) async {
+    probed.add(server.id);
+    return 64;
+  }
 }

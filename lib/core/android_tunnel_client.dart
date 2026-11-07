@@ -202,6 +202,12 @@ class AndroidTunnelClient implements TunnelClient {
   }
 
   @override
+  Future<int?> latency() async {
+    if (_current.phase != TunnelPhase.connected) return null;
+    return liveLatencyIn(await CoreLibrary.statusFd());
+  }
+
+  @override
   Future<void> reconnectDifferently() async {
     // Which node comes next is decided above this client, by whatever
     // prepares the connection; from here it is a fresh start.

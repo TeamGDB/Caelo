@@ -194,6 +194,12 @@ class ServiceTunnelClient implements TunnelClient {
   }
 
   @override
+  Future<int?> latency() async {
+    if (_current.phase != TunnelPhase.connected) return null;
+    return liveLatencyIn(await ServiceClient.status());
+  }
+
+  @override
   Future<void> reconnectDifferently() async {
     // There is one configuration and therefore one node. This becomes real with
     // subscriptions.

@@ -77,6 +77,8 @@ void main() {
     );
     addTearDown(controller.dispose);
 
+    // Measured because somebody opened the list (#156).
+    controller.listOpen = true;
     await controller.load();
     expect(controller.servers.first.automatic, isTrue);
     expect(controller.servers.last.name, 'Office');
@@ -97,6 +99,8 @@ void main() {
     );
     addTearDown(controller.dispose);
 
+    // Measured because somebody opened the list (#156).
+    controller.listOpen = true;
     await controller.load();
     await catalog.secondMeasurement.future.timeout(const Duration(seconds: 1));
     await Future<void>.delayed(Duration.zero);

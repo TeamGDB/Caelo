@@ -81,6 +81,9 @@ class StubTunnelClient implements TunnelClient {
   }
 
   @override
+  Future<int?> latency() async => null;
+
+  @override
   Future<void> reconnectDifferently() async {
     final previous = _current.node;
     _emit(const TunnelStatus(phase: TunnelPhase.connecting));

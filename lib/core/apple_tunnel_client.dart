@@ -1,7 +1,8 @@
 import 'dart:async';
-
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'config_store.dart';
@@ -120,6 +121,27 @@ class AppleTunnelClient implements TunnelClient {
       await _channel.invokeMethod<void>('disconnect');
     } on Object catch (error) {
       Diagnostics.record('disconnect failed', error: error);
+    }
+  }
+
+  /// Asked of the extension, which is the process that has the tunnel. An
+  /// app built before the extension answered this gets nothing back, which
+  /// reads as no figure.
+  @override
+  Future<int?> latency() async {
+    if (_current.phase != TunnelPhase.connected) return null;
+    final reply = await _channel.invokeMethod<String>('tunnelStatus');
+    return latencyIn(reply);
+  }
+
+  /// The figure in the extension's status reply, or null.
+  @visibleForTesting
+  static int? latencyIn(String? reply) {
+    if (reply == null || reply.isEmpty) return null;
+    try {
+      return liveLatencyIn(jsonDecode(reply));
+    } on FormatException {
+      return null;
     }
   }
 

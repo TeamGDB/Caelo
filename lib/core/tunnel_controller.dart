@@ -62,6 +62,7 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
     Future<bool> Function()? isConfigured,
     PrepareConnection? prepare,
     this.maxAttempts = 3,
+    this.livePingInterval = const Duration(seconds: 2),
   }) : _client = client,
        _isConfigured = isConfigured ?? _configurationExists,
        _prepare = prepare,
@@ -69,7 +70,72 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
     // Subscribing to a broadcast stream attaches synchronously, so nothing the
     // core reports between construction and this line can slip past.
     _subscription = _client.changes.listen(_onClientStatus);
+    addListener(_syncLivePing);
+    _syncLivePing();
     unawaited(refreshConfiguration());
+  }
+
+  /// The round trip to the server while connected, as the tunnel measures it
+  /// from the traffic it carries (#156); null when there is none, in which
+  /// case the screen shows [TunnelStatus.pingMs], the probe's figure.
+  ///
+  /// Separate from [value] on purpose. Whatever listens to the status reacts
+  /// to it — remembers the server, restarts watchdogs — and a figure that
+  /// changes every two seconds must not set any of that off.
+  final ValueNotifier<int?> livePingMs = ValueNotifier<int?>(null);
+
+  /// How often [livePingMs] is asked for.
+  final Duration livePingInterval;
+
+  /// Whether the app is in front. The figure is only asked for then: nobody
+  /// is looking otherwise, and a phone should be left to sleep.
+  bool get foreground => _foreground;
+  bool _foreground = true;
+  set foreground(bool value) {
+    if (value == _foreground) return;
+    _foreground = value;
+    _syncLivePing();
+  }
+
+  Timer? _livePingTimer;
+  bool _askingLatency = false;
+
+  void _syncLivePing() {
+    final wanted = value.phase == TunnelPhase.connected && _foreground;
+    if (!wanted) {
+      _livePingTimer?.cancel();
+      _livePingTimer = null;
+      // Down, or on its way to another server: the old figure says nothing
+      // about the next one.
+      if (value.phase != TunnelPhase.connected) livePingMs.value = null;
+      return;
+    }
+    if (_livePingTimer != null) return;
+    _livePingTimer = Timer.periodic(livePingInterval, (_) => askLatency());
+    unawaited(askLatency());
+  }
+
+  /// One look. Public so a test can drive it without waiting.
+  Future<void> askLatency() async {
+    if (_askingLatency) return;
+    _askingLatency = true;
+    try {
+      int? latency;
+      try {
+        latency = await _client.latency();
+      } on Object {
+        latency = null;
+      }
+      // The answer may arrive after the tunnel went down or moved.
+      if (value.phase != TunnelPhase.connected || _livePingTimer == null) {
+        return;
+      }
+      // No figure keeps the last one: a quiet moment is not a reason to
+      // fall back to an older, worse measurement.
+      if (latency != null && latency > 0) livePingMs.value = latency;
+    } finally {
+      _askingLatency = false;
+    }
   }
 
   final TunnelClient _client;
@@ -262,6 +328,10 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
   @override
   void dispose() {
     _attempt++;
+    _livePingTimer?.cancel();
+    _livePingTimer = null;
+    removeListener(_syncLivePing);
+    livePingMs.dispose();
     unawaited(_subscription.cancel());
     unawaited(_client.dispose());
     super.dispose();
