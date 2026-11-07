@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'service_pipe.dart';
 
 /// Raised when the privileged service is not installed, or could not be
@@ -13,6 +15,69 @@ class ServiceUnavailable implements Exception {
 
   @override
   String toString() => 'The Caelo service is not reachable: $cause';
+}
+
+/// Raised when the socket is there and this user may not open it (#116).
+///
+/// The socket belongs to the caelo group. A ServiceUnavailable, so that
+/// anything catching that still does, but its own type because the remedy is
+/// specific and nothing about the network or the service would fix it.
+class ServiceAccessDenied extends ServiceUnavailable {
+  const ServiceAccessDenied(super.cause, {required this.needsRelogin});
+
+  /// The user is in the group, and this session started before they were. A
+  /// new login picks it up; adding them again would change nothing.
+  final bool needsRelogin;
+
+  @override
+  String toString() => needsRelogin
+      ? 'The Caelo service refused this session: log out and back in so it '
+            'picks up the caelo group.'
+      : 'The Caelo service refused this user: add it to the caelo group '
+            '(sudo usermod -aG caelo \$USER), then log out and back in.';
+
+  /// Whether [user] is listed in the caelo group while this process, whose
+  /// `/proc/self/status` is [procStatus], does not carry it.
+  ///
+  /// Text in rather than files read, so both cases can be tested on any
+  /// machine. Anything unreadable answers false: then the advice is to add the
+  /// user, which is harmless when they are already there.
+  static bool listedButNotCarried({
+    required String etcGroup,
+    required String? user,
+    required String procStatus,
+  }) {
+    if (user == null || user.isEmpty) return false;
+    for (final line in const LineSplitter().convert(etcGroup)) {
+      final fields = line.split(':');
+      if (fields.length < 4 || fields[0] != ServiceClient.group) continue;
+      final gid = fields[2];
+      final members = fields[3].split(',').map((m) => m.trim());
+      if (!members.contains(user)) return false;
+      final groups = const LineSplitter()
+          .convert(procStatus)
+          .where((l) => l.startsWith('Groups:'))
+          .expand((l) => l.substring('Groups:'.length).trim().split(' '))
+          .where((g) => g.isNotEmpty);
+      return !groups.contains(gid);
+    }
+    return false;
+  }
+
+  /// Reads the answer for this process.
+  static ServiceAccessDenied describe(Object cause) {
+    var relogin = false;
+    try {
+      relogin = listedButNotCarried(
+        etcGroup: File('/etc/group').readAsStringSync(),
+        user: Platform.environment['USER'] ?? Platform.environment['LOGNAME'],
+        procStatus: File('/proc/self/status').readAsStringSync(),
+      );
+    } on Object {
+      // Fall through to the general advice.
+    }
+    return ServiceAccessDenied(cause, needsRelogin: relogin);
+  }
 }
 
 /// Raised when the service answered and said no.
@@ -64,6 +129,13 @@ abstract final class ServiceClient {
   /// by the service, and exists whether or not anything is running: connecting
   /// to it is what starts the service.
   static const socketPath = '/run/caelo/caelo.sock';
+
+  /// The group that owns [socketPath]. packaging/linux/postinst.sh makes it.
+  static const group = 'caelo';
+
+  /// Where to connect instead of [socketPath]. A seam for tests.
+  @visibleForTesting
+  static String? testSocketPath;
 
   /// Whether this machine has the service installed.
   ///
@@ -127,9 +199,20 @@ abstract final class ServiceClient {
     Socket socket;
     try {
       socket = await Socket.connect(
-        InternetAddress(socketPath, type: InternetAddressType.unix),
+        InternetAddress(
+          testSocketPath ?? socketPath,
+          type: InternetAddressType.unix,
+        ),
         0,
       );
+    } on SocketException catch (error) {
+      // EACCES: the socket is there and is not ours to open. Said apart from
+      // every other failure, because "could not connect" sends somebody to
+      // check a network that is fine (#116).
+      if (error.osError?.errorCode == 13) {
+        throw ServiceAccessDenied.describe(error);
+      }
+      throw ServiceUnavailable(error);
     } on Object catch (error) {
       throw ServiceUnavailable(error);
     }

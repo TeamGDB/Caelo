@@ -811,6 +811,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Caelo could not start the installer. The download is fine; try again, or run the installer from the release page.'**
   String get updateWindowsHandOverFailed;
+
+  /// Linux: the user was added to the caelo group but this login session started before that. Shown under the main button.
+  ///
+  /// In en, this message translates to:
+  /// **'Caelo cannot reach its background service yet. Log out and back in (or restart) so this session picks up the access it was given.'**
+  String get serviceNeedsRelogin;
+
+  /// Linux: the user is not in the caelo group, so the service socket refuses them. The command must stay verbatim.
+  ///
+  /// In en, this message translates to:
+  /// **'Caelo is not allowed to reach its background service. In a terminal run: sudo usermod -aG caelo \$USER — then log out and back in.'**
+  String get serviceNeedsGroup;
 }
 
 class _AppLocalizationsDelegate

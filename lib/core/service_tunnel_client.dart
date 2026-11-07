@@ -173,6 +173,16 @@ class ServiceTunnelClient implements TunnelClient {
               : TunnelFailure.appOlderThanService,
         ),
       );
+    } on ServiceAccessDenied catch (error) {
+      Diagnostics.record('the service refused this user', error: error);
+      _emit(
+        TunnelStatus(
+          phase: TunnelPhase.failed,
+          failure: error.needsRelogin
+              ? TunnelFailure.serviceNeedsRelogin
+              : TunnelFailure.serviceNeedsGroup,
+        ),
+      );
     } on Object catch (error) {
       Diagnostics.record('connect failed', error: error);
       _emit(const TunnelStatus(phase: TunnelPhase.failed));

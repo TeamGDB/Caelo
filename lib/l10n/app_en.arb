@@ -394,5 +394,13 @@
   "updateInstall": "Update",
   "updateInstallingNow": "Installing the update…",
   "updateLinuxFailed": "The update did not install. You can update by hand: sudo apt upgrade (or sudo dnf upgrade caelo).",
-  "updateWindowsHandOverFailed": "Caelo could not start the installer. The download is fine; try again, or run the installer from the release page."
+  "updateWindowsHandOverFailed": "Caelo could not start the installer. The download is fine; try again, or run the installer from the release page.",
+  "serviceNeedsRelogin": "Caelo cannot reach its background service yet. Log out and back in (or restart) so this session picks up the access it was given.",
+  "serviceNeedsGroup": "Caelo is not allowed to reach its background service. In a terminal run: sudo usermod -aG caelo $USER — then log out and back in.",
+  "@serviceNeedsRelogin": {
+    "description": "Linux: the user was added to the caelo group but this login session started before that. Shown under the main button."
+  },
+  "@serviceNeedsGroup": {
+    "description": "Linux: the user is not in the caelo group, so the service socket refuses them. The command must stay verbatim."
+  }
 }

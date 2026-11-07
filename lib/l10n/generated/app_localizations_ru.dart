@@ -398,4 +398,12 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get updateWindowsHandOverFailed =>
       'Не удалось запустить установщик. Файл скачан и проверен — попробуйте ещё раз или запустите установщик со страницы релизов.';
+
+  @override
+  String get serviceNeedsRelogin =>
+      'Caelo пока не может обратиться к своей службе. Выйдите из системы и войдите снова (или перезагрузитесь), чтобы сеанс получил выданный доступ.';
+
+  @override
+  String get serviceNeedsGroup =>
+      'Caelo не может обратиться к своей службе: нет доступа. Выполните в терминале: sudo usermod -aG caelo \$USER — затем выйдите из системы и войдите снова.';
 }
