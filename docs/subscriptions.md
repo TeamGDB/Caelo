@@ -305,6 +305,37 @@ Rotate on evidence, not on a single failure. A handshake that never completes on
 that used to work, after other nodes have also failed, is a network problem. The same
 failure on one node while another carries traffic is the node.
 
+## Opening a link from outside the app
+
+From 0.3.12 Caelo opens `caelo://add?url=<percent-encoded subscription link>` (#163):
+a browser, a messenger or a panel button hands the ordinary subscription URL to the app,
+which is otherwise pasted or scanned. Nothing about the protocol changes; the link inside
+is the same one.
+
+The rules are the ones for a pasted invitation, and one more:
+
+- Only `https`, with a host and no credentials in the URL. Anything else is ignored,
+  silently: the link may come from anywhere.
+- **The app always asks**, naming the host. Adding a subscription routes the person's
+  traffic through whoever issued it; a link must not be able to do that on its own.
+  - not signed in: "Add this subscription?", then the ordinary invitation flow;
+  - the same subscription is already there: "Already added", nothing changes;
+  - a different one is connected: "Replace the subscription?" — and the new link is
+    accepted *first*. The old account is forgotten only once the new one has worked, so
+    a link that turns out not to work leaves things as they were.
+- One link at a time: a second one while the first is being asked about is dropped.
+
+The scheme is registered on Android (an intent filter, custom scheme only — an https App
+Link would tie the client to one provider's domain), Windows (the installer, per user or
+per machine, removed with the app; the portable zip does not register it), macOS and iOS
+(`CFBundleURLTypes`), and Linux (`x-scheme-handler/caelo` in the desktop entry of the
+`.deb`, `.rpm` and AppImage). On the desktop a second launch hands the link to the window
+already open instead of starting another copy.
+
+A server that wants to offer the button serves a page for the subscription URL when a
+browser asks for it — `Accept: text/html`, no `X-Caelo-Device`, a `User-Agent` that is not
+`Caelo/…` — and keeps answering clients exactly as before. Caelo never asks for HTML.
+
 ## Revocation
 
 Stop serving the token: return `404` or `403`, and the client reports the subscription as

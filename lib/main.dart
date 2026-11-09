@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/android_tunnel_client.dart';
 import 'core/account_data.dart';
+import 'core/app_link.dart';
 import 'core/account_gateway.dart';
 import 'core/core_tunnel_client.dart';
 import 'core/desktop_updater.dart';
@@ -17,6 +18,7 @@ import 'core/apple_tunnel_client.dart';
 import 'core/settings_store.dart';
 import 'core/server_catalog.dart';
 import 'core/subscription_fetcher.dart';
+import 'core/subscription_store.dart';
 import 'core/tunnel.dart';
 import 'core/tunnel_controller.dart';
 import 'l10n/generated/app_localizations.dart';
@@ -66,6 +68,7 @@ void main() async {
       themeMode: themeMode,
       localeMode: localeMode,
       accessGranted: accessGranted,
+      appLinks: const PlatformAppLinkSource(),
     ),
   );
 }
@@ -78,8 +81,14 @@ class CaeloApp extends StatefulWidget {
     this.accountGateway = const SubscriptionAccountGateway(),
     this.tunnelClient,
     this.serverCatalog,
+    this.appLinks,
     super.key,
   });
+
+  /// Links the app is opened with, `caelo://add?url=…` (#163). The platform's
+  /// in the product, set by [main]; none when a test builds the app without
+  /// one, where there is no plugin to ask.
+  final AppLinkSource? appLinks;
 
   /// Replaces the platform's tunnel and the subscription-backed server list.
   /// Seams for driving the whole app in a test; null in the product.
@@ -117,6 +126,15 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   static const _refreshOnResumeAfter = Duration(minutes: 15);
   Timer? _periodicRefresh;
   Timer? _connectedCheck;
+
+  /// Dialogs about an incoming link are shown from here: a link can arrive
+  /// on any screen, or before the first one has been built.
+  final _navigator = GlobalKey<NavigatorState>();
+  StreamSubscription<Uri>? _links;
+
+  /// One link at a time. A second tap while the first is being asked about
+  /// would stack two dialogs about two different subscriptions.
+  bool _handlingLink = false;
 
   /// The system tunnel wherever there is one, and the in-process tunnel where
   /// there is not.
@@ -181,6 +199,12 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
       }
     });
     _controller.addListener(_onTunnelChanged);
+    _links = widget.appLinks?.links.listen(
+      (link) => unawaited(_onAppLink(link)),
+      // A platform that cannot deliver links is not a reason to fail.
+      onError: (Object error) =>
+          Diagnostics.record('app link stream failed', error: error),
+    );
     unawaited(_loadServers());
     // After the setting has been read, not before: the updater is handed the
     // answer rather than starting and being corrected.
@@ -259,6 +283,146 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
   /// has none for, then shows them.
   Future<void> _provisionAll() => _servers.provisionAll();
 
+  /// A subscription link opened from outside the app (#163).
+  ///
+  /// Always asks: the link may come from anywhere, and adding it routes the
+  /// person's traffic through whoever issued it. The question names the host,
+  /// which is the one part of the link a person can recognise.
+  ///
+  /// Replacing a connected subscription is what Settings → Disconnect account
+  /// followed by pasting the new link does, in the safer order: the new link
+  /// is accepted first, and the old account is forgotten only once it has
+  /// worked. A link that turns out not to work leaves things as they were.
+  Future<void> _onAppLink(Uri link) async {
+    final invitation = invitationFromAppLink(link);
+    if (invitation == null) {
+      // Never the link itself: a subscription URL is a bearer secret.
+      Diagnostics.record('ignored an app link (${link.scheme}://${link.host})');
+      return;
+    }
+    if (_handlingLink) return;
+    _handlingLink = true;
+    try {
+      final context = await _dialogContext();
+      if (context == null || !context.mounted) return;
+      final l10n = AppLocalizations.of(context);
+      final url = invitation.toString();
+      final List<String> known;
+      try {
+        known = [for (final s in await SubscriptionStore.all()) s.url];
+      } on Object {
+        return;
+      }
+      if (!context.mounted) return;
+      if (_accessGranted && known.contains(url)) {
+        await _tell(context, l10n.linkKnownTitle, l10n.linkKnownMessage);
+        return;
+      }
+      final replacing = _accessGranted;
+      final confirmed = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (dialog) => CupertinoAlertDialog(
+          title: Text(replacing ? l10n.linkReplaceTitle : l10n.linkAddTitle),
+          content: Text(
+            replacing
+                ? l10n.linkReplaceMessage(invitation.host)
+                : l10n.linkAddMessage(invitation.host),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(dialog).pop(false),
+              child: Text(l10n.cancel),
+            ),
+            CupertinoDialogAction(
+              key: const ValueKey('app-link-confirm'),
+              isDefaultAction: !replacing,
+              isDestructiveAction: replacing,
+              onPressed: () => Navigator.of(dialog).pop(true),
+              child: Text(
+                replacing ? l10n.linkReplaceConfirm : l10n.linkAddConfirm,
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return;
+      final navigator = Navigator.of(context);
+      navigator.popUntil((route) => route.isFirst);
+      unawaited(
+        showCupertinoDialog<void>(
+          context: context,
+          builder: (_) => const Center(
+            child: CupertinoActivityIndicator(
+              key: ValueKey('app-link-busy'),
+              radius: 16,
+            ),
+          ),
+        ),
+      );
+      String? failure;
+      try {
+        await widget.accountGateway.acceptInvitation(url);
+        if (replacing) await _forgetAllBut(url);
+        await _completeOnboarding();
+      } on InvalidInvitation {
+        failure = l10n.invitationInvalid;
+      } on Object catch (error) {
+        Diagnostics.record('adding a linked subscription failed', error: error);
+        failure = l10n.invitationUnavailable;
+      } finally {
+        navigator.pop();
+      }
+      if (failure != null && context.mounted) {
+        await _tell(context, l10n.linkFailedTitle, failure);
+      }
+    } finally {
+      _handlingLink = false;
+    }
+  }
+
+  /// The previous account, now that the new subscription is in: its
+  /// subscriptions, its configurations, the server chosen from them.
+  Future<void> _forgetAllBut(String url) async {
+    if (_controller.value.phase != TunnelPhase.disconnected &&
+        _controller.value.phase != TunnelPhase.failed) {
+      await _controller.toggle().catchError((_) {});
+    }
+    await AccountData.forget(
+      clearSubscriptions: () async {
+        for (final s in await SubscriptionStore.all()) {
+          if (s.url != url) await SubscriptionStore.remove(s.id);
+        }
+      },
+    );
+    _servers.clear();
+    await _controller.refreshConfiguration();
+  }
+
+  /// The navigator's context, once there is one. A link that launched the
+  /// app arrives before the first frame.
+  Future<BuildContext?> _dialogContext() async {
+    for (var i = 0; i < 50 && _navigator.currentContext == null; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    return _navigator.currentContext;
+  }
+
+  Future<void> _tell(BuildContext context, String title, String message) =>
+      showCupertinoDialog<void>(
+        context: context,
+        builder: (dialog) => CupertinoAlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(dialog).pop(),
+              child: Text(AppLocalizations.of(dialog).done),
+            ),
+          ],
+        ),
+      );
+
   Future<void> setThemeMode(CaeloThemeMode mode) async {
     setState(() => _themeMode = mode);
     await SettingsStore.setThemeMode(mode);
@@ -296,6 +460,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _periodicRefresh?.cancel();
     _connectedCheck?.cancel();
+    unawaited(_links?.cancel());
     _controller.removeListener(_onTunnelChanged);
     _controller.dispose();
     _servers.dispose();
@@ -325,6 +490,7 @@ class _CaeloAppState extends State<CaeloApp> with WidgetsBindingObserver {
               child: TunnelScope(
                 notifier: _controller,
                 child: CupertinoApp(
+                  navigatorKey: _navigator,
                   locale: _localeMode.locale,
                   onGenerateTitle: (context) =>
                       AppLocalizations.of(context).appTitle,

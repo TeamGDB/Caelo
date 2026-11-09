@@ -79,5 +79,19 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Caelo uses the camera only to read the QR code of your subscription when you sign in.</string>
+	<!-- caelo://add?url=… from a browser or a messenger (#163). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>team.gdb.caelo</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>caelo</string>
+			</array>
+		</dict>
+	</array>
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 </dict>
 </plist>

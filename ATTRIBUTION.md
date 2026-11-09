@@ -18,6 +18,7 @@ These are consumed as ordinary dependencies, not copied into this tree.
 | [wireguard-go](https://git.zx2c4.com/wireguard-go/) | MIT | via `amneziawg-go` | Upstream of `amneziawg-go`; its copyright notices travel with that dependency. |
 | [file_selector](https://github.com/flutter/packages/tree/main/packages/file_selector/file_selector) | BSD-3-Clause | 1.1.0 | Used as published to open the operating system file picker for local `.conf` import. |
 | [device_info_plus](https://github.com/fluttercommunity/plus_plugins/tree/main/packages/device_info_plus/device_info_plus) | BSD-3-Clause | 13.3.0 | Used as published to read the device's own name and OS version for the subscription's list of devices. |
+| [app_links](https://github.com/llfbandit/app_links) | Apache-2.0 | 7.2.2 | Used as published to receive `caelo://add` links on Android, iOS, macOS, Windows and Linux (#163). On Windows its `SendAppLinkToInstance` hands a link to the window already open. |
 | [mobile_scanner](https://github.com/juliansteenbakker/mobile_scanner) | BSD-3-Clause | 7.4.2 | Used as published to read a subscription's QR code with the camera at sign-in. On Android it bundles Google ML Kit's barcode model, which runs on the device. |
 | [Sparkle](https://github.com/sparkle-project/Sparkle) | MIT, with BSD-2-Clause components (`bsdiff`/`bspatch`) | 2.9.x | The macOS updater, used as published. Its own signature check is left in place and supplemented rather than replaced: see `docs/updates.md`. |
 
