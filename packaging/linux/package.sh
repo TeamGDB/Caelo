@@ -51,11 +51,12 @@ cat > "$STAGE/usr/share/applications/$DESKTOP_ID.desktop" <<DESKTOP
 Type=Application
 Name=$NAME
 Comment=A VPN client for subscription links
-Exec=/opt/$APP/$APP
+Exec=/opt/$APP/$APP %u
 Icon=$APP
 Terminal=false
 Categories=Network;
 StartupWMClass=$DESKTOP_ID
+MimeType=x-scheme-handler/caelo;
 DESKTOP
 
 if [[ -f "$ROOT/packaging/linux/$APP.png" ]]; then
@@ -121,7 +122,7 @@ if command -v appimagetool >/dev/null; then
   install -d "$APPDIR"
   cp -r "$STAGE/opt/$APP/." "$APPDIR/"
   cp "$STAGE/usr/share/applications/$DESKTOP_ID.desktop" "$APPDIR/$APP.desktop"
-  sed -i "s|^Exec=.*|Exec=$APP|" "$APPDIR/$APP.desktop"
+  sed -i "s|^Exec=.*|Exec=$APP %u|" "$APPDIR/$APP.desktop"
   [[ -f "$ROOT/packaging/linux/$APP.png" ]] && cp "$ROOT/packaging/linux/$APP.png" "$APPDIR/$APP.png"
   ln -sf "$APP" "$APPDIR/AppRun"
   # Update information, embedded in the file itself. This is the one Linux

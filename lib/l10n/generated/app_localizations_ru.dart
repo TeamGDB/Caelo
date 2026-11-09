@@ -406,4 +406,35 @@ class AppLocalizationsRu extends AppLocalizations {
   @override
   String get serviceNeedsGroup =>
       'Caelo не может обратиться к своей службе: нет доступа. Выполните в терминале: sudo usermod -aG caelo \$USER — затем выйдите из системы и войдите снова.';
+
+  @override
+  String get linkAddTitle => 'Добавить подписку?';
+
+  @override
+  String linkAddMessage(String host) {
+    return 'Ссылка от $host. Caelo будет подключаться через серверы этой подписки.';
+  }
+
+  @override
+  String get linkAddConfirm => 'Добавить';
+
+  @override
+  String get linkReplaceTitle => 'Заменить подписку?';
+
+  @override
+  String linkReplaceMessage(String host) {
+    return 'Ссылка от $host. Подписка на этом устройстве будет отключена, а её серверы удалены: вернуть её можно только по её ссылке.';
+  }
+
+  @override
+  String get linkReplaceConfirm => 'Заменить';
+
+  @override
+  String get linkKnownTitle => 'Уже добавлена';
+
+  @override
+  String get linkKnownMessage => 'Эта подписка уже есть на этом устройстве.';
+
+  @override
+  String get linkFailedTitle => 'Не удалось добавить подписку';
 }

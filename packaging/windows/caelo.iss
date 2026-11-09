@@ -122,6 +122,15 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
+; caelo://add?url=… from a browser or a messenger (#163). HKA is the user's
+; own classes for a per-user install and the machine's for an administrative
+; one, so the link works either way; removed with the app.
+[Registry]
+Root: HKA; Subkey: "Software\Classes\caelo"; ValueType: string; ValueName: ""; ValueData: "URL:Caelo subscription link"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\caelo"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\caelo\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"",0"
+Root: HKA; Subkey: "Software\Classes\caelo\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"" ""%1"""
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 

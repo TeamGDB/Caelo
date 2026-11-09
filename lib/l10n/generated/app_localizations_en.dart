@@ -409,4 +409,35 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get serviceNeedsGroup =>
       'Caelo is not allowed to reach its background service. In a terminal run: sudo usermod -aG caelo \$USER — then log out and back in.';
+
+  @override
+  String get linkAddTitle => 'Add this subscription?';
+
+  @override
+  String linkAddMessage(String host) {
+    return 'The link is from $host. Caelo will connect through the servers it offers.';
+  }
+
+  @override
+  String get linkAddConfirm => 'Add';
+
+  @override
+  String get linkReplaceTitle => 'Replace the subscription?';
+
+  @override
+  String linkReplaceMessage(String host) {
+    return 'The link is from $host. The subscription on this device will be disconnected, and its servers removed: to come back you will need its link.';
+  }
+
+  @override
+  String get linkReplaceConfirm => 'Replace';
+
+  @override
+  String get linkKnownTitle => 'Already added';
+
+  @override
+  String get linkKnownMessage => 'This subscription is already on this device.';
+
+  @override
+  String get linkFailedTitle => 'Could not add the subscription';
 }

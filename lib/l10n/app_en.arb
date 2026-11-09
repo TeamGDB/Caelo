@@ -402,5 +402,32 @@
   },
   "@serviceNeedsGroup": {
     "description": "Linux: the user is not in the caelo group, so the service socket refuses them. The command must stay verbatim."
-  }
+  },
+  "linkAddTitle": "Add this subscription?",
+  "linkAddMessage": "The link is from {host}. Caelo will connect through the servers it offers.",
+  "@linkAddMessage": {
+    "description": "Asked before a subscription opened from a browser or messenger (caelo://add) is added. The host is the only part of the link a person can recognise.",
+    "placeholders": {
+      "host": {
+        "type": "String",
+        "example": "spider.gdb.team"
+      }
+    }
+  },
+  "linkAddConfirm": "Add",
+  "linkReplaceTitle": "Replace the subscription?",
+  "linkReplaceMessage": "The link is from {host}. The subscription on this device will be disconnected, and its servers removed: to come back you will need its link.",
+  "@linkReplaceMessage": {
+    "description": "Asked when a different subscription is already connected. The old one is removed only after the new one has worked.",
+    "placeholders": {
+      "host": {
+        "type": "String",
+        "example": "spider.gdb.team"
+      }
+    }
+  },
+  "linkReplaceConfirm": "Replace",
+  "linkKnownTitle": "Already added",
+  "linkKnownMessage": "This subscription is already on this device.",
+  "linkFailedTitle": "Could not add the subscription"
 }

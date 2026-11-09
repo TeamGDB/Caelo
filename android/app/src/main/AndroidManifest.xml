@@ -42,6 +42,18 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- caelo://add?url=… from a browser or a messenger (#163). Only
+                 the custom scheme: an https App Link would tie this client to
+                 one provider's domain. app_links reads the intent, so
+                 Flutter's own deep linking, which would try to route it as a
+                 page, is off. -->
+            <meta-data android:name="flutter_deeplinking_enabled" android:value="false"/>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="caelo" android:host="add"/>
+            </intent-filter>
         </activity>
         <!-- Since Android 7 a file:// URI cannot be handed to another process,
              so the downloaded update is shared as content:// instead. Scoped to

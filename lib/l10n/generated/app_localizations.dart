@@ -823,6 +823,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Caelo is not allowed to reach its background service. In a terminal run: sudo usermod -aG caelo \$USER — then log out and back in.'**
   String get serviceNeedsGroup;
+
+  /// No description provided for @linkAddTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add this subscription?'**
+  String get linkAddTitle;
+
+  /// Asked before a subscription opened from a browser or messenger (caelo://add) is added. The host is the only part of the link a person can recognise.
+  ///
+  /// In en, this message translates to:
+  /// **'The link is from {host}. Caelo will connect through the servers it offers.'**
+  String linkAddMessage(String host);
+
+  /// No description provided for @linkAddConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get linkAddConfirm;
+
+  /// No description provided for @linkReplaceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace the subscription?'**
+  String get linkReplaceTitle;
+
+  /// Asked when a different subscription is already connected. The old one is removed only after the new one has worked.
+  ///
+  /// In en, this message translates to:
+  /// **'The link is from {host}. The subscription on this device will be disconnected, and its servers removed: to come back you will need its link.'**
+  String linkReplaceMessage(String host);
+
+  /// No description provided for @linkReplaceConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace'**
+  String get linkReplaceConfirm;
+
+  /// No description provided for @linkKnownTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Already added'**
+  String get linkKnownTitle;
+
+  /// No description provided for @linkKnownMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This subscription is already on this device.'**
+  String get linkKnownMessage;
+
+  /// No description provided for @linkFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not add the subscription'**
+  String get linkFailedTitle;
 }
 
 class _AppLocalizationsDelegate
