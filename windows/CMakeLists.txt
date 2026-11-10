@@ -75,6 +75,18 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
 
+# === Visual C++ runtime ===
+# caelo.exe and the Flutter plugins link against MSVCP140, VCRUNTIME140 and
+# VCRUNTIME140_1. Most machines have them from some other program; a clean
+# Windows does not, and there Caelo stopped at "MSVCP140.dll was not found"
+# before drawing anything. Deployed app-local, next to the executable — which
+# Microsoft permits for these files — so the installer needs no vc_redist, no
+# network and no elevation, and the portable zip works the same way.
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION "${CMAKE_INSTALL_PREFIX}")
+set(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT Runtime)
+set(CMAKE_INSTALL_UCRT_LIBRARIES FALSE)
+include(InstallRequiredSystemLibraries)
+
 # === Caelo core ===
 # Built by scripts/build-windows.ps1 into core/build/ before this runs. Copied
 # next to the executable, where Windows looks for a DLL by name — which is why
