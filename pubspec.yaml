@@ -34,3 +34,8 @@ flutter:
   generate: true
   assets:
     - docs/caelo.png
+  # Flags for Windows, which has none of its own (#168).
+  fonts:
+    - family: CaeloFlags
+      fonts:
+        - asset: assets/fonts/CaeloFlags.ttf

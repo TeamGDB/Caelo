@@ -32,6 +32,7 @@ note in the README for why the alternative was rejected.
 | What | From | License | Where |
 | --- | --- | --- | --- |
 | The declarations of `ctl_info`, `sockaddr_ctl` and `CTLIOCGINFO`, and the approach of locating the tunnel's descriptor by scanning for a utun control socket | [wireguard-apple](https://github.com/WireGuard/wireguard-apple) | MIT | `ios/CaeloPacketTunnel/CaeloPacketTunnel-Bridging-Header.h`, `PacketTunnelProvider.swift` |
+| Flag glyphs: the regional-indicator part of the Twemoji Mozilla font (`Twemoji.Mozilla.ttf`, release v0.7.0), cut with `pyftsubset` to U+1F1E6–U+1F1FF and the ligatures that join them (#168) | [twemoji-colr](https://github.com/mozilla/twemoji-colr), artwork from [Twemoji](https://github.com/twitter/twemoji) © Twitter, Inc and other contributors | Artwork CC-BY-4.0; the font build Apache-2.0 | `assets/fonts/CaeloFlags.ttf`, see `assets/fonts/README.md` |
 
 `<sys/kern_control.h>` is not in the iOS SDK, so those three declarations have
 to be reproduced by anyone who needs them; the ABI is public and stable. The

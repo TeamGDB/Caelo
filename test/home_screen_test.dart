@@ -371,6 +371,59 @@ void main() {
     expect(decoration.border, isNull);
   });
 
+  group('flags (#168)', () {
+    // Every flag on screen: the selected server's and each row's.
+    List<Text> flags(WidgetTester tester) => tester
+        .widgetList<Text>(find.byType(Text))
+        .where((text) => const ['🇫🇮', '🇸🇪', '🇩🇪'].contains(text.data))
+        .toList();
+
+    Future<void> openList(WidgetTester tester) async {
+      await pumpHome(tester, locale: const Locale('en'));
+      await tester.tap(find.text('Helsinki'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('come from the bundled font on Windows, which has none', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      try {
+        await openList(tester);
+        final shown = flags(tester);
+        // The header and the three rows.
+        expect(shown, hasLength(4));
+        for (final flag in shown) {
+          expect(flag.style?.fontFamily, CaeloTheme.flagFontFamily);
+        }
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
+    testWidgets('stay the system emoji everywhere else', (tester) async {
+      for (final platform in [
+        TargetPlatform.macOS,
+        TargetPlatform.linux,
+        TargetPlatform.android,
+        TargetPlatform.iOS,
+      ]) {
+        debugDefaultTargetPlatformOverride = platform;
+        try {
+          await openList(tester);
+          final shown = flags(tester);
+          expect(shown, isNotEmpty, reason: '$platform');
+          for (final flag in shown) {
+            expect(flag.style?.fontFamily, isNull, reason: '$platform');
+          }
+        } finally {
+          debugDefaultTargetPlatformOverride = null;
+        }
+        await tester.pumpWidget(const SizedBox());
+      }
+    });
+  });
+
   testWidgets('tapping the current server toggles the section closed', (
     tester,
   ) async {
