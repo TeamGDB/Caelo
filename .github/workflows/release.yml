@@ -459,6 +459,14 @@ jobs:
       - name: Build
         shell: bash
         run: ./scripts/build-windows.sh release
+      # A clean Windows has no Visual C++ runtime; without these next to
+      # caelo.exe the app does not start there (windows/CMakeLists.txt).
+      - name: Visual C++ runtime is bundled
+        shell: bash
+        run: |
+          for dll in msvcp140.dll vcruntime140.dll vcruntime140_1.dll; do
+            test -f "build/windows/x64/runner/Release/$dll" || { echo "missing $dll"; exit 1; }
+          done
       - name: Package
         shell: bash
         run: ./packaging/windows/package.sh "${{ needs.version.outputs.value }}"
