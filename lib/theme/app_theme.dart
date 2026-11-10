@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/cupertino.dart';
 
 import 'palette.dart';
@@ -86,5 +87,21 @@ abstract final class CaeloTheme {
     fontSize: 21,
     height: 28 / 21,
     fontWeight: FontWeight.w600,
+  );
+
+  /// The font bundled for flags (#168): the regional-indicator part of Twemoji.
+  static const flagFontFamily = 'CaeloFlags';
+
+  /// A country flag in the server list. Windows has no flag glyphs at all —
+  /// Segoe UI Emoji leaves them out on purpose — so there a flag came out as
+  /// two letters ("DE"); Caelo carries its own flags for Windows. Elsewhere
+  /// the system emoji stay, as people know them. Anything that is not a flag
+  /// (the globe, the dash) falls through to the system font.
+  static TextStyle flag({required double fontSize, Color? color}) => TextStyle(
+    fontSize: fontSize,
+    color: color,
+    fontFamily: defaultTargetPlatform == TargetPlatform.windows
+        ? flagFontFamily
+        : null,
   );
 }

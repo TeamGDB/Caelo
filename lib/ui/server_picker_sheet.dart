@@ -378,7 +378,7 @@ class _PeekHeader extends StatelessWidget {
                             child: Text(
                               server?.flag ?? '—',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 38),
+                              style: CaeloTheme.flag(fontSize: 38),
                             ),
                           ),
                           const SizedBox(width: CaeloSpace.md),
@@ -509,7 +509,10 @@ class _ServerRow extends StatelessWidget {
                   // Opaque on purpose: a disabled button tints emoji through the
                   // default text colour, and every flag paled while another
                   // row was being prepared (#130).
-                  style: TextStyle(fontSize: 36, color: palette.foreground),
+                  style: CaeloTheme.flag(
+                    fontSize: 36,
+                    color: palette.foreground,
+                  ),
                 ),
               ),
               const SizedBox(width: CaeloSpace.md),
