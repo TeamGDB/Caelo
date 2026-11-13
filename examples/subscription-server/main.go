@@ -23,12 +23,14 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -46,9 +48,9 @@ const caeloDocumentType = "application/vnd.caelo.subscription+json"
 
 // document is what a subscription URL returns: plain sing-box JSON.
 //
-// Only endpoints, because only AmneziaWG is implemented. A server that also
-// carries vless puts it in "outbounds" beside this, and the client reads past
-// what it cannot run.
+// Only endpoints: AmneziaWG. Nodes of other protocols are not sing-box
+// endpoints and are not put here; they reach a client as links, in version 2
+// of the Caelo document or in a plain list.
 type document struct {
 	Endpoints []endpoint `json:"endpoints"`
 }
@@ -66,11 +68,16 @@ type caeloNode struct {
 	// Stable for the same node across refreshes. This is what a client's "use
 	// this one" is remembered by, so a server that renumbers them silently
 	// unpins everybody.
-	ID          string   `json:"id"`
-	Country     string   `json:"country,omitempty"`
-	Description string   `json:"description,omitempty"`
-	Maintenance bool     `json:"maintenance,omitempty"`
-	Endpoint    endpoint `json:"endpoint"`
+	ID          string `json:"id"`
+	Country     string `json:"country,omitempty"`
+	Description string `json:"description,omitempty"`
+	Maintenance bool   `json:"maintenance,omitempty"`
+
+	// An AmneziaWG node carries its endpoint; a node of another protocol, in
+	// version 2 only, carries the protocol and its share link instead.
+	Endpoint *endpoint `json:"endpoint,omitempty"`
+	Protocol string    `json:"protocol,omitempty"`
+	URI      string    `json:"uri,omitempty"`
 }
 
 // endpoint is sing-box's WireGuard endpoint plus the obfuscation set. Fields
@@ -127,7 +134,10 @@ type config struct {
 	UpdateIntervalHours int                   `json:"update_interval_hours"`
 	Subscribers         map[string]subscriber `json:"subscribers"`
 	Nodes               map[string]endpoint   `json:"nodes"`
-	Meta                map[string]meta       `json:"meta,omitempty"`
+	// Links are nodes of other protocols, by name: a vless:// share link
+	// each. A subscriber names them in the same list as nodes.
+	Links map[string]string `json:"links,omitempty"`
+	Meta  map[string]meta   `json:"meta,omitempty"`
 }
 
 // meta is what a node looks like to a person, kept beside the configuration
@@ -140,6 +150,8 @@ type meta struct {
 }
 
 type subscriber struct {
+	// Title is what the subscription is called in a client: profile-title.
+	Title      string    `json:"title,omitempty"`
 	Expires    time.Time `json:"expires"`
 	QuotaBytes int64     `json:"quota_bytes"`
 	UsedBytes  int64     `json:"used_bytes"`
@@ -200,8 +212,13 @@ func (s *store) reload() error {
 
 	for token, who := range loaded.Subscribers {
 		for _, name := range who.Nodes {
-			if _, ok := loaded.Nodes[name]; !ok {
+			_, isNode := loaded.Nodes[name]
+			_, isLink := loaded.Links[name]
+			if !isNode && !isLink {
 				return fmt.Errorf("a subscriber names node %q, which is not defined", name)
+			}
+			if isNode && isLink {
+				return fmt.Errorf("%q is both a node and a link", name)
 			}
 		}
 		if len(token) < 24 {
@@ -209,6 +226,12 @@ func (s *store) reload() error {
 			// credential, and a short one in an example is a short one in
 			// production three weeks later.
 			return fmt.Errorf("a token is %d characters; make it at least 24 and random", len(token))
+		}
+	}
+
+	for name, link := range loaded.Links {
+		if variant(link) == "" {
+			return fmt.Errorf("link %q is not a vless:// share link this example understands", name)
 		}
 	}
 
@@ -256,13 +279,33 @@ func (s *store) serve(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("profile-update-interval", fmt.Sprint(loaded.UpdateIntervalHours))
 	}
 
-	// Offered rather than assumed. A client that did not ask gets plain sing-box
-	// JSON, which is what keeps the same link usable in other clients.
+	if who.Title != "" {
+		// base64: so that a title in any language survives a header.
+		w.Header().Set("profile-title", "base64:"+base64.StdEncoding.EncodeToString([]byte(who.Title)))
+	}
+
+	// Offered rather than assumed. What a client asked for and said it can
+	// run decides the shape; nothing is sent that it did not say it reads.
+	accept := r.Header.Get("Accept")
+	can := capabilities(r)
 	var answer any
-	if strings.Contains(r.Header.Get("Accept"), caeloDocumentType) {
+	switch {
+	case strings.Contains(accept, caeloDocumentType) && (strings.Contains(accept, "version=2") || can["subscription-v2"]):
 		w.Header().Set("Content-Type", caeloDocumentType)
-		answer = caeloAnswer(loaded, who)
-	} else {
+		answer = caeloAnswer(loaded, who, 2, can)
+	case strings.Contains(accept, caeloDocumentType):
+		// A Caelo that runs AmneziaWG only gets exactly what it always got.
+		w.Header().Set("Content-Type", caeloDocumentType)
+		answer = caeloAnswer(loaded, who, 1, nil)
+	case hasLinks(loaded, who) && (strings.Contains(accept, "text/plain") || !hasEndpoints(loaded, who)):
+		// The list every V2Ray-family client reads: to whoever asks for it,
+		// and to anybody when there is nothing a sing-box document could
+		// carry. Otherwise a client that did not ask gets sing-box JSON, as
+		// it always did.
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprint(w, linksAnswer(loaded, who))
+		return
+	default:
 		w.Header().Set("Content-Type", "application/json")
 		answer = plainAnswer(loaded, who)
 	}
@@ -276,22 +319,25 @@ func (s *store) serve(w http.ResponseWriter, r *http.Request) {
 }
 
 func plainAnswer(loaded config, who subscriber) document {
-	answer := document{}
+	answer := document{Endpoints: []endpoint{}}
 	for _, name := range who.Nodes {
-		node := loaded.Nodes[name]
+		node, ok := loaded.Nodes[name]
+		if !ok {
+			continue // a link: not a sing-box endpoint
+		}
 		node.Type = endpointType
 		answer.Endpoints = append(answer.Endpoints, node)
 	}
 	return answer
 }
 
-func caeloAnswer(loaded config, who subscriber) caeloDocument {
-	answer := caeloDocument{Version: 1}
+// caeloAnswer renders the Caelo document. Version 1 carries AmneziaWG only;
+// version 2 adds the links whose kind of connection the client said it runs.
+func caeloAnswer(loaded config, who subscriber, version int, can map[string]bool) caeloDocument {
+	answer := caeloDocument{Version: version, Nodes: []caeloNode{}}
 	for _, name := range who.Nodes {
-		node := loaded.Nodes[name]
-		node.Type = endpointType
 		about := loaded.Meta[name]
-		answer.Nodes = append(answer.Nodes, caeloNode{
+		entry := caeloNode{
 			// The name in the file, which is what an operator renames a node
 			// away from rather than to: it is not shown anywhere and has no
 			// reason to change when the tag does.
@@ -299,10 +345,88 @@ func caeloAnswer(loaded config, who subscriber) caeloDocument {
 			Country:     about.Country,
 			Description: about.Description,
 			Maintenance: about.Maintenance,
-			Endpoint:    node,
-		})
+		}
+		if node, ok := loaded.Nodes[name]; ok {
+			node.Type = endpointType
+			entry.Endpoint = &node
+		} else {
+			link := loaded.Links[name]
+			if version < 2 || !can[variant(link)] {
+				continue
+			}
+			entry.Protocol = "vless"
+			entry.URI = link
+		}
+		answer.Nodes = append(answer.Nodes, entry)
 	}
 	return answer
+}
+
+// linksAnswer is the plain list: one share link per line, base64 as is
+// customary. Only links — an AmneziaWG endpoint has no share link.
+func linksAnswer(loaded config, who subscriber) string {
+	var lines []string
+	for _, name := range who.Nodes {
+		if link, ok := loaded.Links[name]; ok {
+			lines = append(lines, link)
+		}
+	}
+	return base64.StdEncoding.EncodeToString([]byte(strings.Join(lines, "\n") + "\n"))
+}
+
+func hasEndpoints(loaded config, who subscriber) bool {
+	for _, name := range who.Nodes {
+		if _, ok := loaded.Nodes[name]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func hasLinks(loaded config, who subscriber) bool {
+	for _, name := range who.Nodes {
+		if _, ok := loaded.Links[name]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// capabilities reads X-Caelo-Capabilities: a comma-separated list. Absent
+// means AmneziaWG only.
+func capabilities(r *http.Request) map[string]bool {
+	out := map[string]bool{}
+	for _, each := range strings.Split(r.Header.Get("X-Caelo-Capabilities"), ",") {
+		if each = strings.TrimSpace(each); each != "" {
+			out[each] = true
+		}
+	}
+	return out
+}
+
+// variant names a link's kind of connection the way capabilities do:
+// vless-reality-vision, vless-tls-xhttp. Empty for a link this example does
+// not recognise.
+func variant(link string) string {
+	u, err := url.Parse(link)
+	if err != nil || u.Scheme != "vless" {
+		return ""
+	}
+	q := u.Query()
+	security := q.Get("security")
+	if security != "reality" && security != "tls" {
+		return ""
+	}
+	switch q.Get("type") {
+	case "", "tcp", "raw":
+		if strings.HasPrefix(q.Get("flow"), "xtls-rprx-vision") {
+			return "vless-" + security + "-vision"
+		}
+		return ""
+	case "xhttp":
+		return "vless-" + security + "-xhttp"
+	}
+	return ""
 }
 
 // userinfo renders the header the V2Ray and Clash ecosystems already use, so
@@ -369,14 +493,22 @@ func (s *store) serveState(w http.ResponseWriter, r *http.Request, token string)
 	states := make([]nodeState, 0, len(who.Nodes))
 	parts := make([]string, 0, len(who.Nodes))
 	for _, name := range who.Nodes {
-		node := loaded.Nodes[name]
-		raw, err := json.Marshal(node)
-		if err != nil {
-			continue
+		var raw []byte
+		server := ""
+		if node, ok := loaded.Nodes[name]; ok {
+			raw, _ = json.Marshal(node)
+			server = node.Tag
+		} else {
+			// A link's version covers the link: a new user id, fingerprint
+			// or path is a new version.
+			raw = []byte(loaded.Links[name])
+			if u, err := url.Parse(loaded.Links[name]); err == nil {
+				server = u.Fragment
+			}
 		}
 		sum := sha256.Sum256(append([]byte(device), raw...))
 		version := hex.EncodeToString(sum[:8])
-		states = append(states, nodeState{ID: name, Version: version, Server: node.Tag})
+		states = append(states, nodeState{ID: name, Version: version, Server: server})
 		parts = append(parts, name+":"+version)
 	}
 	sort.Strings(parts)

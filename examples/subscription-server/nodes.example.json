@@ -2,12 +2,14 @@
   "update_interval_hours": 12,
   "subscribers": {
     "put-a-long-random-token-here": {
+      "title": "Home",
       "expires": "2027-01-01T00:00:00Z",
       "quota_bytes": 107374182400,
       "used_bytes": 44040192,
       "nodes": [
         "frankfurt",
-        "amsterdam"
+        "amsterdam",
+        "zurich-vision"
       ]
     }
   },
@@ -69,5 +71,8 @@
       "country": "NL",
       "description": "Quiet most of the day"
     }
+  },
+  "links": {
+    "zurich-vision": "vless://REPLACE-WITH-A-UUID@192.0.2.10:443?encryption=none&type=tcp&headerType=none&flow=xtls-rprx-vision&security=reality&sni=edge.example.com&pbk=REPLACE-WITH-THE-REALITY-PUBLIC-KEY&sid=0123456789abcdef&fp=safari#Zurich"
   }
 }

@@ -24,30 +24,66 @@ app's, measured from the device, because the server cannot know where the device
 What must stay in one place is connection state, because state kept in two will eventually
 disagree with itself about what is connected.
 
-**Nothing will be forked.** [sing-box](https://github.com/SagerNet/sing-box) is to be
-imported as an ordinary Go module, with Caelo registering its own protocol types through
-its public registry.
-AmneziaWG comes from [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go), also as
-published. Upgrading either is a version bump. See
-[ATTRIBUTION.md](ATTRIBUTION.md) for licences and
-[the app's README](../README.md#architecture) for why the alternative —
-forking `sagernet/wireguard-go` and porting the obfuscation in — was rejected.
+**Nothing will be forked.** AmneziaWG comes from
+[amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) and VLESS from
+[Xray-core](https://github.com/XTLS/Xray-core), both as published Go modules. Upgrading
+either is a version bump. See [ATTRIBUTION.md](ATTRIBUTION.md) for licences and
+[the app's README](../README.md#architecture) for why the alternative — forking
+`sagernet/wireguard-go` and porting the obfuscation in — was rejected.
 
 Pinned versions:
 
 | Dependency | Version |
 | --- | --- |
-| amneziawg-go | v3.0.20260805 |
-| sing-box | v1.13.16 — added back to `go.mod` with the endpoint registration |
+| amneziawg-go | v3.1.20260814 |
+| Xray-core | v26.11.9 (a pseudo-version in `go.mod`; see below) |
 
-`go mod tidy` drops a module nothing imports, so sing-box is absent from `go.mod` until the
-code that registers the `amneziawg` endpoint lands. Pinning a dependency the build does not
-use would only record an intention that nothing verifies.
+### Protocols
+
+AmneziaWG is the path the core was built around, and it is left exactly as it was.
+Everything else registers itself in `internal/protocol` with what the rest of the core
+asks of any node:
+
+| | |
+| --- | --- |
+| `Describe` | addresses, MTU, DNS, routes and endpoint, for a host building a device |
+| `Pin` | the server's address, resolved now, for a host routing it around the tunnel |
+| `Dial` | carry this process's own connections, with no device: the probe and the in-process tunnel |
+| `Attach` | run over a device the platform created (Android, iOS, macOS extension) |
+| `Create` | make a device of its own (the Linux and Windows service) |
+
+`caelo_describe`, `caelo_probe`, `caelo_connect`, `caelo_connect_fd`, the service and
+`caelo-probe` ask the registry first; a configuration nothing claims is AmneziaWG.
+`caelo_capabilities` reports what is registered, and `caelo_validate` whether a node can
+run, for the app's subscription reader. Adding a protocol is a package that implements
+`protocol.Config` and calls `protocol.Register` from `init`, and a line in
+`internal/protocol/all`.
+
+### Xray-core
+
+`internal/vless` reads a `vless://` link, refuses what it cannot honour with a reason,
+renders Xray's own JSON configuration, and runs it. JSON rather than Xray's protobuf types,
+because the JSON is the configuration language Xray keeps compatible across releases.
+Packets reach Xray through its own TUN input: the platform's descriptor on Android and Apple
+platforms, a device Xray creates on Linux and Windows. "The server is there" is bytes coming
+back from it, and a quiet tunnel is asked once when someone wants to know.
+
+Xray tags releases `v26.11.9` but its module path has no `/v26`, so Go cannot take a tag by
+name; the tag's commit is pinned instead. `scripts/update-xray.sh v26.12.1` (from the
+repository root) resolves the tag, pins it, checks that the linked Xray reports that
+release, updates the attribution tables, and runs the VLESS tests against a real Xray
+server from the same release. The release is what diagnostics show, read from Xray itself.
+
+Android builds pass `-checklinkname=0`, as Xray's own Android releases do:
+`github.com/wlynxg/anet`, which Xray uses to list interfaces on Android, links into the
+standard library.
 
 ## Layout
 
 | Path | What it is |
 | --- | --- |
+| `internal/protocol` | The registry every protocol other than AmneziaWG plugs into |
+| `internal/vless` | VLESS share links, run on Xray-core |
 | `internal/awg` | AmneziaWG configuration: parsing `.conf`, rendering the device's UAPI form |
 | `internal/tunnel` | A tunnel that stays up, for the app to drive |
 | `internal/probe` | One tunnel on a userspace stack, one request through it, nothing on the host |

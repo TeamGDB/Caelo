@@ -35,15 +35,20 @@ cat > "$WORK/nodes.json" <<JSON
   "update_interval_hours": 12,
   "subscribers": {
     "$TOKEN": {
+      "title": "Дом",
       "expires": "2030-01-01T00:00:00Z",
       "quota_bytes": 107374182400,
       "used_bytes": 44040192,
-      "nodes": ["first", "second"]
+      "nodes": ["first", "second", "third"]
     }
   },
   "meta": {
     "first":  { "country": "DE", "description": "Best for video" },
-    "second": { "country": "NL", "maintenance": true }
+    "second": { "country": "NL", "maintenance": true },
+    "third":  { "country": "CH", "description": "Example connection" }
+  },
+  "links": {
+    "third": "vless://00000000-0000-4000-8000-000000000001@192.0.2.10:443?encryption=none&type=tcp&headerType=none&flow=xtls-rprx-vision&security=reality&sni=edge.example.com&pbk=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&sid=0123456789abcdef&fp=safari#Example%20Vision"
   },
   "nodes": {
     "first": {
@@ -112,8 +117,47 @@ for node in nodes:
 print("    version %d, ids: %s" % (document["version"], ", ".join(n["id"] for n in nodes)))
 ' "$WORK/caelo.json"
 
+echo "==> version 2, to a client that says it runs VLESS"
+curl -fsS -H 'Accept: application/vnd.caelo.subscription+json;version=2, application/vnd.caelo.subscription+json;q=0.9, application/json;q=0.8, text/plain;q=0.7' \
+  -H 'X-Caelo-Capabilities: subscription-v2, vless-reality-vision' \
+  -D "$WORK/v2-headers" -o "$WORK/v2.json" "http://127.0.0.1:$PORT/sub/$TOKEN"
+python3 -c '
+import json, sys
+document = json.load(open(sys.argv[1]))
+assert document["version"] == 2, "a client that asked for version 2 should get it"
+kinds = ["uri" if "uri" in n else "endpoint" for n in document["nodes"]]
+assert kinds == ["endpoint", "endpoint", "uri"], kinds
+assert document["nodes"][2]["protocol"] == "vless"
+print("    ids: %s" % ", ".join(n["id"] for n in document["nodes"]))
+' "$WORK/v2.json"
+python3 -c '
+import json, sys
+document = json.load(open(sys.argv[1]))
+assert all("endpoint" in n for n in document["nodes"]), "version 1 must carry no links"
+' "$WORK/caelo.json"
+
+echo "==> a client that runs other variants gets none of these links"
+curl -fsS -H 'Accept: application/vnd.caelo.subscription+json;version=2' \
+  -H 'X-Caelo-Capabilities: subscription-v2, vless-tls-xhttp' -o "$WORK/v2-other.json" "http://127.0.0.1:$PORT/sub/$TOKEN"
+python3 -c '
+import json, sys
+assert all("endpoint" in n for n in json.load(open(sys.argv[1]))["nodes"])
+' "$WORK/v2-other.json"
+
+echo "==> and the plain list another client reads"
+curl -fsS -H 'Accept: text/plain' -D "$WORK/links-headers" -o "$WORK/links.b64" "http://127.0.0.1:$PORT/sub/$TOKEN"
+grep -qi 'content-type: text/plain' "$WORK/links-headers" \
+  || { echo "!! another client should get the list of links" >&2; exit 1; }
+python3 -c 'import base64,sys; open(sys.argv[2],"w").write(base64.b64decode(open(sys.argv[1]).read()).decode())' "$WORK/links.b64" "$WORK/links.txt"
+while IFS= read -r link; do
+  [[ -z "$link" ]] && continue
+  printf '%s' "$link" > "$WORK/link.txt"
+  echo "--- ${link##*#}"
+  (cd "$ROOT/core" && go run ./cmd/caelo-probe -check -config "$WORK/link.txt") | sed 's/^/    /'
+done < "$WORK/links.txt"
+
 echo "==> headers"
-grep -i -E 'subscription-userinfo|profile-update-interval' "$WORK/headers" | sed 's/^/    /'
+grep -i -E 'subscription-userinfo|profile-update-interval|profile-title' "$WORK/headers" | sed 's/^/    /'
 grep -qi 'subscription-userinfo' "$WORK/headers" \
   || { echo "!! no subscription-userinfo: the client cannot show quota or expiry" >&2; exit 1; }
 grep -qi 'profile-update-interval' "$WORK/headers" \
@@ -153,13 +197,19 @@ import 'dart:io';
 import 'subscription.dart';
 
 Future<void> main(List<String> arguments) async {
-  final wantsCaelo = arguments.length > 1 && arguments[1] == 'caelo';
+  final as = arguments.length > 1 ? arguments[1] : 'plain';
+  final wantsCaelo = as != 'plain';
 
   final client = HttpClient();
   final request = await client.getUrl(Uri.parse(arguments.first));
-  if (wantsCaelo) {
+  if (as == 'caelo') {
     request.headers.set('accept', '$caeloDocumentType, application/json');
   }
+  if (as == 'v2') {
+    request.headers.set('accept', '$caeloDocumentType;version=2, text/plain;q=0.7');
+    request.headers.set('x-caelo-capabilities', 'subscription-v2, vless-reality-vision');
+  }
+  if (as == 'links') request.headers.set('accept', 'text/plain');
   final response = await request.close();
   final body = await response.transform(utf8.decoder).join();
 
@@ -170,9 +220,11 @@ Future<void> main(List<String> arguments) async {
   final nodes = readNodes(
     body,
     contentType: response.headers.contentType?.mimeType,
+    protocols: const {'amneziawg', 'vless'},
   );
 
-  stdout.writeln('as       ${wantsCaelo ? "the Caelo document" : "plain sing-box"}');
+  stdout.writeln('as       $as');
+  stdout.writeln('title    ${parseProfileTitle(response.headers.value('profile-title'))}');
   for (final each in nodes) {
     final about = [
       if (each.flag.isNotEmpty) each.flag,
@@ -180,7 +232,7 @@ Future<void> main(List<String> arguments) async {
       if (each.description.isNotEmpty) '— ${each.description}',
       if (each.maintenance) '[out of service]',
     ].join(' ');
-    stdout.writeln('node     ${each.id.padRight(12)} $about');
+    stdout.writeln('node     ${each.id.padRight(12)} ${each.protocol.padRight(9)} $about');
   }
   stdout.writeln('used     ${usage.usedBytes} of ${usage.totalBytes}');
   stdout.writeln('left     ${usage.remainingBytes}');
@@ -189,9 +241,19 @@ Future<void> main(List<String> arguments) async {
 
   // The endpoint has to survive the app untouched: it is what reaches the core,
   // and eventually a process running as root.
-  final carried = jsonDecode(nodes.first.endpoint) as Map<String, dynamic>;
-  if (carried['private_key'] == null) {
-    stderr.writeln('the app lost a field it was carrying');
+  final first = nodes.first;
+  if (first.protocol == 'amneziawg') {
+    final carried = jsonDecode(first.endpoint) as Map<String, dynamic>;
+    if (carried['private_key'] == null) {
+      stderr.writeln('the app lost a field it was carrying');
+      exit(1);
+    }
+  } else if (!first.endpoint.startsWith('vless://')) {
+    stderr.writeln('the app rewrote a link it was carrying');
+    exit(1);
+  }
+  if (wantsCaelo && as == 'v2' && nodes.length != 3) {
+    stderr.writeln('version 2 should have carried three nodes');
     exit(1);
   }
   client.close();
@@ -200,6 +262,8 @@ DART
   cp "$ROOT/lib/core/subscription.dart" "$WORK/subscription.dart"
   dart run "$WORK/read.dart" "http://127.0.0.1:$PORT/sub/$TOKEN" plain | sed 's/^/    /'
   dart run "$WORK/read.dart" "http://127.0.0.1:$PORT/sub/$TOKEN" caelo | sed 's/^/    /'
+  dart run "$WORK/read.dart" "http://127.0.0.1:$PORT/sub/$TOKEN" v2 | sed 's/^/    /'
+  dart run "$WORK/read.dart" "http://127.0.0.1:$PORT/sub/$TOKEN" links | sed 's/^/    /'
 else
   echo "!! no dart on PATH; skipped the app's half" >&2
 fi
