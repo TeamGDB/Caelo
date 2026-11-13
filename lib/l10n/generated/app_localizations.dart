@@ -887,7 +887,7 @@ abstract class AppLocalizations {
   /// Below the server list: servers in the subscription this build cannot run, and why.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 server is not shown} other{{count} servers are not shown}}: this version of Caelo cannot run them ({reasons}).'**
+  /// **'{count, plural, =1{1 server is not shown: this version of Caelo cannot run it} other{{count} servers are not shown: this version of Caelo cannot run them}} ({reasons}).'**
   String subscriptionSkipped(int count, String reasons);
 }
 

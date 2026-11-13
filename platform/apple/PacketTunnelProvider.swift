@@ -177,11 +177,16 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         let endpoint = (described["endpoint"] as? String) ?? ""
         var host = endpoint.split(separator: ":").first.map(String.init) ?? "127.0.0.1"
-        // The address the core resolved the server to, when it is a name.
-        // The system wants an address here, and a name split at its colon is
-        // not one.
-        if registered, let resolved = described["endpoint_address"] as? String, !resolved.isEmpty {
-            host = resolved
+        if registered {
+            // The address the core resolved the server to, when it is a name.
+            // The system wants an address here, and a name split at its
+            // colon is not one. Failing that, an IPv6 literal is the part in
+            // brackets, not the part before its first colon.
+            if let resolved = described["endpoint_address"] as? String, !resolved.isEmpty {
+                host = resolved
+            } else if endpoint.hasPrefix("["), let close = endpoint.firstIndex(of: "]") {
+                host = String(endpoint[endpoint.index(after: endpoint.startIndex)..<close])
+            }
         }
 
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: host)
@@ -191,7 +196,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         // A prefix length is how the core writes a VLESS device's addresses;
         // the tunnel is point to point either way, so the address is what
         // counts.
-        let v4 = addresses.filter { !$0.contains(":") }.map { String($0.split(separator: "/")[0]) }
+        let v4 = addresses.filter { !$0.isEmpty && !$0.contains(":") }.map { $0.split(separator: "/").first.map(String.init) ?? $0 }
         if !v4.isEmpty {
             let ipv4 = NEIPv4Settings(addresses: v4, subnetMasks: v4.map { _ in "255.255.255.255" })
             // Every route the configuration allows. An empty list would leave
@@ -205,10 +210,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         // IPv6 is carried for a registered protocol: its device has an
         // address in both families, and leaving v6 to the physical interface
         // would send half of somebody's traffic around the tunnel.
-        let v6 = addresses.filter { $0.contains(":") }
+        let v6 = addresses.filter { !$0.isEmpty && $0.contains(":") }
         if registered && !v6.isEmpty {
             let ipv6 = NEIPv6Settings(
-                addresses: v6.map { String($0.split(separator: "/")[0]) },
+                addresses: v6.map { $0.split(separator: "/").first.map(String.init) ?? $0 },
                 networkPrefixLengths: v6.map { NSNumber(value: Int($0.split(separator: "/").last.map(String.init) ?? "") ?? 128) }
             )
             ipv6.includedRoutes = ((described["allowed_ips"] as? [String]) ?? [])

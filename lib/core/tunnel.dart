@@ -87,7 +87,15 @@ enum TunnelProtocol {
   /// absence as VLESS was a guess that became wrong the day VLESS existed.
   static TunnelProtocol? fromCore(Map<String, dynamic>? reply) {
     if (reply == null) return null;
-    final named = (reply['protocol'] as String?)?.toLowerCase();
+    // `label` when the core gives one (caelo_validate: "WireGuard" under the
+    // protocol "amneziawg"), `protocol` otherwise.
+    final label = reply['label'];
+    final name = reply['protocol'];
+    final named =
+        (label is String && label.isNotEmpty
+                ? label
+                : (name is String ? name : null))
+            ?.toLowerCase();
     if (named != null && named.isNotEmpty) {
       for (final protocol in values) {
         if (protocol.label.toLowerCase() == named) return protocol;

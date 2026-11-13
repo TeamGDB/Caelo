@@ -145,9 +145,37 @@ func (c *config) Attach(fd int, mtu int) (protocol.Tunnel, error) {
 	// that is not theirs.
 	defer os.Unsetenv(platform.TunFdKey)
 
-	return start(c.link, options{
+	in, err := start(c.link, options{
 		address: c.address,
 		tun:     &tunOptions{Name: tunName, MTU: mtu},
+	})
+	if runtime.GOOS != "android" {
+		// Apple platforms: the descriptor is the system's, and Xray reads a
+		// duplicate of it, as AmneziaWG does.
+		return in, err
+	}
+	// Android hands the descriptor over (detachFd), and the core is where it
+	// is closed — closing it is what takes the VPN interface down. Xray reads
+	// a duplicate and closes only that, so the original is closed here: when
+	// the tunnel stops, or now if it never started.
+	if err != nil {
+		closeFd(fd)
+		return nil, err
+	}
+	return &ownedFd{instance: in, fd: fd}, nil
+}
+
+// ownedFd is a tunnel that also closes the descriptor it was given.
+type ownedFd struct {
+	*instance
+	fd   int
+	once sync.Once
+}
+
+func (o *ownedFd) Close() {
+	o.once.Do(func() {
+		o.instance.Close()
+		closeFd(o.fd)
 	})
 }
 

@@ -492,6 +492,7 @@ abstract final class SubscriptionFetcher {
   /// were never checked here, and their path does not change.
   static ({List<SubscriptionNode> nodes, List<String> skipped}) _checked(
     SubscriptionRead read,
+    CoreCapabilities capabilities,
   ) {
     final nodes = <SubscriptionNode>[];
     final skipped = [...read.skipped];
@@ -501,7 +502,17 @@ abstract final class SubscriptionFetcher {
         continue;
       }
       try {
-        validate(node.endpoint);
+        final described = validate(node.endpoint);
+        // The app's core read it; what runs it may be a service that carries
+        // fewer kinds of connection (Linux, Windows). Only what both do is
+        // offered.
+        final variant = described['variant'];
+        if (variant is String &&
+            capabilities.variants.isNotEmpty &&
+            !capabilities.variants.contains(variant)) {
+          skipped.add('${node.protocol}: $variant is not run here');
+          continue;
+        }
         nodes.add(node);
       } on CoreFailure catch (error) {
         skipped.add('${node.protocol}: ${error.message}');
@@ -557,6 +568,12 @@ abstract final class SubscriptionFetcher {
       if (response.statusCode == 404 || response.statusCode == 403) {
         throw const SubscriptionFailed(subscriptionGoneMessage, gone: true);
       }
+      // The server has servers for this subscription and none this client
+      // said it can run (#172). Neither empty nor gone: kept apart so that
+      // the list that worked stays and the reason given is the right one.
+      if (response.statusCode == 406) {
+        throw const SubscriptionFailed(noRunnableServersMessage);
+      }
       if (response.statusCode >= 400) {
         throw SubscriptionFailed('the server answered ${response.statusCode}');
       }
@@ -576,7 +593,7 @@ abstract final class SubscriptionFetcher {
         );
       }
 
-      final checked = _checked(read);
+      final checked = _checked(read, capabilities);
 
       return _Fetched(
         nodes: checked.nodes,

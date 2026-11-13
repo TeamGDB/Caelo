@@ -11,6 +11,8 @@ import 'package:caelo/core/subscription.dart';
 import 'package:caelo/core/subscription_fetcher.dart';
 import 'package:caelo/core/subscription_store.dart';
 import 'package:caelo/core/tunnel.dart';
+import 'package:caelo/l10n/generated/app_localizations.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_server_catalog.dart';
@@ -136,6 +138,16 @@ void main() {
       expect(TunnelProtocol.fromCore({'protocol': 'something new'}), isNull);
     });
 
+    test('the label wins where the core gives both', () {
+      expect(
+        TunnelProtocol.fromCore({
+          'protocol': 'amneziawg',
+          'label': 'WireGuard',
+        }),
+        TunnelProtocol.wireGuard,
+      );
+    });
+
     test('a reply from before the name existed is not taken for VLESS', () {
       // Its absence used to be read as VLESS, which made every plain
       // WireGuard tunnel a VLESS one.
@@ -245,6 +257,58 @@ void main() {
       },
     );
 
+    test('406 keeps the list and says there is nothing to run', () async {
+      var status = 200;
+      final server = _Server((request) {
+        if (status == 406 && !request.uri.path.endsWith('/state')) {
+          request.response
+            ..statusCode = 406
+            ..close();
+          return;
+        }
+        _answer(request, _vision);
+      });
+      final url = await server.start();
+      addTearDown(server.stop);
+
+      final working = await SubscriptionFetcher.refresh(
+        await SubscriptionStore.add(url),
+      );
+      status = 406;
+      final after = await SubscriptionFetcher.refresh(working);
+      expect(after.nodes.single.tag, 'Example Vision');
+      expect(after.lastError, noRunnableServersMessage);
+      expect(after.isGone, isFalse);
+    });
+
+    test(
+      'a kind the service does not run is left out with that reason',
+      () async {
+        Capabilities.override = const CoreCapabilities(
+          protocols: {'amneziawg', 'vless'},
+          variants: {'vless-reality-vision'},
+        );
+        SubscriptionFetcher.validate = (text) => {
+          'ok': true,
+          'protocol': 'vless',
+          'variant': text.contains('type=xhttp')
+              ? 'vless-tls-xhttp'
+              : 'vless-reality-vision',
+        };
+        final server = _Server(
+          (request) => _answer(request, '$_vision\n$_cdn'),
+        );
+        final url = await server.start();
+        addTearDown(server.stop);
+
+        final refreshed = await SubscriptionFetcher.refresh(
+          await SubscriptionStore.add(url),
+        );
+        expect(refreshed.nodes.single.tag, 'Example Vision');
+        expect(refreshed.skipped, ['vless: vless-tls-xhttp is not run here']);
+      },
+    );
+
     test('an empty answer is an empty subscription, not a failure', () async {
       final server = _Server((request) => _answer(request, ''));
       final url = await server.start();
@@ -333,6 +397,17 @@ void main() {
       expect(parseProfileTitle('   '), '');
       expect(parseProfileTitle('base64:%%%'), '');
     });
+  });
+
+  test('Russian counts left-out servers in every form', () async {
+    final ru = await AppLocalizations.delegate.load(const Locale('ru'));
+    expect(ru.subscriptionSkipped(1, 'x'), startsWith('Не показан 1 сервер'));
+    expect(ru.subscriptionSkipped(21, 'x'), startsWith('Не показан 21 сервер'));
+    expect(ru.subscriptionSkipped(3, 'x'), startsWith('Не показаны 3 сервера'));
+    expect(
+      ru.subscriptionSkipped(5, 'x'),
+      startsWith('Не показано 5 серверов'),
+    );
   });
 
   group('what the list says about a subscription', () {

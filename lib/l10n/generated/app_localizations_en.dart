@@ -450,9 +450,10 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count servers are not shown',
-      one: '1 server is not shown',
+      other:
+          '$count servers are not shown: this version of Caelo cannot run them',
+      one: '1 server is not shown: this version of Caelo cannot run it',
     );
-    return '$_temp0: this version of Caelo cannot run them ($reasons).';
+    return '$_temp0 ($reasons).';
   }
 }

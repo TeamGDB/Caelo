@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -182,7 +183,25 @@ func (in *instance) Close() {
 const checkURL = "https://1.1.1.1/cdn-cgi/trace"
 
 // prove fetches checkURL through the server.
+//
+// Any bytes back from the server during the attempt count as well, even
+// when the request itself does not complete: they have come through the
+// VLESS session, so the server is there and carrying traffic, and a server
+// whose own exit cannot reach this one address is still a working server.
 func (in *instance) prove(ctx context.Context) error {
+	var before int64
+	if in.downlink != nil {
+		before = in.downlink.Value()
+	}
+	err := in.fetchCheck(ctx)
+	if err != nil && in.downlink != nil && in.downlink.Value() > before {
+		in.alive.Store(time.Now().UnixNano())
+		return nil
+	}
+	return err
+}
+
+func (in *instance) fetchCheck(ctx context.Context) error {
 	client := &http.Client{
 		Transport: &http.Transport{
 			DialContext:       in.Dial,
@@ -226,9 +245,12 @@ func scrub(err error, link *Link) error {
 	if err == nil || link == nil || link.UUID == "" {
 		return err
 	}
+	// Either case: a link may write the id in capitals, and Xray prints it
+	// in lower case.
+	pattern := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(link.UUID))
 	message := err.Error()
-	if !bytes.Contains([]byte(message), []byte(link.UUID)) {
+	if !pattern.MatchString(message) {
 		return err
 	}
-	return errors.New(string(bytes.ReplaceAll([]byte(message), []byte(link.UUID), []byte("<redacted>"))))
+	return errors.New(pattern.ReplaceAllString(message, "<redacted>"))
 }

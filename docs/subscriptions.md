@@ -254,7 +254,10 @@ has either an `endpoint`, as before, or a `protocol` and its standard `uri`.
 | `uri` | The share link, exactly as [a list of links](#a-list-of-links) would carry it. Its fragment is the node's name unless `tag` is given. |
 
 Send it only to a client that asked for it (`version=2` in `Accept`, or `subscription-v2`
-in `X-Caelo-Capabilities`), with the same media type. A version-1 client handed one by
+in `X-Caelo-Capabilities`), with the same media type, and only the links whose kind the
+client listed. A server that has servers for a subscription and none the client can run
+answers `406 Not Acceptable` rather than an empty document: the client keeps the list it
+had and says why, where an empty document would read as a subscription with nothing in it. A version-1 client handed one by
 mistake still works: it skips the nodes with no `endpoint` and keeps the rest.
 
 **Latency is never sent.** It depends on where the client is standing, and a number
@@ -267,15 +270,16 @@ A plain sing-box subscription has no identity to give. The client makes one, in 
 order, and the rule is written down because it decides whose choice survives a refresh:
 
 1. the `id` from the Caelo document;
-2. otherwise the `tag` (a link's fragment), if it is not empty and no other node in the
+2. otherwise, for a link, the connection it describes — protocol, server, port,
+   transport, security, flow and path, without the user id — if no other node shares it;
+3. otherwise the `tag` (a link's fragment), if it is not empty and no other node in the
    document shares it;
-3. otherwise, for a link, the connection it describes — protocol, server, port,
-   transport, security and flow, without the user id — if no other node shares it;
 4. otherwise the position, which is stable only until the server reorders.
 
-Rule 3 is why a refresh that changes a node's UUID, fingerprint or server name keeps the
-choice someone made by hand, and why Vision, XHTTP and a CDN route to the same server are
-three nodes even when they share a UUID.
+Rule 2 comes before the name because servers often write the traffic left or the days
+remaining into a link's name, which changes it on every refresh. It is also why a new
+UUID, fingerprint or server name keeps the choice someone made by hand, and why Vision,
+XHTTP and a CDN route to the same server are three nodes even when they share a UUID.
 
 A node manually chosen under rule 3 loses that choice when the list is reordered. That is
 a real limitation of plain subscriptions rather than something the client can fix, and

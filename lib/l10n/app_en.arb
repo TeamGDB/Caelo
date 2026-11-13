@@ -431,7 +431,7 @@
   "linkKnownMessage": "This subscription is already on this device.",
   "linkFailedTitle": "Could not add the subscription",
   "subscriptionEmpty": "The subscription has no servers yet. Ask whoever gave you the link.",
-  "subscriptionSkipped": "{count, plural, =1{1 server is not shown} other{{count} servers are not shown}}: this version of Caelo cannot run them ({reasons}).",
+  "subscriptionSkipped": "{count, plural, =1{1 server is not shown: this version of Caelo cannot run it} other{{count} servers are not shown: this version of Caelo cannot run them}} ({reasons}).",
   "@subscriptionEmpty": {
     "description": "Below the server list: the subscription answered with no servers at all."
   },

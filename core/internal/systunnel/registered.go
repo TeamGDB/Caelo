@@ -63,9 +63,15 @@ func (c *Controller) startRegistered(node protocol.Config) (*Status, error) {
 		return nil, fmt.Errorf("creating the tunnel interface: %w", err)
 	}
 
+	handle := registeredHandle(name)
+	if handleRequired && handle == 0 {
+		tunnel.Close()
+		return nil, fmt.Errorf("the tunnel interface %s did not appear", name)
+	}
+
 	network := system.Config{
 		Interface:    name,
-		Handle:       registeredHandle(name),
+		Handle:       handle,
 		Address:      address,
 		MTU:          description.MTU,
 		EndpointHost: endpointHost,

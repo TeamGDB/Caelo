@@ -310,6 +310,15 @@ func (s *store) serve(w http.ResponseWriter, r *http.Request) {
 		answer = plainAnswer(loaded, who)
 	}
 
+	// Servers for this subscriber and none this client runs: say so, rather
+	// than send an empty document a client would show as an empty
+	// subscription.
+	if document, ok := answer.(caeloDocument); ok && len(document.Nodes) == 0 && len(who.Nodes) > 0 {
+		w.Header().Del("Content-Type")
+		http.Error(w, "no servers this client can run", http.StatusNotAcceptable)
+		return
+	}
+
 	if err := json.NewEncoder(w).Encode(answer); err != nil {
 		// Too late to change the status code; the client will fail to parse and
 		// keep the copy it already had, which is the behaviour that exists for

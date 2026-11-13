@@ -83,9 +83,28 @@ type Server struct {
 	RootCA string
 }
 
+// Options change where a server listens and where it sends traffic.
+type Options struct {
+	// Listen is the address the VLESS server listens on; 127.0.0.1 if empty.
+	Listen string
+	// Redirect sends everything the server carries to the web server behind
+	// it, whatever it was addressed to: for a test whose network has nowhere
+	// else to go.
+	Redirect bool
+}
+
 // Start runs a server for the variant until the test ends.
 func Start(t testing.TB, variant Variant) *Server {
 	t.Helper()
+	return StartWith(t, variant, Options{})
+}
+
+// StartWith runs a server with options until the test ends.
+func StartWith(t testing.TB, variant Variant, opts Options) *Server {
+	t.Helper()
+	if opts.Listen == "" {
+		opts.Listen = "127.0.0.1"
+	}
 
 	web := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, Body)
@@ -155,7 +174,7 @@ func Start(t testing.TB, variant Variant) *Server {
 	config := map[string]any{
 		"log": map[string]any{"loglevel": "none"},
 		"inbounds": []any{map[string]any{
-			"listen":         "127.0.0.1",
+			"listen":         opts.Listen,
 			"port":           port,
 			"protocol":       "vless",
 			"settings":       map[string]any{"clients": []any{client}, "decryption": "none"},
@@ -165,7 +184,7 @@ func Start(t testing.TB, variant Variant) *Server {
 		// the web server behind this one is on loopback.
 		"outbounds": []any{map[string]any{
 			"protocol": "freedom",
-			"settings": map[string]any{"finalRules": []any{map[string]any{"action": "allow", "ip": []string{"127.0.0.1/32"}}}},
+			"settings": freedom(server.Target, opts.Redirect),
 		}},
 	}
 	run(t, config)
@@ -174,6 +193,14 @@ func Start(t testing.TB, variant Variant) *Server {
 		url.PathEscape(variant.Security+" "+variant.Transport))
 	waitListening(t, port)
 	return server
+}
+
+func freedom(target string, redirect bool) map[string]any {
+	settings := map[string]any{"finalRules": []any{map[string]any{"action": "allow", "ip": []string{"127.0.0.1/32"}}}}
+	if redirect {
+		settings["redirect"] = target
+	}
+	return settings
 }
 
 func run(t testing.TB, config map[string]any) {

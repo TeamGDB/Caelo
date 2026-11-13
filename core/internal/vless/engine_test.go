@@ -71,6 +71,18 @@ func TestCarriesTrafficThroughEveryVariant(t *testing.T) {
 // so rather than reporting a connection.
 func TestAWrongUserCarriesNothing(t *testing.T) {
 	server := vlesstest.Start(t, vlesstest.RealityVision)
+	// The same server does carry its own user, so what fails below fails
+	// for the user and not for a broken server.
+	if right, err := Parse(server.Link); err != nil {
+		t.Fatal(err)
+	} else if in, err := start(right, options{}); err != nil {
+		t.Fatal(err)
+	} else {
+		if body := fetchThrough(t, in, server.URL); body != vlesstest.Body {
+			t.Fatalf("control: %q", body)
+		}
+		in.Close()
+	}
 	link, err := Parse(strings.Replace(server.Link, vlesstest.UUID, "00000000-0000-4000-8000-0000000000bb", 1))
 	if err != nil {
 		t.Fatal(err)
@@ -101,6 +113,16 @@ func TestRefusesACertificateNobodyVouchesFor(t *testing.T) {
 	link, err := Parse(server.Link)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// With the authority trusted the same server works: what fails below is
+	// the trust, not the server.
+	if trusted, err := start(link, options{rootCAs: []string{server.RootCA}}); err != nil {
+		t.Fatal(err)
+	} else {
+		if body := fetchThrough(t, trusted, server.URL); body != vlesstest.Body {
+			t.Fatalf("control: %q", body)
+		}
+		trusted.Close()
 	}
 	in, err := start(link, options{})
 	if err != nil {
@@ -144,7 +166,9 @@ func TestDialsThePinnedAddressUnderTheLinksName(t *testing.T) {
 // answer is old, reading it sends one request through the server, and not
 // another until a minute has passed.
 func TestAQuietTunnelIsAskedNotAssumed(t *testing.T) {
-	server := vlesstest.Start(t, vlesstest.RealityVision)
+	// The proof is addressed out to the internet; this server sends it to
+	// the web server behind it instead, so the test needs no internet.
+	server := vlesstest.StartWith(t, vlesstest.RealityVision, vlesstest.Options{Redirect: true})
 	link, err := Parse(server.Link)
 	if err != nil {
 		t.Fatal(err)
@@ -167,5 +191,14 @@ func TestAQuietTunnelIsAskedNotAssumed(t *testing.T) {
 	in.LastAlive()
 	if in.proved.Load() != first {
 		t.Fatal("asked again within the minute")
+	}
+	// And the answer comes back fresh: bytes came back through the server,
+	// even though what answered was not the address asked for.
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Since(in.LastAlive()) >= quietFor && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	if time.Since(in.LastAlive()) >= quietFor {
+		t.Fatal("the proof did not refresh the answer")
 	}
 }

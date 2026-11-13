@@ -25,7 +25,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO=https://github.com/XTLS/Xray-core
 
 # An annotated tag points at a tag object; ^{} is the commit behind it.
-COMMIT="$(git ls-remote "$REPO" "refs/tags/$TAG^{}" "refs/tags/$TAG" | awk 'NR==1 {print $1}')"
+REFS="$(git ls-remote "$REPO" "refs/tags/$TAG^{}" "refs/tags/$TAG")"
+COMMIT="$(awk '/\^\{\}$/ {print $1}' <<< "$REFS")"
+[[ -n "$COMMIT" ]] || COMMIT="$(awk 'NR==1 {print $1}' <<< "$REFS")"
 if [[ -z "$COMMIT" ]]; then
   echo "error: $TAG is not a tag in $REPO" >&2
   exit 1

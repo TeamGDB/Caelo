@@ -139,7 +139,10 @@ void main() {
           'vless://00000000-0000-4000-8000-000000000001@[2001:db8::1]:443?type=tcp&security=reality&pbk=x&sni=a.example.com#%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F%20%F0%9F%87%A9%F0%9F%87%AA';
       final nodes = readNodes(link, protocols: vless);
       expect(nodes.single.tag, 'Германия 🇩🇪');
-      expect(nodes.single.id, 'tag:Германия 🇩🇪');
+      expect(
+        nodes.single.id,
+        startsWith('link:vless://2001:db8::1:443/tcp/reality'),
+      );
     });
 
     test('skips links of protocols this build does not run', () {
@@ -171,6 +174,55 @@ void main() {
       );
       // Anything else that is empty is a server that sent nothing.
       expect(() => readNodes('', protocols: vless), throwsFormatException);
+    });
+
+    test('an error page that mentions a link is not an empty subscription', () {
+      // A captive portal, a block page or a panel's HTML answers 200 and has
+      // https:// in it somewhere. Read as an empty list, it would throw away
+      // the nodes that worked.
+      for (final body in [
+        '<html><body><a href="https://example.com/help">help</a></body></html>',
+        'Bad Gateway: see https://status.example.com',
+      ]) {
+        expect(
+          () => readNodes(body, contentType: 'text/html', protocols: vless),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test('a JSON document behind a byte order mark is still JSON', () {
+      final nodes = readNodes('\uFEFF${document([node('A')])}');
+      expect(nodes.single.tag, 'A');
+    });
+
+    test('a name that changes on every refresh keeps the node chosen', () {
+      // Servers write the traffic left into a link's name.
+      final before = readNodes(
+        vision.replaceAll('#Example%20Vision', '#Vision%20%C2%B7%2012%20GB'),
+        protocols: vless,
+      );
+      final after = readNodes(
+        vision.replaceAll('#Example%20Vision', '#Vision%20%C2%B7%2011%20GB'),
+        protocols: vless,
+      );
+      expect(after.single.id, before.single.id);
+    });
+
+    test('a version-2 link claiming to be AmneziaWG is skipped', () {
+      final read = readSubscription(
+        jsonEncode({
+          'version': 2,
+          'nodes': [
+            {'id': 'a', 'endpoint': node('A')},
+            {'id': 'b', 'protocol': 'amneziawg', 'uri': vision, 'tag': 7},
+          ],
+        }),
+        contentType: caeloDocumentType,
+        protocols: vless,
+      );
+      expect(read.nodes.map((each) => each.id), ['a']);
+      expect(read.skipped, ['amneziawg']);
     });
 
     test('text that is neither JSON nor links is refused', () {

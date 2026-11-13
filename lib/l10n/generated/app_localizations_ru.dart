@@ -447,10 +447,10 @@ class AppLocalizationsRu extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Не показано $count серверов',
-      few: 'Не показаны $count сервера',
-      one: 'Не показан 1 сервер',
+      other: 'Не показано $count серверов: эта версия Caelo их не поддерживает',
+      few: 'Не показаны $count сервера: эта версия Caelo их не поддерживает',
+      one: 'Не показан $count сервер: эта версия Caelo его не поддерживает',
     );
-    return '$_temp0: эта версия Caelo их не поддерживает ($reasons).';
+    return '$_temp0 ($reasons).';
   }
 }

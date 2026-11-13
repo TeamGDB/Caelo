@@ -9,6 +9,9 @@ import (
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
+// handleRequired: the platform configures the device by handle, not name.
+const handleRequired = true
+
 const registeredSupported = true
 
 // registeredHandle finds the LUID of the adapter Xray created.
@@ -26,7 +29,7 @@ func registeredHandle(name string) uint64 {
 			}
 		}
 		if time.Now().After(deadline) {
-			return 0
+			return 0 // reported by startRegistered
 		}
 		time.Sleep(100 * time.Millisecond)
 	}

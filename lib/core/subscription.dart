@@ -525,6 +525,11 @@ String parseProfileTitle(String? header) {
 const subscriptionGoneMessage =
     'the server does not recognise this subscription';
 
+/// What a refresh records when the server has servers for the subscription
+/// and none this build can run: `406 Not Acceptable` (#172).
+const noRunnableServersMessage =
+    'the subscription has no servers this version of Caelo can run';
+
 /// The media type a server uses to say it sent the richer document.
 const caeloDocumentType = 'application/vnd.caelo.subscription+json';
 
@@ -573,7 +578,9 @@ SubscriptionRead readSubscription(
   String? contentType,
   Set<String> protocols = const {amneziaWgProtocol},
 }) {
-  final trimmed = body.trim();
+  // A byte order mark is not content, and leaving it in front of a JSON
+  // document would send it down the path for links.
+  final trimmed = body.replaceFirst('\uFEFF', '').trim();
   final mime = contentType?.toLowerCase() ?? '';
 
   final _Read read;
@@ -694,12 +701,17 @@ _Read _readCaelo(Map<String, dynamic> document, Set<String> protocols) {
     } else if (uri is String && uri.trim().isNotEmpty) {
       protocol =
           (entry['protocol'] as String?)?.toLowerCase() ?? _schemeOf(uri) ?? '';
-      if (protocol.isEmpty || !protocols.contains(protocol)) {
+      // A link for AmneziaWG is nothing this client reads: AmneziaWG nodes
+      // carry an endpoint.
+      if (protocol.isEmpty ||
+          protocol == amneziaWgProtocol ||
+          !protocols.contains(protocol)) {
         read.skipped.add(protocol.isEmpty ? 'unknown' : protocol);
         continue;
       }
       text = uri.trim();
-      tag = entry['tag'] as String? ?? _fragmentOf(text);
+      final named = entry['tag'];
+      tag = named is String ? named : _fragmentOf(text);
     } else {
       continue;
     }
@@ -746,7 +758,11 @@ _Read _readLinks(
       .map((line) => line.trim())
       .where((line) => line.isNotEmpty)
       .toList();
-  if (lines.isNotEmpty && !lines.any((line) => line.contains('://'))) {
+  // At least one line has to be a link itself, starting with its scheme. An
+  // error page, a captive portal or a panel's HTML mentions https://
+  // somewhere and is none of those; reading it as an empty subscription
+  // would throw away the list that worked.
+  if (!lines.any((line) => _schemeOf(line) != null)) {
     throw const FormatException(
       'the document is neither JSON nor a list of links',
     );
@@ -828,7 +844,8 @@ String? _connectionOf(SubscriptionNode node) {
   return '${node.protocol}://${uri.host}:${uri.port}'
       '/${transport == 'raw' ? 'tcp' : transport}'
       '/${(query['security'] ?? '').toLowerCase()}'
-      '/${query['flow'] ?? ''}';
+      '/${query['flow'] ?? ''}'
+      '${query['path'] ?? ''}';
 }
 
 /// Everything that is not AmneziaWG is skipped rather than refused. A
@@ -843,11 +860,11 @@ bool _isOurs(Map<String, dynamic> endpoint) {
 /// Fills in an identity for every node that arrived without one.
 ///
 /// The rule is in docs/subscriptions.md because it decides whose choice
-/// survives a refresh: the server's id; then the tag, if it is unique in this
-/// document; then, for a link, the connection it describes — protocol, server,
-/// transport and security, without the user id — if that is unique; then the
-/// position, which is stable only until the server reorders. A tag shared by
-/// two nodes identifies neither.
+/// survives a refresh: the server's id; then, for a link, the connection it
+/// describes — protocol, server, port, transport, security, flow and path,
+/// without the user id — if no other node shares it; then the tag, if it is
+/// unique in this document; then the position, which is stable only until
+/// the server reorders. A tag shared by two nodes identifies neither.
 List<SubscriptionNode> identify(List<SubscriptionNode> nodes) {
   final tags = <String, int>{};
   final connections = <String, int>{};
@@ -865,11 +882,16 @@ List<SubscriptionNode> identify(List<SubscriptionNode> nodes) {
         node
       else
         node.withId(() {
-          if (node.tag.isNotEmpty && tags[node.tag] == 1)
-            return 'tag:${node.tag}';
+          // For a link, what it connects to comes first: panels put the
+          // remaining traffic or the days left into a link's name, which
+          // changes it on every refresh, while the server, port, transport
+          // and path stay.
           final connection = _connectionOf(node);
           if (connection != null && connections[connection] == 1) {
             return 'link:$connection';
+          }
+          if (node.tag.isNotEmpty && tags[node.tag] == 1) {
+            return 'tag:${node.tag}';
           }
           return 'at:${node.position}';
         }()),
