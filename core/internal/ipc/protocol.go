@@ -54,7 +54,8 @@ type Request struct {
 	// checking it.
 	ProtocolVersion int `json:"protocol_version,omitempty"`
 
-	// Config is the AmneziaWG .conf, sent with connect. It is passed over the
+	// Config is the node, sent with connect: an AmneziaWG .conf or endpoint
+	// object, or a node of another protocol the service runs. It is passed over the
 	// socket rather than by path: the service runs as root and would happily
 	// read any file it were pointed at, which turns "connect" into "read any
 	// file on this machine".
@@ -83,6 +84,15 @@ type Response struct {
 
 	Core      string `json:"core,omitempty"`
 	AmneziaWG string `json:"amneziawg,omitempty"`
+
+	// Protocols and Variants answer what the service can run, with version.
+	// Optional: a service from before there was a choice sends neither, and
+	// the app reads that as AmneziaWG only — which is exactly what such a
+	// service runs. ProtocolVersion is unchanged by them, because nothing
+	// that crosses the socket changed meaning; connect simply accepts more.
+	Protocols []string          `json:"protocols,omitempty"`
+	Variants  []string          `json:"variants,omitempty"`
+	Versions  map[string]string `json:"versions,omitempty"`
 
 	// ProtocolVersion answers what the service speaks. Sent only with version,
 	// which is the one command that is always answered — discovering a mismatch

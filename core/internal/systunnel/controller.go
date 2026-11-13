@@ -23,6 +23,8 @@ import (
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
 	"github.com/TeamGDB/Caelo/core/internal/handshake"
+	"github.com/TeamGDB/Caelo/core/internal/protocol"
+	_ "github.com/TeamGDB/Caelo/core/internal/protocol/all"
 	"github.com/TeamGDB/Caelo/core/internal/rtt"
 	"github.com/TeamGDB/Caelo/core/internal/system"
 )
@@ -59,6 +61,9 @@ type Controller struct {
 	network system.Config
 	status  Status
 	meter   *rtt.Meter
+
+	// tunnel is a node of a registered protocol, up instead of device.
+	tunnel protocol.Tunnel
 }
 
 // New returns a Controller with nothing up.
@@ -76,8 +81,15 @@ func (c *Controller) Start(configText string) (*Status, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.device != nil {
+	if c.device != nil || c.tunnel != nil {
 		c.stopLocked()
+	}
+
+	if node, err := protocol.Parse(configText); !errors.Is(err, protocol.ErrNotClaimed) {
+		if err != nil {
+			return nil, fmt.Errorf("reading configuration: %w", err)
+		}
+		return c.startRegistered(node)
 	}
 
 	cfg, err := awg.Parse(configText)
@@ -199,6 +211,15 @@ func (c *Controller) Stop() error {
 }
 
 func (c *Controller) stopLocked() error {
+	if c.tunnel != nil {
+		// Routing first, for the same reason as below.
+		err := system.Restore(c.state, c.network)
+		c.tunnel.Close()
+		c.tunnel = nil
+		c.state = nil
+		c.status = Status{}
+		return err
+	}
 	if c.device == nil {
 		return nil
 	}
@@ -223,6 +244,12 @@ func (c *Controller) Status() Status {
 	defer c.mu.Unlock()
 	status := c.status
 	if !status.Up {
+		return status
+	}
+	if c.tunnel != nil {
+		if at := c.tunnel.LastAlive(); !at.IsZero() {
+			status.HandshakeUnix = at.Unix()
+		}
 		return status
 	}
 	if c.device != nil {

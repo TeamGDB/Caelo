@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -26,6 +27,8 @@ import (
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
 	"github.com/TeamGDB/Caelo/core/internal/probe"
+	"github.com/TeamGDB/Caelo/core/internal/protocol"
+	_ "github.com/TeamGDB/Caelo/core/internal/protocol/all"
 )
 
 // ErrNotConnected is returned by operations that need a live tunnel.
@@ -41,6 +44,9 @@ type Session struct {
 	net      *netstack.Net
 	endpoint string
 	upSince  time.Time
+
+	// dialer is a node of a registered protocol, up instead of device.
+	dialer protocol.Dialer
 }
 
 // New returns a Session with no tunnel up.
@@ -62,6 +68,13 @@ type Info struct {
 // first packet is what proves the peer is there. Callers that need to know
 // whether traffic really flows should follow this with Check.
 func (s *Session) Connect(configText string) (*Info, error) {
+	if node, err := protocol.Parse(configText); !errors.Is(err, protocol.ErrNotClaimed) {
+		if err != nil {
+			return nil, fmt.Errorf("reading configuration: %w", err)
+		}
+		return s.connectRegistered(node)
+	}
+
 	cfg, err := awg.Parse(configText)
 	if err != nil {
 		return nil, fmt.Errorf("reading configuration: %w", err)
@@ -91,9 +104,10 @@ func (s *Session) Connect(configText string) (*Info, error) {
 	}
 
 	s.mu.Lock()
-	previous := s.device
+	previous, previousDialer := s.device, s.dialer
 	s.device = dev
 	s.net = tnet
+	s.dialer = nil
 	s.endpoint = cfg.Peer.Endpoint
 	s.upSince = time.Now()
 	s.mu.Unlock()
@@ -102,6 +116,9 @@ func (s *Session) Connect(configText string) (*Info, error) {
 	// tunnel that was already working alone.
 	if previous != nil {
 		previous.Close()
+	}
+	if previousDialer != nil {
+		previousDialer.Close()
 	}
 
 	protocol := "AmneziaWG"
@@ -114,6 +131,38 @@ func (s *Session) Connect(configText string) (*Info, error) {
 		MTU:        cfg.MTU,
 		Obfuscated: len(cfg.Obfuscation) > 0,
 		Protocol:   protocol,
+	}, nil
+}
+
+// connectRegistered brings up a node of a registered protocol in place of
+// whatever was up.
+func (s *Session) connectRegistered(node protocol.Config) (*Info, error) {
+	dialer, err := node.Dial()
+	if err != nil {
+		return nil, err
+	}
+	description := node.Describe()
+
+	s.mu.Lock()
+	previous, previousDialer := s.device, s.dialer
+	s.device = nil
+	s.net = nil
+	s.dialer = dialer
+	s.endpoint = description.Endpoint
+	s.upSince = time.Now()
+	s.mu.Unlock()
+
+	if previous != nil {
+		previous.Close()
+	}
+	if previousDialer != nil {
+		previousDialer.Close()
+	}
+
+	return &Info{
+		Endpoint: description.Endpoint,
+		MTU:      description.MTU,
+		Protocol: description.Label,
 	}, nil
 }
 
@@ -132,10 +181,16 @@ type Reachability struct {
 // round-trip time.
 func (s *Session) Check(url string, timeout time.Duration) (*Reachability, error) {
 	s.mu.Lock()
-	tnet := s.net
+	var dial func(context.Context, string, string) (net.Conn, error)
+	switch {
+	case s.net != nil:
+		dial = s.net.DialContext
+	case s.dialer != nil:
+		dial = s.dialer.DialContext
+	}
 	s.mu.Unlock()
 
-	if tnet == nil {
+	if dial == nil {
 		return nil, ErrNotConnected
 	}
 	if url == "" {
@@ -148,7 +203,7 @@ func (s *Session) Check(url string, timeout time.Duration) (*Reachability, error
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	client := &http.Client{Transport: &http.Transport{DialContext: tnet.DialContext}}
+	client := &http.Client{Transport: &http.Transport{DialContext: dial}}
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -182,14 +237,18 @@ func (s *Session) Check(url string, timeout time.Duration) (*Reachability, error
 // the caller asked for a state, and that state is what they get.
 func (s *Session) Disconnect() {
 	s.mu.Lock()
-	dev := s.device
+	dev, dialer := s.device, s.dialer
 	s.device = nil
 	s.net = nil
+	s.dialer = nil
 	s.endpoint = ""
 	s.mu.Unlock()
 
 	if dev != nil {
 		dev.Close()
+	}
+	if dialer != nil {
+		dialer.Close()
 	}
 }
 
@@ -197,5 +256,5 @@ func (s *Session) Disconnect() {
 func (s *Session) Up() (bool, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.device != nil, s.endpoint
+	return s.device != nil || s.dialer != nil, s.endpoint
 }

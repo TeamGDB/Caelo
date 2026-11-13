@@ -16,7 +16,9 @@ package main
 import "C"
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 	"unsafe"
@@ -24,6 +26,8 @@ import (
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
 	"github.com/TeamGDB/Caelo/core/internal/probe"
+	"github.com/TeamGDB/Caelo/core/internal/protocol"
+	_ "github.com/TeamGDB/Caelo/core/internal/protocol/all"
 	"github.com/TeamGDB/Caelo/core/internal/release"
 	"github.com/TeamGDB/Caelo/core/internal/tunnel"
 	"github.com/TeamGDB/Caelo/core/internal/version"
@@ -40,19 +44,44 @@ var session = tunnel.New()
 //
 //export caelo_version
 func caelo_version() *C.char {
-	return marshal(map[string]string{
+	versions := map[string]string{
 		"core":      version.Version,
 		"amneziawg": version.AmneziaWG(),
+	}
+	// What implements each other protocol, under its own name: "vless" →
+	// "Xray-core 26.11.9". Read from the linked code, so it cannot drift.
+	for name, implementation := range protocol.Versions() {
+		versions[name] = implementation
+	}
+	return marshal(versions)
+}
+
+// caelo_capabilities reports what this build of the core can connect to: the
+// protocols it runs and, for each kind of connection, the name a subscription
+// is told it by.
+//
+// The core is the only place that can answer honestly — it is what has to
+// run them — and the app passes the answer on to subscription servers rather
+// than keeping a list of its own that a build could outgrow or fall short of.
+//
+//export caelo_capabilities
+func caelo_capabilities() *C.char {
+	return marshal(map[string]any{
+		"ok":        true,
+		"protocols": protocol.Names(),
+		"variants":  protocol.Capabilities(),
+		"versions":  protocol.Versions(),
 	})
 }
 
 // caelo_connect brings up the tunnel described by a configuration and leaves it
 // up.
 //
-// The configuration is either an AmneziaWG `.conf` or one endpoint object from
-// a subscription's sing-box document, told apart by its first character. Which
-// one it is stops mattering here: both produce the same internal form, and the
-// app never has to know the difference or parse either.
+// The configuration is an AmneziaWG `.conf`, one endpoint object from a
+// subscription's sing-box document, or a node of another protocol the core
+// carries — a vless:// link. Which one it is stops mattering here: the core
+// tells them apart, and the app never has to know the difference or parse
+// any of them.
 //
 // Returning successfully means the device is configured and running. It does
 // not mean the peer answered: WireGuard has no connect step, and only traffic
@@ -154,7 +183,28 @@ func caelo_status() *C.char {
 //
 //export caelo_describe
 func caelo_describe(configText *C.char) *C.char {
-	cfg, err := awg.Parse(C.GoString(configText))
+	text := C.GoString(configText)
+	if node, err := protocol.Parse(text); !errors.Is(err, protocol.ErrNotClaimed) {
+		if err != nil {
+			return failure(err)
+		}
+		description := node.Describe()
+		// The address the server resolves to now: what a host pins outside
+		// the tunnel, and what Apple's settings want as the remote address.
+		// Best effort — a host that does not need it does not fail for it.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_, address, pinErr := node.Pin(ctx)
+		cancel()
+		payload := map[string]any{"ok": true, "endpoint_address": address}
+		if pinErr != nil {
+			payload["endpoint_address"] = ""
+		}
+		encoded, _ := json.Marshal(description)
+		_ = json.Unmarshal(encoded, &payload)
+		return marshal(payload)
+	}
+
+	cfg, err := awg.Parse(text)
 	if err != nil {
 		return failure(err)
 	}
@@ -182,6 +232,40 @@ func caelo_describe(configText *C.char) *C.char {
 		"allowed_ips": cfg.Peer.AllowedIPs,
 		"endpoint":    cfg.Peer.Endpoint,
 		"obfuscated":  len(cfg.Obfuscation) > 0,
+	})
+}
+
+// caelo_validate reads a node and says whether this build can run it, and as
+// what — without resolving or dialling anything.
+//
+// For the app's subscription refresh: a node this build cannot honour is
+// left out of the list with the reason, rather than offered and then failing
+// when someone picks it. The reason is the core's, because the core is what
+// decides; the app has no parser of its own to disagree with it.
+//
+//export caelo_validate
+func caelo_validate(configText *C.char) *C.char {
+	text := C.GoString(configText)
+	if node, err := protocol.Parse(text); !errors.Is(err, protocol.ErrNotClaimed) {
+		if err != nil {
+			return failure(err)
+		}
+		d := node.Describe()
+		return marshal(map[string]any{
+			"ok": true, "protocol": d.Protocol, "variant": d.Variant,
+			"label": d.Label, "name": d.Name, "endpoint": d.Endpoint,
+		})
+	}
+	cfg, err := awg.Parse(text)
+	if err != nil {
+		return failure(err)
+	}
+	label := "AmneziaWG"
+	if len(cfg.Obfuscation) == 0 {
+		label = "WireGuard"
+	}
+	return marshal(map[string]any{
+		"ok": true, "protocol": protocol.AmneziaWG, "label": label, "endpoint": cfg.Peer.Endpoint,
 	})
 }
 

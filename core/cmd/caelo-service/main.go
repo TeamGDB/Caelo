@@ -32,6 +32,8 @@ import (
 	"time"
 
 	"github.com/TeamGDB/Caelo/core/internal/ipc"
+	"github.com/TeamGDB/Caelo/core/internal/protocol"
+	_ "github.com/TeamGDB/Caelo/core/internal/protocol/all"
 	"github.com/TeamGDB/Caelo/core/internal/systunnel"
 	"github.com/TeamGDB/Caelo/core/internal/version"
 )
@@ -251,6 +253,9 @@ func handle(request ipc.Request, controller *systunnel.Controller) ipc.Response 
 			Core:            version.Version,
 			AmneziaWG:       version.AmneziaWG(),
 			ProtocolVersion: ipc.ProtocolVersion,
+			Protocols:       protocol.Names(),
+			Variants:        protocol.Capabilities(),
+			Versions:        protocol.Versions(),
 		}
 	}
 

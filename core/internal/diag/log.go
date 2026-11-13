@@ -33,10 +33,15 @@ var (
 //
 // This runs on every line rather than at the call sites. Call sites are added
 // by people, and the one that forgets is the one that matters.
+//
+// UUIDs too: a VLESS user id is the whole of somebody's access to a server,
+// as a private key is to an AmneziaWG one, and Xray's own messages can quote
+// a configuration back.
 var secrets = regexp.MustCompile(
 	`(?i)((?:private|public|preshared)[_ ]?key\s*[=:]\s*)\S+` +
 		`|[A-Za-z0-9+/]{42}[A-Za-z0-9+/=]{1,2}` +
-		`|\b[0-9a-f]{64}\b`,
+		`|\b[0-9a-f]{64}\b` +
+		`|\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b`,
 )
 
 func redact(message string) string {

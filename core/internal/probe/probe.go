@@ -8,6 +8,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -21,6 +22,8 @@ import (
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
+	"github.com/TeamGDB/Caelo/core/internal/protocol"
+	_ "github.com/TeamGDB/Caelo/core/internal/protocol/all"
 	"github.com/TeamGDB/Caelo/core/internal/rtt"
 )
 
@@ -40,6 +43,10 @@ type Result struct {
 	// the first hop. ElapsedMs stays the whole first request, establishment
 	// included, and remains the availability metric used by callers.
 	LatencyMs *int64 `json:"latency_ms,omitempty"`
+
+	// Protocol is set for nodes of a registered protocol ("vless"). Absent
+	// means AmneziaWG, as every result before there was a choice.
+	Protocol string `json:"protocol,omitempty"`
 }
 
 // Options configure a single probe run.
@@ -78,6 +85,15 @@ func Run(configText string, opts Options) (*Result, error) {
 	}
 	if opts.Timeout <= 0 {
 		opts.Timeout = 30 * time.Second
+	}
+
+	// A protocol registered with the core runs its own way. Anything none of
+	// them claims is AmneziaWG, probed exactly as it always was.
+	if node, err := protocol.Parse(configText); !errors.Is(err, protocol.ErrNotClaimed) {
+		if err != nil {
+			return nil, fmt.Errorf("reading configuration: %w", err)
+		}
+		return runRegistered(node, opts)
 	}
 
 	cfg, err := awg.Parse(configText)
@@ -151,6 +167,63 @@ func Run(configText string, opts Options) (*Result, error) {
 		Elapsed:    elapsed,
 		ElapsedMs:  elapsed.Milliseconds(),
 		LatencyMs:  latencyMs,
+	}, nil
+}
+
+// runRegistered probes a node of a registered protocol: the same request,
+// through whatever that protocol dials with.
+//
+// Latency is the second request over the connection the first one opened.
+// A proxy protocol has no handshake of its own to time, and opening a
+// connection through it proves nothing until bytes come back, so the one
+// figure that is a round trip out of the exit and back is a request on a
+// connection that already exists.
+func runRegistered(node protocol.Config, opts Options) (*Result, error) {
+	diag.SetVerbose(opts.Verbose)
+	description := node.Describe()
+
+	dialer, err := node.Dial()
+	if err != nil {
+		return nil, err
+	}
+	defer dialer.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
+	defer cancel()
+
+	transport := &http.Transport{DialContext: dialer.DialContext}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport}
+
+	status, body, elapsed, err := fetch(ctx, client, opts.URL)
+	if err != nil {
+		return nil, err
+	}
+
+	var latencyMs *int64
+	if opts.MeasureLatency {
+		latencyMs, err = measureLatency(ctx, latencySources{
+			exit:      func(context.Context) (time.Duration, bool) { return 0, false },
+			handshake: func() (time.Duration, bool) { return 0, false },
+			request: func(ctx context.Context) (time.Duration, error) {
+				_, _, latency, err := fetch(ctx, client, opts.URL)
+				return latency, err
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &Result{
+		Endpoint:  description.Endpoint,
+		MTU:       description.MTU,
+		Status:    status,
+		Body:      body,
+		Elapsed:   elapsed,
+		ElapsedMs: elapsed.Milliseconds(),
+		LatencyMs: latencyMs,
+		Protocol:  description.Protocol,
 	}, nil
 }
 

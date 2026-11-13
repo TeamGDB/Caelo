@@ -6,6 +6,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -13,11 +14,13 @@ import (
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/probe"
+	"github.com/TeamGDB/Caelo/core/internal/protocol"
+	_ "github.com/TeamGDB/Caelo/core/internal/protocol/all"
 	"github.com/TeamGDB/Caelo/core/internal/version"
 )
 
 func main() {
-	configPath := flag.String("config", "", "path to an AmneziaWG .conf file")
+	configPath := flag.String("config", "", "path to a node: an AmneziaWG .conf, an endpoint object, or a vless:// link")
 	target := flag.String("url", "https://ifconfig.me/ip", "URL to fetch through the tunnel")
 	timeout := flag.Duration("timeout", 30*time.Second, "how long to wait before giving up")
 	verbose := flag.Bool("v", false, "log device internals, including handshake progress")
@@ -45,11 +48,23 @@ func run(configPath, target string, timeout time.Duration, verbose bool, check b
 	// Parsed twice — once here to describe the tunnel before it is dialled, and
 	// once inside the probe. A few microseconds buys the operator a description
 	// of what is about to happen even when the handshake never completes.
-	cfg, err := awg.Parse(string(raw))
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", configPath, err)
+	if node, err := protocol.Parse(string(raw)); !errors.Is(err, protocol.ErrNotClaimed) {
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", configPath, err)
+		}
+		d := node.Describe()
+		fmt.Printf("protocol    %s (%s)\n", d.Label, d.Variant)
+		fmt.Printf("endpoint    %s\n", d.Endpoint)
+		if d.Name != "" {
+			fmt.Printf("name        %s\n", d.Name)
+		}
+	} else {
+		cfg, err := awg.Parse(string(raw))
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", configPath, err)
+		}
+		describe(cfg)
 	}
-	describe(cfg)
 
 	// Reading a configuration and dialling through it are separate questions,
 	// and a server operator checking that what they emit is understood should
@@ -69,6 +84,9 @@ func run(configPath, target string, timeout time.Duration, verbose bool, check b
 	}
 
 	fmt.Printf("\ncore        %s (amneziawg-go %s)\n", version.Version, version.AmneziaWG())
+	for name, implementation := range protocol.Versions() {
+		fmt.Printf("%-11s %s\n", name, implementation)
+	}
 	fmt.Printf("%s → %s in %s\n", target, result.Status, result.Elapsed.Round(time.Millisecond))
 	fmt.Println(result.Body)
 	return nil
