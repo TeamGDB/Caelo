@@ -502,8 +502,9 @@ String parseProfileTitle(String? header) {
         .replaceAll('-', '+')
         .replaceAll('_', '/');
     final remainder = encoded.length % 4;
-    if (remainder > 1)
+    if (remainder > 1) {
       encoded = encoded.padRight(encoded.length + 4 - remainder, '=');
+    }
     try {
       return utf8.decode(base64.decode(encoded)).trim();
     } on FormatException {
@@ -797,8 +798,9 @@ String? _fromBase64(String body) {
   compact = compact.replaceAll('-', '+').replaceAll('_', '/');
   final remainder = compact.length % 4;
   if (remainder == 1) return null;
-  if (remainder > 0)
+  if (remainder > 0) {
     compact = compact.padRight(compact.length + 4 - remainder, '=');
+  }
   try {
     return utf8.decode(base64.decode(compact));
   } on FormatException {
