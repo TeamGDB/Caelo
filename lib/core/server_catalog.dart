@@ -122,13 +122,19 @@ class ServerOption {
 @immutable
 class SubscriptionNote {
   /// The server answered with a subscription that has nothing in it.
-  const SubscriptionNote.empty() : empty = true, skipped = const [];
+  const SubscriptionNote.empty({this.title = ''})
+    : empty = true,
+      skipped = const [];
 
   /// The subscription has nodes this build cannot run; [skipped] says why,
   /// one reason per node.
-  const SubscriptionNote.skipped(this.skipped) : empty = false;
+  const SubscriptionNote.skipped(this.skipped, {this.title = ''})
+    : empty = false;
 
   final bool empty;
+
+  /// The subscription's name, when it has one to give.
+  final String title;
   final List<String> skipped;
 
   /// The reasons, each once: "vmess", "vless: transport ws not supported".
@@ -568,9 +574,13 @@ class ServerSelectionController extends ChangeNotifier {
       return [
         for (final subscription in await loadSubscriptions())
           if (!subscription.isGone) ...[
-            if (subscription.isEmpty) const SubscriptionNote.empty(),
+            if (subscription.isEmpty)
+              SubscriptionNote.empty(title: _titleOf(subscription)),
             if (subscription.skipped.isNotEmpty)
-              SubscriptionNote.skipped(subscription.skipped),
+              SubscriptionNote.skipped(
+                subscription.skipped,
+                title: _titleOf(subscription),
+              ),
           ],
       ];
     } on Object {
@@ -579,6 +589,9 @@ class ServerSelectionController extends ChangeNotifier {
       return const [];
     }
   }
+
+  static String _titleOf(Subscription subscription) =>
+      subscription.name.isNotEmpty ? subscription.name : subscription.title;
 
   void _scheduleMeasurement(Duration after) {
     _latencyRefreshTimer?.cancel();

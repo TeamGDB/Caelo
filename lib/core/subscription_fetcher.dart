@@ -79,6 +79,7 @@ abstract final class SubscriptionFetcher {
         available: seen.servers,
         fetchedAsDevice: true,
         skipped: fetched.skipped,
+        title: fetched.title,
       );
 
       await SubscriptionStore.save(updated);
@@ -580,6 +581,7 @@ abstract final class SubscriptionFetcher {
       return _Fetched(
         nodes: checked.nodes,
         skipped: checked.skipped,
+        title: parseProfileTitle(response.headers.value('profile-title')),
         usage: SubscriptionUsage.parse(
           response.headers.value('subscription-userinfo'),
         ),
@@ -649,12 +651,14 @@ class _Fetched {
   const _Fetched({
     required this.nodes,
     this.skipped = const [],
+    this.title = '',
     required this.usage,
     required this.updateInterval,
   });
 
   final List<SubscriptionNode> nodes;
   final List<String> skipped;
+  final String title;
   final SubscriptionUsage usage;
   final Duration? updateInterval;
 }

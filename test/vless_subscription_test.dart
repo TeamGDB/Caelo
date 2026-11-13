@@ -68,6 +68,10 @@ void _answer(HttpRequest request, String body, {String type = 'text/plain'}) {
   request.response
     ..headers.contentType = ContentType.parse('$type; charset=utf-8')
     ..headers.set('profile-update-interval', '12')
+    ..headers.set(
+      'profile-title',
+      'base64:${base64.encode(utf8.encode('Дом'))}',
+    )
     ..write(body)
     ..close();
 }
@@ -203,6 +207,7 @@ void main() {
           'vless: transport "ws": not supported',
         ]);
         expect(refreshed.updateInterval, const Duration(hours: 12));
+        expect(refreshed.title, 'Дом');
 
         final document = server.requests.firstWhere(
           (request) => request.path == '/sub/token',
@@ -307,6 +312,29 @@ void main() {
     );
   });
 
+  group('profile-title', () {
+    test('reads plain text and base64 of UTF-8', () {
+      expect(parseProfileTitle('Home'), 'Home');
+      expect(
+        parseProfileTitle('base64:${base64.encode(utf8.encode('Дом 🏠'))}'),
+        'Дом 🏠',
+      );
+      // Unpadded and URL-safe, as servers send it.
+      expect(
+        parseProfileTitle(
+          'base64:${base64Url.encode(utf8.encode('Дом')).replaceAll('=', '')}',
+        ),
+        'Дом',
+      );
+    });
+
+    test('says nothing rather than something broken', () {
+      expect(parseProfileTitle(null), '');
+      expect(parseProfileTitle('   '), '');
+      expect(parseProfileTitle('base64:%%%'), '');
+    });
+  });
+
   group('what the list says about a subscription', () {
     test('an empty subscription and left-out nodes become notes', () async {
       final controller = ServerSelectionController(
@@ -318,6 +346,7 @@ void main() {
             id: 'a',
             url: 'https://example.com/a',
             lastFetched: DateTime.utc(2026, 11, 13),
+            title: 'Дом',
           ),
           Subscription(
             id: 'b',
@@ -341,6 +370,7 @@ void main() {
 
       expect(controller.notes, hasLength(2));
       expect(controller.notes.first.empty, isTrue);
+      expect(controller.notes.first.title, 'Дом');
       expect(controller.notes.last.skipped, hasLength(3));
       expect(controller.notes.last.reasons, 'vmess; vless: transport "ws"');
       controller.dispose();

@@ -623,6 +623,11 @@ String _description(ServerOption? server, AppLocalizations l10n) {
   return server?.configId == null ? '' : l10n.customServerDescription;
 }
 
-String _noteText(SubscriptionNote note, AppLocalizations l10n) => note.empty
-    ? l10n.subscriptionEmpty
-    : l10n.subscriptionSkipped(note.skipped.length, note.reasons);
+String _noteText(SubscriptionNote note, AppLocalizations l10n) {
+  final text = note.empty
+      ? l10n.subscriptionEmpty
+      : l10n.subscriptionSkipped(note.skipped.length, note.reasons);
+  // Named when there is a name: with two subscriptions, a note that does not
+  // say which one is a riddle.
+  return note.title.isEmpty ? text : '${note.title}: $text';
+}

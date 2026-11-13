@@ -81,6 +81,35 @@ void main() {
     await tester.pump();
   }
 
+  testWidgets('the open list says what it cannot show (#172)', (tester) async {
+    serverController.notes = const [
+      SubscriptionNote.empty(title: 'Home'),
+      SubscriptionNote.skipped(['vmess', 'vmess']),
+    ];
+    await pumpHome(tester, locale: const Locale('en'));
+    await tester.tap(find.byKey(const ValueKey('server-drag-handle')));
+    await tester.pumpAndSettle();
+    // Below the servers: scrolled to, as a person would.
+    await tester.drag(
+      find.byKey(const ValueKey('server-list-scroll')),
+      const Offset(0, -2000),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Home: The subscription has no servers yet. Ask whoever gave you the link.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        '2 servers are not shown: this version of Caelo cannot run them (vmess).',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('keeps the area under the power button clear', (tester) async {
     await pumpHome(tester, locale: const Locale('en'));
 

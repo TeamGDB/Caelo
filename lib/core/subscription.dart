@@ -273,6 +273,7 @@ class Subscription {
     this.available = const [],
     this.fetchedAsDevice = false,
     this.skipped = const [],
+    this.title = '',
   });
 
   /// Stable across refreshes and renames, so that a pinned node and a
@@ -323,6 +324,11 @@ class Subscription {
   /// subscription carrying protocols this build cannot run says so rather than
   /// looking smaller than the server's own list.
   final List<String> skipped;
+
+  /// What the server calls this subscription, from `profile-title`. Shown
+  /// where the subscription itself has to be named; [name] is the person's
+  /// and wins over it.
+  final String title;
 
   /// The server answered with a valid subscription that has nothing in it:
   /// no nodes and nothing on offer. Distinct from a refresh that failed, which
@@ -414,6 +420,7 @@ class Subscription {
     List<AvailableServer>? available,
     bool? fetchedAsDevice,
     List<String>? skipped,
+    String? title,
   }) {
     return Subscription(
       id: id,
@@ -429,6 +436,7 @@ class Subscription {
       available: available ?? this.available,
       fetchedAsDevice: fetchedAsDevice ?? this.fetchedAsDevice,
       skipped: skipped ?? this.skipped,
+      title: title ?? this.title,
     );
   }
 
@@ -448,6 +456,7 @@ class Subscription {
       'available': available.map((server) => server.toJson()).toList(),
     if (fetchedAsDevice) 'fetchedAsDevice': true,
     if (skipped.isNotEmpty) 'skipped': skipped,
+    if (title.isNotEmpty) 'title': title,
   };
 
   static Subscription fromJson(Map<String, dynamic> json) {
@@ -475,7 +484,38 @@ class Subscription {
       skipped: (json['skipped'] as List? ?? const [])
           .whereType<String>()
           .toList(),
+      title: json['title'] as String? ?? '',
     );
+  }
+}
+
+/// Reads `profile-title`: plain text, or `base64:` and base64 of UTF-8 — the
+/// form servers use for a name that is not ASCII, since a header cannot carry
+/// it. Empty when absent or unreadable; a name is not worth failing over.
+String parseProfileTitle(String? header) {
+  final value = header?.trim() ?? '';
+  if (value.isEmpty) return '';
+  if (value.toLowerCase().startsWith('base64:')) {
+    var encoded = value
+        .substring(7)
+        .trim()
+        .replaceAll('-', '+')
+        .replaceAll('_', '/');
+    final remainder = encoded.length % 4;
+    if (remainder > 1)
+      encoded = encoded.padRight(encoded.length + 4 - remainder, '=');
+    try {
+      return utf8.decode(base64.decode(encoded)).trim();
+    } on FormatException {
+      return '';
+    }
+  }
+  // Headers arrive as Latin-1; a server that sent UTF-8 bytes anyway meant
+  // UTF-8.
+  try {
+    return utf8.decode(latin1.encode(value)).trim();
+  } on Object {
+    return value;
   }
 }
 
