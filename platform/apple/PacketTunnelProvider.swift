@@ -89,6 +89,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         // человек видит «подключено» до того, как хоть один пакет дошёл до
         // сервера. Если связи нет, единственный способ это узнать — что ничего
         // не грузится. Лучше не вернуться отсюда и дать системе сказать правду.
+        // For VLESS there is no handshake: the core waits for a request to
+        // come back through the server instead, under the same call.
         let shook = call { caelo_wait_handshake_fd(12_000) }
         guard shook?["handshake"] as? Bool == true else {
             fault("no handshake with the peer within 12s")
@@ -168,14 +170,28 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
     /// Turns what the core said into what the system wants to hear.
     private func settings(from described: [String: Any]) -> NEPacketTunnelNetworkSettings {
+        // Set only for a protocol other than AmneziaWG (VLESS). Everything
+        // that depends on it below is new for those protocols and leaves the
+        // AmneziaWG settings exactly as they were.
+        let registered = described["protocol"] as? String != nil
+
         let endpoint = (described["endpoint"] as? String) ?? ""
-        let host = endpoint.split(separator: ":").first.map(String.init) ?? "127.0.0.1"
+        var host = endpoint.split(separator: ":").first.map(String.init) ?? "127.0.0.1"
+        // The address the core resolved the server to, when it is a name.
+        // The system wants an address here, and a name split at its colon is
+        // not one.
+        if registered, let resolved = described["endpoint_address"] as? String, !resolved.isEmpty {
+            host = resolved
+        }
 
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: host)
         settings.mtu = NSNumber(value: (described["mtu"] as? Int) ?? 1420)
 
         let addresses = (described["addresses"] as? [String]) ?? []
-        let v4 = addresses.filter { !$0.contains(":") }
+        // A prefix length is how the core writes a VLESS device's addresses;
+        // the tunnel is point to point either way, so the address is what
+        // counts.
+        let v4 = addresses.filter { !$0.contains(":") }.map { String($0.split(separator: "/")[0]) }
         if !v4.isEmpty {
             let ipv4 = NEIPv4Settings(addresses: v4, subnetMasks: v4.map { _ in "255.255.255.255" })
             // Every route the configuration allows. An empty list would leave
@@ -184,6 +200,21 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 .filter { !$0.contains(":") }
                 .compactMap(Self.route)
             settings.ipv4Settings = ipv4
+        }
+
+        // IPv6 is carried for a registered protocol: its device has an
+        // address in both families, and leaving v6 to the physical interface
+        // would send half of somebody's traffic around the tunnel.
+        let v6 = addresses.filter { $0.contains(":") }
+        if registered && !v6.isEmpty {
+            let ipv6 = NEIPv6Settings(
+                addresses: v6.map { String($0.split(separator: "/")[0]) },
+                networkPrefixLengths: v6.map { NSNumber(value: Int($0.split(separator: "/").last.map(String.init) ?? "") ?? 128) }
+            )
+            ipv6.includedRoutes = ((described["allowed_ips"] as? [String]) ?? [])
+                .filter { $0.contains(":") }
+                .compactMap(Self.route6)
+            settings.ipv6Settings = ipv6
         }
 
         if let dns = described["dns"] as? [String], !dns.isEmpty {
@@ -195,6 +226,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
 
         return settings
+    }
+
+    private static func route6(_ cidr: String) -> NEIPv6Route? {
+        let parts = cidr.split(separator: "/")
+        guard let address = parts.first.map(String.init) else { return nil }
+        let bits = parts.count > 1 ? Int(parts[1]) ?? 128 : 128
+        if bits == 0 { return NEIPv6Route.default() }
+        return NEIPv6Route(destinationAddress: address, networkPrefixLength: NSNumber(value: bits))
     }
 
     private static func route(_ cidr: String) -> NEIPv4Route? {

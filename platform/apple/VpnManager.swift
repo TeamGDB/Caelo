@@ -243,7 +243,12 @@ final class VpnManager {
     /// Deliberately not a parser: the core owns that, and this is one line of
     /// display text.
     private static func endpoint(in config: String) -> String? {
-        config
+        // A share link names its server in the URL's own place for it.
+        let trimmed = config.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.contains("://"), let link = URLComponents(string: trimmed), let host = link.host {
+            return link.port.map { "\(host):\($0)" } ?? host
+        }
+        return config
             .split(separator: "\n")
             .first { $0.lowercased().hasPrefix("endpoint") }
             .flatMap { $0.split(separator: "=").last }
