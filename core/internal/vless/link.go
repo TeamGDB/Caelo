@@ -289,14 +289,41 @@ func Parse(text string) (*Link, error) {
 			return nil, unsupported("XHTTP mode %q", link.Mode)
 		}
 		if extra := get("extra"); extra != "" {
-			if !json.Valid([]byte(extra)) {
-				return nil, errors.New("XHTTP extra is not JSON")
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal([]byte(extra), &fields); err != nil {
+				return nil, errors.New("XHTTP extra is not a JSON object")
+			}
+			for key := range fields {
+				if !safeExtra[key] {
+					return nil, unsupported("XHTTP extra setting %q", key)
+				}
 			}
 			link.Extra = json.RawMessage(extra)
 		}
 	}
 
 	return link, nil
+}
+
+// safeExtra are the XHTTP extra settings a link may carry: how requests are
+// padded, split, named and multiplexed — the shape on the wire, which is what
+// the block exists for.
+//
+// Anything else is refused, and downloadSettings above all: it is a whole
+// stream configuration of its own, with socket options, certificate files
+// and a TLS key log path. On Linux and Windows a node runs in a service that
+// is root, and a link is text somebody was sent; a link that could name files
+// for that service to read or write would turn a subscription into a way
+// onto the machine.
+var safeExtra = map[string]bool{
+	"headers": true, "xPaddingBytes": true, "xPaddingObfsMode": true, "xPaddingKey": true,
+	"xPaddingHeader": true, "xPaddingPlacement": true, "xPaddingMethod": true,
+	"uplinkHTTPMethod": true, "sessionIDPlacement": true, "sessionIDKey": true,
+	"sessionIDTable": true, "sessionIDLength": true, "seqPlacement": true, "seqKey": true,
+	"uplinkDataPlacement": true, "uplinkDataKey": true, "uplinkChunkSize": true,
+	"noGRPCHeader": true, "noSSEHeader": true, "scMaxEachPostBytes": true,
+	"scMinPostsIntervalMs": true, "scMaxBufferedPosts": true, "scStreamUpServerSecs": true,
+	"xmux": true,
 }
 
 // knownFingerprint asks Xray's own tables. Some of their entries are nil until

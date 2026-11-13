@@ -2,6 +2,7 @@ package vless
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -107,6 +108,21 @@ func TestIgnoresParametersItDoesNotKnow(t *testing.T) {
 	}
 }
 
+func TestCarriesTheXHTTPExtraThatShapesTheWire(t *testing.T) {
+	link, err := Parse(withParam(cdnLink, "extra="+url.QueryEscape(`{"xPaddingBytes":"100-1000","xmux":{"maxConcurrency":"16-32"}}`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(link.Extra) == 0 {
+		t.Fatal("extra dropped")
+	}
+	in, err := start(link, options{})
+	if err != nil {
+		t.Fatalf("Xray refused it: %v", err)
+	}
+	in.Close()
+}
+
 func TestReadsPostQuantumVerification(t *testing.T) {
 	link, err := Parse(strings.Replace(visionLink, "&fp=", "&pqv=bWxkc2E&fp=", 1))
 	if err != nil {
@@ -129,6 +145,10 @@ func TestRefusesWhatItCannotHonour(t *testing.T) {
 		"unknown flow":        strings.Replace(visionLink, "flow=xtls-rprx-vision", "flow=xtls-rprx-direct", 1),
 		"insecure tls":        withParam(cdnLink, "allowInsecure=1"),
 		"unknown mode":        strings.Replace(cdnLink, "mode=packet-up", "mode=teleport", 1),
+		// A whole second stream configuration, with files and socket options,
+		// for a service that runs as root.
+		"download settings": withParam(cdnLink, "extra="+url.QueryEscape(`{"downloadSettings":{"tlsSettings":{"masterKeyLog":"/etc/x"}}}`)),
+		"socket options":    withParam(cdnLink, "extra="+url.QueryEscape(`{"sockopt":{"mark":1}}`)),
 	}
 	for name, link := range cases {
 		_, err := Parse(link)

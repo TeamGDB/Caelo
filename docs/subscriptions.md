@@ -166,8 +166,11 @@ The fingerprint is honoured as given — Safari, Chrome, Firefox and every other
 client's Xray-core knows. **What cannot be honoured is refused, never replaced**: another
 transport (WebSocket, gRPC), no TLS or REALITY at all, Vision over anything but TCP, an
 unknown fingerprint, HTTP header camouflage, and turning certificate checks off
-(`allowInsecure`). XHTTP's `extra` block and VLESS's own `encryption` other than `none`
-are handed to Xray-core as given, and it refuses what it does not know. A refused node
+(`allowInsecure`). XHTTP's `extra` block is accepted for what shapes the requests on the
+wire — padding, splitting, session and sequence placement, `xmux` — and refused for
+anything else, `downloadSettings` above all: on Linux and Windows a node runs in a root
+service, and a link must not be able to name files or socket options for it. VLESS's own
+`encryption` other than `none` is handed to Xray-core as given. A refused node
 is left out of the list with its reason, and the rest of the subscription works. Unknown
 parameters are ignored.
 
