@@ -118,6 +118,23 @@ class ServerOption {
   );
 }
 
+/// Something about a subscription the server list cannot say by itself.
+@immutable
+class SubscriptionNote {
+  /// The server answered with a subscription that has nothing in it.
+  const SubscriptionNote.empty() : empty = true, skipped = const [];
+
+  /// The subscription has nodes this build cannot run; [skipped] says why,
+  /// one reason per node.
+  const SubscriptionNote.skipped(this.skipped) : empty = false;
+
+  final bool empty;
+  final List<String> skipped;
+
+  /// The reasons, each once: "vmess", "vless: transport ws not supported".
+  String get reasons => skipped.toSet().join('; ');
+}
+
 /// The server list Home consumes, independent of where its nodes are stored.
 abstract interface class ServerCatalog {
   Future<List<ServerOption>> load();
@@ -313,9 +330,18 @@ class ServerSelectionController extends ChangeNotifier {
     this.fastestGrace = const Duration(milliseconds: 1500),
     this.readLastConnected = SettingsStore.lastConnectedServerId,
     this.writeLastConnected = SettingsStore.setLastConnectedServerId,
+    this.loadSubscriptions = SubscriptionStore.all,
   });
 
   final ServerCatalog catalog;
+
+  /// Where [notes] are read from.
+  final Future<List<Subscription>> Function() loadSubscriptions;
+
+  /// What the list cannot show by itself: a subscription the server left
+  /// empty, and one with nodes this build cannot run (#172). Read with the
+  /// list, so both change together.
+  List<SubscriptionNote> notes = const [];
   final Future<String?> Function() readSelected;
   final Future<void> Function(String) writeSelected;
   final Future<void> Function(String) activateConfiguration;
@@ -498,7 +524,9 @@ class ServerSelectionController extends ChangeNotifier {
     final generation = ++_loadGeneration;
     final loaded = await catalog.load();
     final savedId = await readSelected();
+    final noted = await _notes();
     if (generation != _loadGeneration) return;
+    notes = noted;
     // What was measured survives a reload: the list is rebuilt from storage
     // every time keys arrive, and wiping the column each time would flicker.
     final previous = {for (final server in servers) server.id: server};
@@ -533,6 +561,23 @@ class ServerSelectionController extends ChangeNotifier {
     _measureGeneration++;
     _latencyRefreshTimer?.cancel();
     unawaited(_measureLatencies(_measureGeneration));
+  }
+
+  Future<List<SubscriptionNote>> _notes() async {
+    try {
+      return [
+        for (final subscription in await loadSubscriptions())
+          if (!subscription.isGone) ...[
+            if (subscription.isEmpty) const SubscriptionNote.empty(),
+            if (subscription.skipped.isNotEmpty)
+              SubscriptionNote.skipped(subscription.skipped),
+          ],
+      ];
+    } on Object {
+      // Notes are commentary on the list; failing to read them is no reason
+      // to fail the list.
+      return const [];
+    }
   }
 
   void _scheduleMeasurement(Duration after) {

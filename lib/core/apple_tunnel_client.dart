@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'config_store.dart';
 import 'diagnostics.dart';
+import 'ffi/core_library.dart';
 import 'tunnel.dart';
 
 /// A [TunnelClient] that asks the system to run the tunnel.
@@ -38,6 +39,7 @@ class AppleTunnelClient implements TunnelClient {
   /// Remembered so a status notification, which carries only a phase, can keep
   /// saying which endpoint it is about.
   String? _endpoint;
+  TunnelProtocol? _protocol;
 
   @override
   TunnelStatus get current => _current;
@@ -69,9 +71,7 @@ class AppleTunnelClient implements TunnelClient {
       TunnelStatus(
         phase: phase,
         node: phase == TunnelPhase.connected ? _endpoint : null,
-        protocol: phase == TunnelPhase.connected
-            ? TunnelProtocol.amneziaWg
-            : null,
+        protocol: phase == TunnelPhase.connected ? _protocol : null,
       ),
     );
   }
@@ -102,7 +102,9 @@ class AppleTunnelClient implements TunnelClient {
         return;
       }
 
-      _endpoint = _endpointIn(configText);
+      final node = _nodeIn(configText);
+      _endpoint = node.endpoint;
+      _protocol = node.protocol;
 
       // Saving the configuration is what raises the system's consent prompt.
       // The result says the system accepted and started it, not that the peer
@@ -172,13 +174,29 @@ class AppleTunnelClient implements TunnelClient {
     }
   }
 
-  static String? _endpointIn(String config) {
-    for (final line in config.split('\n')) {
-      if (line.trimLeft().toLowerCase().startsWith('endpoint')) {
-        return line.split('=').last.trim();
+  /// Which server and protocol, for the status line. Asked of the core,
+  /// which is linked into this process too; the extension is where the tunnel
+  /// runs, but reading a configuration does not need it.
+  static ({String? endpoint, TunnelProtocol? protocol}) _nodeIn(String config) {
+    try {
+      final described = CoreLibrary.validate(config);
+      return (
+        endpoint: described['endpoint'] as String?,
+        protocol: TunnelProtocol.fromCore(described),
+      );
+    } on Object {
+      // A core too old to answer, or a configuration it refused — the
+      // extension will say which. The line scan is what this always did.
+      for (final line in config.split('\n')) {
+        if (line.trimLeft().toLowerCase().startsWith('endpoint')) {
+          return (
+            endpoint: line.split('=').last.trim(),
+            protocol: TunnelProtocol.amneziaWg,
+          );
+        }
       }
+      return (endpoint: null, protocol: null);
     }
-    return null;
   }
 
   @override

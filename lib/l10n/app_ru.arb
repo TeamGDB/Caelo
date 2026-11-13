@@ -170,5 +170,7 @@
   "linkReplaceConfirm": "Заменить",
   "linkKnownTitle": "Уже добавлена",
   "linkKnownMessage": "Эта подписка уже есть на этом устройстве.",
-  "linkFailedTitle": "Не удалось добавить подписку"
+  "linkFailedTitle": "Не удалось добавить подписку",
+  "subscriptionEmpty": "В подписке пока нет серверов. Спросите того, кто дал ссылку.",
+  "subscriptionSkipped": "{count, plural, =1{Не показан 1 сервер} few{Не показаны {count} сервера} other{Не показано {count} серверов}}: эта версия Caelo их не поддерживает ({reasons})."
 }

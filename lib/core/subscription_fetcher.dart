@@ -2,9 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'build_info.dart';
+import 'capabilities.dart';
 import 'device_description.dart';
 import 'diagnostics.dart';
+import 'ffi/core_library.dart';
 import 'subscription.dart';
 import 'subscription_store.dart';
 
@@ -74,11 +78,13 @@ abstract final class SubscriptionFetcher {
         stateVersion: seen.version,
         available: seen.servers,
         fetchedAsDevice: true,
+        skipped: fetched.skipped,
       );
 
       await SubscriptionStore.save(updated);
       Diagnostics.record(
-        'subscription refreshed: ${fetched.nodes.length} nodes',
+        'subscription refreshed: ${fetched.nodes.length} nodes'
+        '${fetched.skipped.isEmpty ? '' : ', ${fetched.skipped.length} left out'}',
       );
       return updated;
     } on SubscriptionFailed catch (error) {
@@ -470,6 +476,52 @@ abstract final class SubscriptionFetcher {
     return nodes;
   }
 
+  /// Reads a node and says whether this build runs it, as the core does.
+  /// A seam for tests, which have no core to ask.
+  @visibleForTesting
+  static Map<String, dynamic> Function(String) validate = CoreLibrary.validate;
+
+  /// Asks the core about every node of a protocol other than AmneziaWG, and
+  /// leaves out what it will not run, with its reason (#172).
+  ///
+  /// Here rather than when somebody picks the node: a link this build cannot
+  /// honour — a transport it does not carry, a fingerprint it does not know —
+  /// would otherwise be offered, and fail only when chosen, for a reason that
+  /// arrives too late to be useful. AmneziaWG nodes are not asked about: they
+  /// were never checked here, and their path does not change.
+  static ({List<SubscriptionNode> nodes, List<String> skipped}) _checked(
+    SubscriptionRead read,
+  ) {
+    final nodes = <SubscriptionNode>[];
+    final skipped = [...read.skipped];
+    for (final node in read.nodes) {
+      if (node.protocol == amneziaWgProtocol) {
+        nodes.add(node);
+        continue;
+      }
+      try {
+        validate(node.endpoint);
+        nodes.add(node);
+      } on CoreFailure catch (error) {
+        skipped.add('${node.protocol}: ${error.message}');
+      } on Object catch (error) {
+        // The core could not be asked at all. Nothing can run without it,
+        // and saying so per node would be noise.
+        Diagnostics.record(
+          'could not check a node with the core',
+          error: error,
+        );
+        skipped.add(node.protocol);
+      }
+    }
+    if (nodes.isEmpty && read.nodes.isNotEmpty) {
+      throw SubscriptionFailed(
+        'none of the nodes can run in this build: ${skipped.toSet().join(', ')}',
+      );
+    }
+    return (nodes: nodes, skipped: skipped);
+  }
+
   static Future<_Fetched> _fetch(String url) async {
     final client = HttpClient()..connectionTimeout = timeout;
     try {
@@ -490,9 +542,14 @@ abstract final class SubscriptionFetcher {
       // Offered, not demanded. A server that understands it answers with the
       // richer document; one that does not answers with plain sing-box JSON,
       // and which arrived is decided by the response rather than by this.
+      //
+      // A build that runs more than AmneziaWG also asks for version 2 of the
+      // Caelo document and says it reads a plain list of links (#172); one
+      // that does not asks exactly what it always asked.
+      final capabilities = await Capabilities.current();
       request.headers.set(
         HttpHeaders.acceptHeader,
-        '$caeloDocumentType, application/json',
+        Capabilities.accept(capabilities),
       );
       final response = await request.close().timeout(timeout);
 
@@ -505,11 +562,12 @@ abstract final class SubscriptionFetcher {
 
       final body = await _read(response);
 
-      final List<SubscriptionNode> nodes;
+      final SubscriptionRead read;
       try {
-        nodes = readNodes(
+        read = readSubscription(
           body,
           contentType: response.headers.contentType?.mimeType,
+          protocols: capabilities.protocols,
         );
       } on FormatException catch (error) {
         throw SubscriptionFailed(
@@ -517,8 +575,11 @@ abstract final class SubscriptionFetcher {
         );
       }
 
+      final checked = _checked(read);
+
       return _Fetched(
-        nodes: nodes,
+        nodes: checked.nodes,
+        skipped: checked.skipped,
         usage: SubscriptionUsage.parse(
           response.headers.value('subscription-userinfo'),
         ),
@@ -587,11 +648,13 @@ abstract final class SubscriptionFetcher {
 class _Fetched {
   const _Fetched({
     required this.nodes,
+    this.skipped = const [],
     required this.usage,
     required this.updateInterval,
   });
 
   final List<SubscriptionNode> nodes;
+  final List<String> skipped;
   final SubscriptionUsage usage;
   final Duration? updateInterval;
 }

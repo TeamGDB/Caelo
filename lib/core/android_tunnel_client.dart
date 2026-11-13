@@ -31,6 +31,9 @@ class AndroidTunnelClient implements TunnelClient {
   /// How long a freshly raised tunnel has to reach its server.
   static const handshakeTimeout = Duration(seconds: 10);
 
+  /// How long a VLESS node has to carry its first request through the server.
+  static const proofTimeout = Duration(seconds: 15);
+
   final _controller = StreamController<TunnelStatus>.broadcast();
 
   TunnelStatus _current = const TunnelStatus.disconnected();
@@ -125,8 +128,10 @@ class AndroidTunnelClient implements TunnelClient {
       }
 
       final description = await CoreLibrary.describe(configText);
+      final protocol = TunnelProtocol.fromCore(description);
       Diagnostics.record(
-        'configuration read: endpoint ${description['endpoint']}, '
+        'configuration read: ${protocol?.label ?? 'unknown protocol'}, '
+        'endpoint ${description['endpoint']}, '
         'mtu ${description['mtu']}, obfuscated ${description['obfuscated']}',
       );
 
@@ -164,11 +169,15 @@ class AndroidTunnelClient implements TunnelClient {
       // completed handshake does, and a tunnel that never completes one must
       // not be called connected: the person would see "connected" and nothing
       // would load. Failing here lets the caller move on to another server.
-      final shook = await CoreLibrary.waitHandshakeFd(handshakeTimeout);
+      // VLESS has no handshake; the core waits for a request to come back
+      // through the server instead, which is a whole round trip out of the
+      // exit and takes longer than one packet and its answer.
+      final wait = protocol == TunnelProtocol.vless
+          ? proofTimeout
+          : handshakeTimeout;
+      final shook = await CoreLibrary.waitHandshakeFd(wait);
       if (!shook) {
-        Diagnostics.record(
-          'no handshake within ${handshakeTimeout.inSeconds}s',
-        );
+        Diagnostics.record('no handshake within ${wait.inSeconds}s');
         throw StateError('the server did not complete a handshake');
       }
       Diagnostics.record('handshake completed');
@@ -177,9 +186,7 @@ class AndroidTunnelClient implements TunnelClient {
         TunnelStatus(
           phase: TunnelPhase.connected,
           node: description['endpoint'] as String?,
-          protocol: description['obfuscated'] == true
-              ? TunnelProtocol.amneziaWg
-              : TunnelProtocol.vless,
+          protocol: protocol,
         ),
       );
     } on Object {

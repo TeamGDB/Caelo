@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"strconv"
 	"sync"
 
@@ -43,6 +45,9 @@ var (
 // to make room for — packets end at the device and are carried as a stream —
 // so it is Ethernet's.
 const TunnelMTU = 1500
+
+// iosMemoryLimit is the Go heap the iOS extension aims to stay under.
+const iosMemoryLimit = 30 << 20
 
 // tunName is what the device is called where Xray names it.
 const tunName = "caelo"
@@ -121,6 +126,14 @@ func (c *config) Attach(fd int, mtu int) (protocol.Tunnel, error) {
 	if mtu <= 0 {
 		mtu = TunnelMTU
 	}
+	if runtime.GOOS == "ios" {
+		// The packet tunnel extension is killed outright past about 50 MB.
+		// A soft limit well below that makes the collector work harder as
+		// the heap approaches it, instead of letting it grow until the
+		// system ends the tunnel — and with it, every connection.
+		debug.SetMemoryLimit(iosMemoryLimit)
+	}
+
 	tunFdMu.Lock()
 	defer tunFdMu.Unlock()
 

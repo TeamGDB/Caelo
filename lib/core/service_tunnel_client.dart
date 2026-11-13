@@ -123,9 +123,7 @@ class ServiceTunnelClient implements TunnelClient {
     return TunnelStatus(
       phase: TunnelPhase.connected,
       node: response['endpoint'] as String?,
-      protocol: response['obfuscated'] == true
-          ? TunnelProtocol.amneziaWg
-          : TunnelProtocol.vless,
+      protocol: TunnelProtocol.fromCore(response),
     );
   }
 

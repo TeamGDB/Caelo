@@ -277,6 +277,27 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                       },
                                     ),
                                   ),
+                                  // What the list cannot say by itself: an
+                                  // empty subscription, and servers this
+                                  // build cannot run (#172).
+                                  for (final note in widget.controller.notes)
+                                    SliverToBoxAdapter(
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          CaeloSpace.gutter,
+                                          0,
+                                          CaeloSpace.gutter,
+                                          CaeloSpace.sm,
+                                        ),
+                                        child: Text(
+                                          _noteText(
+                                            note,
+                                            AppLocalizations.of(context),
+                                          ),
+                                          style: CaeloTheme.caption(palette),
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
@@ -601,3 +622,7 @@ String _description(ServerOption? server, AppLocalizations l10n) {
   if (value.isNotEmpty) return value;
   return server?.configId == null ? '' : l10n.customServerDescription;
 }
+
+String _noteText(SubscriptionNote note, AppLocalizations l10n) => note.empty
+    ? l10n.subscriptionEmpty
+    : l10n.subscriptionSkipped(note.skipped.length, note.reasons);

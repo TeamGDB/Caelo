@@ -440,4 +440,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get linkFailedTitle => 'Could not add the subscription';
+
+  @override
+  String get subscriptionEmpty =>
+      'The subscription has no servers yet. Ask whoever gave you the link.';
+
+  @override
+  String subscriptionSkipped(int count, String reasons) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count servers are not shown',
+      one: '1 server is not shown',
+    );
+    return '$_temp0: this version of Caelo cannot run them ($reasons).';
+  }
 }

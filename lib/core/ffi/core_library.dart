@@ -25,10 +25,61 @@ typedef _Wait = Pointer<Utf8> Function(int);
 
 /// What the core reports about itself.
 class CoreVersion {
-  const CoreVersion({required this.core, required this.amneziaWg});
+  const CoreVersion({
+    required this.core,
+    required this.amneziaWg,
+    this.protocols = const {},
+  });
 
   final String core;
   final String amneziaWg;
+
+  /// What implements each other protocol, by name: `vless` → `Xray-core
+  /// 26.11.9`. Empty for a core from before there was a choice.
+  final Map<String, String> protocols;
+}
+
+/// What a build of the core can connect to.
+///
+/// Asked of the core rather than written down here, because the core is what
+/// has to run them: a list in the app could promise a server something the
+/// linked core does not do.
+class CoreCapabilities {
+  const CoreCapabilities({
+    this.protocols = const {'amneziawg'},
+    this.variants = const {},
+  });
+
+  /// What a core that cannot be asked runs: AmneziaWG, as every core did
+  /// before this question existed.
+  static const baseline = CoreCapabilities();
+
+  /// Protocol names: `amneziawg`, `vless`.
+  final Set<String> protocols;
+
+  /// Kinds of connection, as a subscription is told them:
+  /// `vless-reality-vision`, `vless-tls-xhttp` and so on.
+  final Set<String> variants;
+
+  bool runs(String protocol) => protocols.contains(protocol);
+
+  /// What two halves can both do — the app's core and a service's, say.
+  CoreCapabilities intersect(CoreCapabilities other) => CoreCapabilities(
+    protocols: protocols.intersection(other.protocols),
+    variants: variants.intersection(other.variants),
+  );
+
+  static CoreCapabilities fromJson(Map<String, dynamic> json) {
+    final protocols = (json['protocols'] as List? ?? const [])
+        .whereType<String>()
+        .toSet();
+    return CoreCapabilities(
+      protocols: protocols.isEmpty ? const {'amneziawg'} : protocols,
+      variants: (json['variants'] as List? ?? const [])
+          .whereType<String>()
+          .toSet(),
+    );
+  }
 }
 
 /// Raised when the core cannot be loaded. Carries the paths that were tried,
@@ -147,10 +198,55 @@ abstract final class CoreLibrary {
     return CoreVersion(
       core: decoded['core'] as String? ?? 'unknown',
       amneziaWg: decoded['amneziawg'] as String? ?? 'unknown',
+      protocols: {
+        for (final entry in decoded.entries)
+          if (entry.key != 'core' &&
+              entry.key != 'amneziawg' &&
+              entry.value is String)
+            entry.key: entry.value as String,
+      },
     );
   }
 
-  /// Brings up the tunnel described by an AmneziaWG `.conf`.
+  /// What this core can connect to. A core from before the question existed
+  /// has no such symbol and is answered for: AmneziaWG only.
+  static CoreCapabilities capabilities() {
+    final library = _open();
+    final Pointer<Utf8> Function() lookup;
+    try {
+      lookup = library.lookupFunction<_StringNative, _StringNative>(
+        'caelo_capabilities',
+      );
+    } on ArgumentError {
+      return CoreCapabilities.baseline;
+    }
+    return CoreCapabilities.fromJson(_consume(library, lookup()));
+  }
+
+  /// Whether this core can run a node, and as what — nothing is resolved or
+  /// dialled. Throws [CoreFailure] with the core's reason when it cannot.
+  ///
+  /// Synchronous: it only reads text, and a subscription refresh calls it once
+  /// per node.
+  static Map<String, dynamic> validate(String configText) {
+    final library = _open();
+    final config = configText.toNativeUtf8();
+    try {
+      return _require(
+        _consume(
+          library,
+          library.lookupFunction<_ConnectNative, _ConnectNative>(
+            'caelo_validate',
+          )(config),
+        ),
+      );
+    } finally {
+      malloc.free(config);
+    }
+  }
+
+  /// Brings up the tunnel described by a node: an AmneziaWG `.conf` or
+  /// endpoint object, or a node of another protocol the core runs.
   ///
   /// Returning normally means the device is configured and running, not that
   /// the peer answered. WireGuard has no connect step; only traffic proves the

@@ -437,4 +437,20 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get linkFailedTitle => 'Не удалось добавить подписку';
+
+  @override
+  String get subscriptionEmpty =>
+      'В подписке пока нет серверов. Спросите того, кто дал ссылку.';
+
+  @override
+  String subscriptionSkipped(int count, String reasons) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Не показано $count серверов',
+      few: 'Не показаны $count сервера',
+      one: 'Не показан 1 сервер',
+    );
+    return '$_temp0: эта версия Caelo их не поддерживает ($reasons).';
+  }
 }

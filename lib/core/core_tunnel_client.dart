@@ -67,9 +67,7 @@ class CoreTunnelClient implements TunnelClient {
           node:
               reachability['address'] as String? ??
               tunnel['endpoint'] as String?,
-          protocol: (tunnel['obfuscated'] == true)
-              ? TunnelProtocol.amneziaWg
-              : TunnelProtocol.vless,
+          protocol: TunnelProtocol.fromCore(tunnel),
           pingMs: (reachability['elapsed_ms'] as num?)?.round(),
         ),
       );
