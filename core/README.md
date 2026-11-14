@@ -48,6 +48,7 @@ asks of any node:
 | --- | --- |
 | `Describe` | addresses, MTU, DNS, routes and endpoint, for a host building a device |
 | `Pin` | the server's address, resolved now, for a host routing it around the tunnel |
+| optional `Prepare` | verify exit capabilities before a hosted platform creates its device |
 | `Dial` | carry this process's own connections, with no device: the probe and the in-process tunnel |
 | `Attach` | run over a device the platform created (Android, iOS, macOS extension) |
 | `Create` | make a device of its own (the Linux and Windows service) |
@@ -77,6 +78,28 @@ server from the same release. The release is what diagnostics show, read from Xr
 Android builds pass `-checklinkname=0`, as Xray's own Android releases do:
 `github.com/wlynxg/anet`, which Xray uses to list interfaces on Android, links into the
 standard library.
+
+### VLESS address families on hosted devices
+
+Before Android or an Apple packet extension creates its interface, `caelo_describe`
+pins the endpoint and verifies IPv6 through that VLESS exit. Two explicit IPv6
+destinations receive certificate-verified TLS handshakes; either success enables
+IPv6, and the probe is bounded to three seconds. Failure or timeout means IPv4-only.
+Validation and subscription parsing remain network-free. The prepared configuration
+is consumed once by the matching `caelo_connect_fd`, expires after 30 seconds, and
+is invalidated by cancellation or a new preparation.
+
+Android advertises only the supported family in `VpnService.Builder`: omitting IPv6
+addresses, routes and DNS leaves that family blocked by Android, with no bypass
+([VpnService.Builder contract](https://developer.android.com/reference/android/net/VpnService.Builder#allowFamily(int))).
+Apple keeps its IPv6 capture route. When IPv6 is unconfirmed, a packet guard returns
+ICMPv6 no-route errors before Xray can accept TCP, allowing browser IPv4 fallback.
+The guard never sends those packets outside the VPN. A direct unprepared Android
+attach uses the same guard. Desktop system-tunnel IPv6 blocking is unchanged.
+
+Tests exercise real Xray exits with IPv6 enabled and blocked, certificate checks,
+cancellation, packet framing and checksums, plus a complete hosted FD path using
+an in-process client network stack without touching the host's routes.
 
 ## Layout
 

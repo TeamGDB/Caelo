@@ -83,9 +83,17 @@ type Config interface {
 	Create(name string, mtu int) (Tunnel, string, error)
 }
 
+// Preparer проверяет возможности выхода без системного интерфейса. Обычный
+// разбор и Describe остаются чистыми: проверка нужна только перед подключением.
+type Preparer interface {
+	Prepare(context.Context) (Config, error)
+}
+
 // Description is what a host builds its device from, and what is shown.
 type Description struct {
-	Protocol string `json:"protocol"`
+	// IPv6Available — результат проверки выхода; nil означает, что проверки не было.
+	IPv6Available *bool  `json:"ipv6_available,omitempty"`
+	Protocol      string `json:"protocol"`
 	// Variant is the kind of connection, as capabilities spell it.
 	Variant string `json:"variant,omitempty"`
 	// Label is what to show a person: "VLESS".

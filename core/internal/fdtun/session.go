@@ -14,6 +14,7 @@
 package fdtun
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -59,7 +60,12 @@ type Session struct {
 	meter  *rtt.Meter
 
 	// tunnel is a node of a registered protocol, up instead of device.
-	tunnel protocol.Tunnel
+	tunnel                protocol.Tunnel
+	preparationGeneration uint64
+	preparationCancel     context.CancelFunc
+	prepared              protocol.Config
+	preparedHash          [32]byte
+	preparedAt            time.Time
 }
 
 // New returns a Session with nothing up.
@@ -74,6 +80,7 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	prepared := s.takePreparedLocked(configText)
 	if s.device != nil || s.tunnel != nil {
 		s.stopLocked()
 	}
@@ -81,6 +88,9 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 	if node, err := protocol.Parse(configText); !errors.Is(err, protocol.ErrNotClaimed) {
 		if err != nil {
 			return nil, fmt.Errorf("reading configuration: %w", err)
+		}
+		if prepared != nil {
+			node = prepared
 		}
 		return s.startRegistered(fd, node)
 	}
@@ -238,6 +248,7 @@ func (s *Session) SocketFds() (v4 int, v6 int) {
 func (s *Session) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.cancelPreparationLocked()
 	s.stopLocked()
 }
 

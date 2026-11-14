@@ -33,6 +33,8 @@ import (
 	_ "github.com/xtls/xray-core/app/dispatcher"
 	_ "github.com/xtls/xray-core/app/proxyman/inbound"
 	_ "github.com/xtls/xray-core/app/proxyman/outbound"
+	_ "github.com/xtls/xray-core/app/router"
+	_ "github.com/xtls/xray-core/proxy/blackhole"
 	_ "github.com/xtls/xray-core/proxy/freedom"
 	_ "github.com/xtls/xray-core/proxy/vless/inbound"
 	_ "github.com/xtls/xray-core/transport/internet/reality"
@@ -91,6 +93,8 @@ type Options struct {
 	// it, whatever it was addressed to: for a test whose network has nowhere
 	// else to go.
 	Redirect bool
+	// IPv4-only выход для регрессионной проверки клиента.
+	BlockIPv6 bool
 }
 
 // Start runs a server for the variant until the test ends.
@@ -187,6 +191,10 @@ func StartWith(t testing.TB, variant Variant, opts Options) *Server {
 			"settings": freedom(server.Target, opts.Redirect),
 		}},
 	}
+	if opts.BlockIPv6 {
+		config["outbounds"] = append(config["outbounds"].([]any), map[string]any{"tag": "no-ipv6", "protocol": "blackhole"})
+		config["routing"] = map[string]any{"rules": []any{map[string]any{"type": "field", "ip": []string{"::/0"}, "outboundTag": "no-ipv6"}}}
+	}
 	run(t, config)
 
 	server.Link = fmt.Sprintf("vless://%s@127.0.0.1:%d?%s#%s", UUID, port, query.Encode(),
@@ -196,7 +204,7 @@ func StartWith(t testing.TB, variant Variant, opts Options) *Server {
 }
 
 func freedom(target string, redirect bool) map[string]any {
-	settings := map[string]any{"finalRules": []any{map[string]any{"action": "allow", "ip": []string{"127.0.0.1/32"}}}}
+	settings := map[string]any{"finalRules": []any{map[string]any{"action": "allow", "ip": []string{"127.0.0.1/32", "::1/128"}}}}
 	if redirect {
 		settings["redirect"] = target
 	}

@@ -55,7 +55,9 @@ const tunName = "caelo"
 type config struct {
 	link *Link
 	// address is the resolved server address, once pinned.
-	address string
+	address       string
+	ipv6Checked   bool
+	ipv6Available bool
 }
 
 func parseConfig(text string) (protocol.Config, error) {
@@ -66,8 +68,10 @@ func parseConfig(text string) (protocol.Config, error) {
 	return &config{link: link}, nil
 }
 
-func (c *config) Describe() protocol.Description {
-	return protocol.Description{
+func (c *config) Describe() protocol.Description { return c.describeFor(runtime.GOOS) }
+
+func (c *config) describeFor(platformName string) protocol.Description {
+	d := protocol.Description{
 		Protocol:   Scheme,
 		Variant:    c.link.Variant(),
 		Label:      "VLESS",
@@ -78,6 +82,17 @@ func (c *config) Describe() protocol.Description {
 		AllowedIPs: append([]string(nil), tunnelRoutes...),
 		Endpoint:   c.link.Endpoint(),
 	}
+	if c.ipv6Checked {
+		available := c.ipv6Available
+		d.IPv6Available = &available
+	}
+	// На Android отсутствие семейства в Builder блокирует его целиком, в том
+	// числе обход через Wi-Fi. Apple сохраняет маршрут-перехват с отказом в ядре.
+	if platformName == "android" && !c.ipv6Available {
+		d.Addresses = d.Addresses[:1]
+		d.AllowedIPs = d.AllowedIPs[:1]
+	}
+	return d
 }
 
 func (c *config) Pin(ctx context.Context) (protocol.Config, string, error) {
@@ -100,7 +115,9 @@ func (c *config) Pin(ctx context.Context) (protocol.Config, string, error) {
 			break
 		}
 	}
-	return &config{link: c.link, address: chosen.String()}, chosen.String(), nil
+	pinned := *c
+	pinned.address = chosen.String()
+	return &pinned, chosen.String(), nil
 }
 
 func (c *config) Dial() (protocol.Dialer, error) {
@@ -122,7 +139,13 @@ func (d dialer) DialContext(ctx context.Context, network, address string) (net.C
 // at once would otherwise each read the other's.
 var tunFdMu sync.Mutex
 
-func (c *config) Attach(fd int, mtu int) (protocol.Tunnel, error) {
+func (c *config) Attach(fd int, mtu int) (_ protocol.Tunnel, resultErr error) {
+	originalFD := fd
+	defer func() {
+		if resultErr != nil && runtime.GOOS == "android" {
+			closeFd(originalFD)
+		}
+	}()
 	if mtu <= 0 {
 		mtu = TunnelMTU
 	}
@@ -137,6 +160,26 @@ func (c *config) Attach(fd int, mtu int) (protocol.Tunnel, error) {
 	tunFdMu.Lock()
 	defer tunFdMu.Unlock()
 
+	var guard packetGuard
+	// Android после Prepare блокирует неподтверждённое семейство в Builder.
+	// При прямом вызове без Prepare нужен тот же перехват, что и на Apple.
+	if !c.ipv6Available && (runtime.GOOS == "darwin" || runtime.GOOS == "ios" || (runtime.GOOS == "android" && !c.ipv6Checked)) {
+		prefix := 4
+		if runtime.GOOS == "android" {
+			prefix = 0
+		}
+		var err error
+		guard, err = newIPv6Guard(fd, prefix)
+		if err != nil {
+			return nil, fmt.Errorf("creating IPv6 guard: %w", err)
+		}
+		fd = guard.FD()
+		defer func() {
+			if resultErr != nil {
+				guard.Close()
+			}
+		}()
+	}
 	if err := os.Setenv(platform.TunFdKey, strconv.Itoa(fd)); err != nil {
 		return nil, fmt.Errorf("handing the device to Xray: %w", err)
 	}
@@ -149,32 +192,29 @@ func (c *config) Attach(fd int, mtu int) (protocol.Tunnel, error) {
 		address: c.address,
 		tun:     &tunOptions{Name: tunName, MTU: mtu},
 	})
-	if runtime.GOOS != "android" {
-		// Apple platforms: the descriptor is the system's, and Xray reads a
-		// duplicate of it, as AmneziaWG does.
-		return in, err
-	}
-	// Android hands the descriptor over (detachFd), and the core is where it
-	// is closed — closing it is what takes the VPN interface down. Xray reads
-	// a duplicate and closes only that, so the original is closed here: when
-	// the tunnel stops, or now if it never started.
 	if err != nil {
-		closeFd(fd)
 		return nil, err
 	}
-	return &ownedFd{instance: in, fd: fd}, nil
+	var tunnel protocol.Tunnel = in
+	if guard != nil {
+		tunnel = &guardedTunnel{instance: in, guard: guard}
+	}
+	if runtime.GOOS == "android" {
+		return &ownedFd{Tunnel: tunnel, fd: originalFD}, nil
+	}
+	return tunnel, nil
 }
 
 // ownedFd is a tunnel that also closes the descriptor it was given.
 type ownedFd struct {
-	*instance
+	protocol.Tunnel
 	fd   int
 	once sync.Once
 }
 
 func (o *ownedFd) Close() {
 	o.once.Do(func() {
-		o.instance.Close()
+		o.Tunnel.Close()
 		closeFd(o.fd)
 	})
 }

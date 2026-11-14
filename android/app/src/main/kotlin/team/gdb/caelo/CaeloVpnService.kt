@@ -114,9 +114,9 @@ class CaeloVpnService : VpnService() {
 
         for (route in routes) {
             val (host, prefix) = splitPrefix(route, default = 0)
-            // A v6 route with no v6 address inside the tunnel would black-hole
-            // v6 traffic instead of carrying it. Skipping it lets the system
-            // keep handling v6 the way it already was.
+            // A family without addresses, routes or DNS remains blocked by
+            // Android. In particular, an IPv4-only VLESS exit must not
+            // enable IPv6 here or allow it to bypass the VPN.
             if (host.contains(':') && addresses.none { it.contains(':') }) continue
             builder.addRoute(host, prefix)
         }

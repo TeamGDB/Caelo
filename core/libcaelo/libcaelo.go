@@ -174,7 +174,7 @@ func caelo_status() *C.char {
 }
 
 // caelo_describe reports the parameters a host needs to create a tun device for
-// a configuration, without connecting anything.
+// a configuration. Registered protocols check the exit without creating a system tunnel.
 //
 // Android's VpnService.Builder wants the address, MTU, DNS servers and routes
 // before it will hand back a descriptor. They come from here rather than from a
@@ -188,17 +188,14 @@ func caelo_describe(configText *C.char) *C.char {
 		if err != nil {
 			return failure(err)
 		}
-		description := node.Describe()
-		// The address the server resolves to now: what a host pins outside
-		// the tunnel, and what Apple's settings want as the remote address.
-		// Best effort — a host that does not need it does not fail for it.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		_, address, pinErr := node.Pin(ctx)
+		prepared, address, err := prepareRegistered(ctx, text, node)
 		cancel()
-		payload := map[string]any{"ok": true, "endpoint_address": address}
-		if pinErr != nil {
-			payload["endpoint_address"] = ""
+		if err != nil {
+			return failure(err)
 		}
+		description := prepared.Describe()
+		payload := map[string]any{"ok": true, "endpoint_address": address}
 		encoded, _ := json.Marshal(description)
 		_ = json.Unmarshal(encoded, &payload)
 		return marshal(payload)

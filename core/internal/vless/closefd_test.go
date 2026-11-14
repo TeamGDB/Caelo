@@ -36,7 +36,7 @@ func TestATunnelGivenADescriptorClosesIt(t *testing.T) {
 	}
 	read.Close()
 
-	owned := &ownedFd{instance: in, fd: fd}
+	owned := &ownedFd{Tunnel: in, fd: fd}
 	owned.Close()
 	owned.Close()
 	if _, err := unix.FcntlInt(uintptr(fd), unix.F_GETFD, 0); !errors.Is(err, unix.EBADF) {
