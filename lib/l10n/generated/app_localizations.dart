@@ -877,6 +877,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not add the subscription'**
   String get linkFailedTitle;
+
+  /// Below the server list: the subscription answered with no servers at all.
+  ///
+  /// In en, this message translates to:
+  /// **'The subscription has no servers yet. Ask whoever gave you the link.'**
+  String get subscriptionEmpty;
+
+  /// Below the server list: servers in the subscription this build cannot run, and why.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 server is not shown: this version of Caelo cannot run it} other{{count} servers are not shown: this version of Caelo cannot run them}} ({reasons}).'**
+  String subscriptionSkipped(int count, String reasons);
 }
 
 class _AppLocalizationsDelegate

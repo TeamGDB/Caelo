@@ -42,7 +42,12 @@ String _coreSummary(AppLocalizations l10n) {
   // многоточием, а из двух половин интересна именно эта: собственная версия
   // ядра совпадает с версией приложения строкой выше, а вот какой AmneziaWG
   // внутри — единственное, что здесь нельзя узнать иначе.
-  return 'AmneziaWG ${core.amneziaWg} · ${core.core}';
+  // Затем то, на чём работают остальные протоколы: «Xray-core 26.11.9».
+  return [
+    'AmneziaWG ${core.amneziaWg}',
+    ...core.protocols.values,
+    core.core,
+  ].join(' · ');
 }
 
 /// Settings exist for the cases the automatic choice cannot cover. They are not

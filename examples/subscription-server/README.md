@@ -38,3 +38,20 @@ priority.
 
 That tests behaviour rather than shape, which is the stronger of the two: a shared struct
 would prove the fields line up and nothing about whether the client can act on them.
+
+## Nodes of other protocols
+
+A node can also be a share link: `links` in the file names a `vless://` link per node,
+and a subscriber lists it beside its AmneziaWG nodes. What a client gets depends on what
+it said it can run ([the request](../../docs/subscriptions.md#saying-what-the-client-can-run)):
+
+| The client sent | It gets |
+| --- | --- |
+| `Accept` with the Caelo type and `version=2`, or `X-Caelo-Capabilities` with `subscription-v2` | Version 2 of the Caelo document: endpoints, and the links whose kind it listed (`vless-reality-vision`, …) |
+| `Accept` with the Caelo type only | Version 1, AmneziaWG only — exactly what such a client always got |
+| `Accept: text/plain`, or anything when the subscriber has only links | The plain list every V2Ray-family client reads, base64 |
+| Anything else | Plain sing-box JSON, as before |
+
+A link is sent only to a client that said it runs that kind of connection, so a client
+is never handed a node it would refuse. `conformance.sh` checks every row of that table
+against the client's own readers.

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:caelo/core/config_store.dart';
 import 'package:caelo/core/server_catalog.dart';
 import 'package:caelo/core/subscription.dart';
 import 'package:caelo/core/subscription_fetcher.dart';
@@ -255,6 +256,78 @@ void main() {
     expect(names, ['Mett', 'Buran']);
   });
 
+  test('every row says what carries it, and two kinds of connection to one '
+      'server are two rows (#174)', () async {
+    const subscription = Subscription(
+      id: 'account',
+      url: 'https://example.invalid/subscription',
+      nodes: [
+        SubscriptionNode(
+          id: 'awg',
+          tag: 'Germany',
+          endpoint: '{}',
+          position: 0,
+          country: 'DE',
+        ),
+        SubscriptionNode(
+          id: 'vision',
+          tag: 'Germany',
+          endpoint: 'vless://a',
+          position: 1,
+          country: 'DE',
+          protocol: 'vless',
+          variant: 'vless-reality-vision',
+        ),
+        SubscriptionNode(
+          id: 'xhttp',
+          tag: 'Germany',
+          endpoint: 'vless://b',
+          position: 2,
+          country: 'DE',
+          protocol: 'vless',
+          variant: 'vless-tls-xhttp',
+        ),
+        SubscriptionNode(
+          id: 'awg-again',
+          tag: 'Germany',
+          endpoint: '{"n":2}',
+          position: 3,
+          country: 'DE',
+        ),
+        SubscriptionNode(
+          id: 'unread',
+          tag: 'Finland',
+          endpoint: 'vless://c',
+          position: 4,
+          country: 'FI',
+          protocol: 'vless',
+        ),
+      ],
+      available: [AvailableServer(id: 'kz', name: 'Kazakhstan', country: 'KZ')],
+    );
+    final catalog = SubscriptionServerCatalog(
+      loadSubscriptions: () async => const [subscription],
+      loadConfigurations: () async => const [
+        StoredConfig(id: 'mine', name: 'Mine'),
+      ],
+      protocolOfConfiguration: (config) async => 'AWG',
+    );
+    final servers = await catalog.load();
+    expect(servers.map((server) => '${server.name} ${server.protocol}'), [
+      'Germany AWG',
+      'Germany VLESS · Vision',
+      'Germany VLESS · XHTTP/TLS',
+      'Finland VLESS',
+      'Kazakhstan AWG',
+      'Mine AWG',
+    ]);
+    expect(
+      servers.map((server) => server.name),
+      everyElement(isNot(contains('·'))),
+      reason: 'the badge is its own element, never part of the name',
+    );
+  });
+
   test('a server issued twice connects through whichever config answers '
       '(#129)', () async {
     const subscription = Subscription(
@@ -402,6 +475,53 @@ void main() {
     await controller.load();
     expect(controller.servers.map((s) => s.id), ['auto', 'up', 'down']);
   });
+  test(
+    'separate XHTTP exits and TLS variants are not merged by their label',
+    () async {
+      SubscriptionNode node(
+        String id,
+        String host,
+        String variant,
+        String uuid,
+      ) => SubscriptionNode(
+        id: id,
+        tag: 'One name',
+        country: 'DE',
+        position: 0,
+        protocol: 'vless',
+        variant: variant,
+        endpoint:
+            'vless://$uuid@$host:443?type=xhttp&security=${variant.contains('-tls-') ? 'tls' : 'reality'}&path=%2Fx',
+      );
+      final catalog = SubscriptionServerCatalog(
+        loadSubscriptions: () async => [
+          Subscription(
+            id: 's',
+            url: 'https://example.invalid',
+            nodes: [
+              node('reality', 'one.example', 'vless-reality-xhttp', 'a'),
+              node('tls', 'one.example', 'vless-tls-xhttp', 'b'),
+              node('other', 'two.example', 'vless-reality-xhttp', 'c'),
+              node(
+                'same-exit-new-key',
+                'one.example',
+                'vless-reality-xhttp',
+                'd',
+              ),
+            ],
+          ),
+        ],
+        loadConfigurations: () async => [],
+      );
+      final rows = await catalog.load();
+      expect(rows.map((r) => r.nodeId), ['reality', 'tls', 'other']);
+      expect(rows.map((r) => r.protocol), [
+        'VLESS · XHTTP',
+        'VLESS · XHTTP/TLS',
+        'VLESS · XHTTP',
+      ]);
+    },
+  );
 }
 
 class _ListCatalog implements ServerCatalog {

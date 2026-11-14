@@ -54,6 +54,16 @@ is built from Flutter primitives and the semantic tokens in
   and measured latency, but it must not invent flags, server grades or fallback
   measurements. An interactive server selector waits for an explicit core API.
 
+`Server protocol badge`
+: The country belongs in the leading icon; the name and optional description
+  remain separate. All concrete server rows show their protocol under the plain
+  latency at the right: `AWG`, `VLESS · Vision`, or `VLESS · XHTTP` (TLS variants
+  append `/TLS`). The neutral outlined badge uses 9.5 pt type, 4 pt horizontal
+  padding and 3 pt vertical padding, about 18 pt high at normal text scale.
+  Automatic selection has no protocol badge. The measure column shares a right
+  edge across protocols and shrinks within narrow layouts. The drawer header
+  grows with accessibility text size instead of clipping its selected server.
+
 ## Adding a component
 
 1. Reuse a semantic token before adding a value.

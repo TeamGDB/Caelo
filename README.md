@@ -42,8 +42,11 @@ to open them.
 | | |
 | --- | --- |
 | **AmneziaWG** | `Jc` `Jmin` `Jmax` · `S1`–`S4` · `H1`–`H4` · `I1`–`I5` |
-| **VLESS / REALITY** | via sing-box |
-| Everything else sing-box speaks | comes along for the ride; not a goal |
+| **VLESS** | REALITY or TLS; Vision or XHTTP, including through a CDN; Safari, Chrome, Firefox and other fingerprints — via [Xray-core](https://github.com/XTLS/Xray-core) |
+
+Subscriptions may carry both, in the [Caelo document](docs/subscriptions.md) or as a
+plain list of `vless://` links. A node this build cannot run is left out with its reason
+rather than connected some other way.
 
 ## Platforms
 
@@ -73,13 +76,21 @@ standing; the device can measure it. `caelo_probe` answers whether a configurati
 carries traffic, on a userspace stack, without touching the machine's networking or a
 tunnel already up. The server's order is how the list is shown and how ties are broken.
 
-**Caelo will fork nothing.** [sing-box](https://github.com/SagerNet/sing-box) is to be
-imported as an ordinary Go module, with the core registering its own `amneziawg` endpoint
-through its public registry — that is what makes an AmneziaWG node expressible in the same
-document as everything else. It is not a dependency yet: nothing imports it, and a version
-pinned for a build that does not use it records an intention rather than a fact. AmneziaWG comes from
-[amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go), also as published. Both are
-upgraded by bumping a version; there is no patch series to rebase.
+**Caelo will fork nothing.** AmneziaWG comes from
+[amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) and VLESS from
+[Xray-core](https://github.com/XTLS/Xray-core), both imported as published Go modules.
+Upgrading either is a version bump — for Xray, `scripts/update-xray.sh <tag>`, which pins
+the release and runs the VLESS tests against a real Xray server built from it. There is no
+patch series to rebase.
+
+Every protocol other than AmneziaWG plugs in through one registry in the core
+(`core/internal/protocol`): describe a node, carry traffic for this process, run over a
+host's device. Adding a protocol is a package that implements that and one line that
+registers it; the probe, the tunnels and the app's subscription reader find it from there.
+AmneziaWG keeps its own path, unchanged.
+
+Xray-core rather than sing-box: XHTTP, which the VLESS servers this client is built for
+use, is Xray's own transport, and sing-box does not carry it.
 
 The alternative was forking `sagernet/wireguard-go` and porting the obfuscation into it.
 Measured against their common upstream, that fork and `amneziawg-go` have diverged by
@@ -94,9 +105,31 @@ the reason this project exists, so it is the dependency that stays fresh.
 | [`packaging/`](packaging) | Turning a build into something installable. |
 | [`scripts/`](scripts) | One build script per platform. |
 
-Pinned: amneziawg-go `v3.0.20260805`. Intended: sing-box `v1.13.16`.
+Pinned: amneziawg-go `v3.1.20260814`, Xray-core `v26.11.9`.
 
 ## Building
+
+Flutter is pinned to **3.47.9** in [`.fvmrc`](.fvmrc). CI and release builds read
+that same file, so a new `stable` release cannot silently change the toolchain.
+Upgrade Flutter in a separate change that checks Android tools, plugins and all
+platform builds together.
+
+For local development, install [FVM](https://fvm.app/documentation/getting-started/installation),
+then run these commands from the repository root:
+
+```bash
+fvm install
+fvm flutter --version
+fvm flutter pub get
+fvm flutter analyze
+fvm flutter test
+fvm exec ./scripts/build-android.sh debug
+```
+
+Use `fvm exec` for the other build scripts below too: their `flutter` commands
+then use the project's SDK. With a manually installed SDK, put Flutter 3.47.9
+on `PATH` before running the scripts. The local `.fvm/` SDK directory is ignored;
+`.fvmrc` is committed.
 
 Each script builds the core first, puts it where that platform's loader will find it, and
 then builds the app.
@@ -155,7 +188,7 @@ Found a vulnerability? [SECURITY.md](SECURITY.md) — not a public issue.
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
 
-Caelo builds on [sing-box](https://github.com/SagerNet/sing-box) and
-[AmneziaWG](https://github.com/amnezia-vpn/amneziawg-go); see
+Caelo builds on [AmneziaWG](https://github.com/amnezia-vpn/amneziawg-go) and
+[Xray-core](https://github.com/XTLS/Xray-core); see
 [ATTRIBUTION.md](ATTRIBUTION.md) for what came from where. Neither project endorses Caelo
 or is affiliated with it.

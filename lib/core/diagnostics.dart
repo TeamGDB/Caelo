@@ -222,6 +222,9 @@ abstract final class Diagnostics {
       buffer.writeln(
         'core       ${version.core} (amneziawg-go ${version.amneziaWg})',
       );
+      for (final MapEntry(:key, :value) in version.protocols.entries) {
+        buffer.writeln('${key.padRight(10)} $value');
+      }
     } on Object catch (error) {
       buffer.writeln('core       not loaded: $error');
     }

@@ -13,8 +13,8 @@ These are consumed as ordinary dependencies, not copied into this tree.
 
 | Project | License | Version | Notes |
 | --- | --- | --- | --- |
-| [sing-box](https://github.com/SagerNet/sing-box) | GPL-3.0-or-later, with an additional §7 clause restricting use of the name and implied association | v1.13.16 | Imported as a Go module by the core. Caelo registers its own protocol types through the public registry API. |
-| [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) | MIT | v3.0.20260805 | The AmneziaWG implementation, used as published. |
+| [Xray-core](https://github.com/XTLS/Xray-core) | MPL-2.0 | v26.11.9 | VLESS (REALITY, TLS, Vision, XHTTP) and its TUN input, imported as a Go module by the core and used as published. MPL-2.0 is file-level copyleft compatible with GPL-3.0: its files stay under MPL in a larger GPL work. Updated with `scripts/update-xray.sh`. |
+| [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) | MIT | v3.1.20260814 | The AmneziaWG implementation, used as published. |
 | [wireguard-go](https://git.zx2c4.com/wireguard-go/) | MIT | via `amneziawg-go` | Upstream of `amneziawg-go`; its copyright notices travel with that dependency. |
 | [file_selector](https://github.com/flutter/packages/tree/main/packages/file_selector/file_selector) | BSD-3-Clause | 1.1.0 | Used as published to open the operating system file picker for local `.conf` import. |
 | [device_info_plus](https://github.com/fluttercommunity/plus_plugins/tree/main/packages/device_info_plus/device_info_plus) | BSD-3-Clause | 13.3.0 | Used as published to read the device's own name and OS version for the subscription's list of devices. |

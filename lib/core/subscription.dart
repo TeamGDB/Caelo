@@ -18,6 +18,8 @@ class SubscriptionNode {
     this.country = '',
     this.description = '',
     this.maintenance = false,
+    this.protocol = amneziaWgProtocol,
+    this.variant = '',
   });
 
   /// What this node is remembered by.
@@ -53,6 +55,17 @@ class SubscriptionNode {
   /// taken away.
   final bool maintenance;
 
+  /// Which protocol carries it: `amneziawg`, `vless`. The name, as
+  /// capabilities and documents spell it; what the protocol *is* stays in the
+  /// core with everything else about a node.
+  final String protocol;
+
+  /// The kind of connection within [protocol], as the core named it when it
+  /// read the node: `vless-reality-vision`, `vless-tls-xhttp`. Empty for
+  /// AmneziaWG, which has one, and for a node not yet read by this build.
+  /// What the list's protocol badge is made from (#174).
+  final String variant;
+
   /// The flag for [country], built here rather than transmitted.
   ///
   /// Regional indicators are the letters offset into a block of their own, so
@@ -81,18 +94,59 @@ class SubscriptionNode {
     if (country.isNotEmpty) 'country': country,
     if (description.isNotEmpty) 'description': description,
     if (maintenance) 'maintenance': true,
+    // Absent for AmneziaWG, as it was in every node stored before there was
+    // a choice.
+    if (protocol != amneziaWgProtocol) 'protocol': protocol,
+    if (variant.isNotEmpty) 'variant': variant,
   };
 
-  static SubscriptionNode fromJson(Map<String, dynamic> json) =>
-      SubscriptionNode(
-        id: json['id'] as String? ?? '',
-        tag: json['tag'] as String? ?? '',
-        endpoint: json['endpoint'] as String? ?? '',
-        position: json['position'] as int? ?? 0,
-        country: json['country'] as String? ?? '',
-        description: json['description'] as String? ?? '',
-        maintenance: json['maintenance'] == true,
-      );
+  /// The same node under another identity — what [identify] hands out.
+  SubscriptionNode withId(String id) => _copy(id: id);
+
+  /// The same node, with the kind of connection the core read in it.
+  SubscriptionNode withVariant(String variant) => _copy(variant: variant);
+
+  SubscriptionNode _copy({String? id, String? variant}) => SubscriptionNode(
+    id: id ?? this.id,
+    tag: tag,
+    endpoint: endpoint,
+    position: position,
+    country: country,
+    description: description,
+    maintenance: maintenance,
+    protocol: protocol,
+    variant: variant ?? this.variant,
+  );
+
+  // Старый кеш тоже должен получить метку и флаг без ожидания сети.
+  // Явное имя из документа сохраняем; очищаем лишь имя, совпадающее с URI.
+  static SubscriptionNode fromJson(Map<String, dynamic> json) {
+    final endpoint = json['endpoint'] as String? ?? '';
+    final protocol = json['protocol'] as String? ?? amneziaWgProtocol;
+    var tag = json['tag'] as String? ?? '';
+    var country = json['country'] as String? ?? '';
+    if (protocol == 'vless' && tag == _fragmentOf(endpoint)) {
+      final name = _nameOfLink(endpoint);
+      tag = name.name;
+      if (country.isEmpty) country = name.country;
+    }
+    final savedVariant = json['variant'] as String? ?? '';
+    return SubscriptionNode(
+      id: json['id'] as String? ?? '',
+      tag: tag,
+      endpoint: endpoint,
+      position: json['position'] as int? ?? 0,
+      country: country,
+      description: json['description'] as String? ?? '',
+      maintenance: json['maintenance'] == true,
+      protocol: protocol,
+      variant: savedVariant.isNotEmpty
+          ? savedVariant
+          : _displayVariant(endpoint, protocol),
+    );
+  }
+
+  String? get connectionIdentity => _connectionOf(this);
 }
 
 /// What the server said about the account behind a subscription.
@@ -250,6 +304,8 @@ class Subscription {
     this.stateVersion,
     this.available = const [],
     this.fetchedAsDevice = false,
+    this.skipped = const [],
+    this.title = '',
   });
 
   /// Stable across refreshes and renames, so that a pinned node and a
@@ -294,6 +350,26 @@ class Subscription {
   /// Clients before v0.2.0 sent none, and a server that keeps keys per device
   /// does not know an installation it has never been told about (#159).
   final bool fetchedAsDevice;
+
+  /// Why nodes the last refresh received are not in [nodes]: one short reason
+  /// per node, as [SubscriptionRead.skipped] gives them. Shown, so that a
+  /// subscription carrying protocols this build cannot run says so rather than
+  /// looking smaller than the server's own list.
+  final List<String> skipped;
+
+  /// What the server calls this subscription, from `profile-title`. Shown
+  /// where the subscription itself has to be named; [name] is the person's
+  /// and wins over it.
+  final String title;
+
+  /// The server answered with a valid subscription that has nothing in it:
+  /// no nodes and nothing on offer. Distinct from a refresh that failed, which
+  /// keeps the last list, and from one this build cannot use, which says why.
+  bool get isEmpty =>
+      lastFetched != null &&
+      lastError == null &&
+      nodes.isEmpty &&
+      available.isEmpty;
 
   /// A node the person chose by hand, by [SubscriptionNode.id].
   ///
@@ -375,6 +451,8 @@ class Subscription {
     String? stateVersion,
     List<AvailableServer>? available,
     bool? fetchedAsDevice,
+    List<String>? skipped,
+    String? title,
   }) {
     return Subscription(
       id: id,
@@ -389,6 +467,8 @@ class Subscription {
       stateVersion: stateVersion ?? this.stateVersion,
       available: available ?? this.available,
       fetchedAsDevice: fetchedAsDevice ?? this.fetchedAsDevice,
+      skipped: skipped ?? this.skipped,
+      title: title ?? this.title,
     );
   }
 
@@ -407,6 +487,8 @@ class Subscription {
     if (available.isNotEmpty)
       'available': available.map((server) => server.toJson()).toList(),
     if (fetchedAsDevice) 'fetchedAsDevice': true,
+    if (skipped.isNotEmpty) 'skipped': skipped,
+    if (title.isNotEmpty) 'title': title,
   };
 
   static Subscription fromJson(Map<String, dynamic> json) {
@@ -431,7 +513,42 @@ class Subscription {
           .map(AvailableServer.fromJson)
           .toList(),
       fetchedAsDevice: json['fetchedAsDevice'] == true,
+      skipped: (json['skipped'] as List? ?? const [])
+          .whereType<String>()
+          .toList(),
+      title: json['title'] as String? ?? '',
     );
+  }
+}
+
+/// Reads `profile-title`: plain text, or `base64:` and base64 of UTF-8 — the
+/// form servers use for a name that is not ASCII, since a header cannot carry
+/// it. Empty when absent or unreadable; a name is not worth failing over.
+String parseProfileTitle(String? header) {
+  final value = header?.trim() ?? '';
+  if (value.isEmpty) return '';
+  if (value.toLowerCase().startsWith('base64:')) {
+    var encoded = value
+        .substring(7)
+        .trim()
+        .replaceAll('-', '+')
+        .replaceAll('_', '/');
+    final remainder = encoded.length % 4;
+    if (remainder > 1) {
+      encoded = encoded.padRight(encoded.length + 4 - remainder, '=');
+    }
+    try {
+      return utf8.decode(base64.decode(encoded)).trim();
+    } on FormatException {
+      return '';
+    }
+  }
+  // Headers arrive as Latin-1; a server that sent UTF-8 bytes anyway meant
+  // UTF-8.
+  try {
+    return utf8.decode(latin1.encode(value)).trim();
+  } on Object {
+    return value;
   }
 }
 
@@ -441,49 +558,130 @@ class Subscription {
 const subscriptionGoneMessage =
     'the server does not recognise this subscription';
 
+/// What a refresh records when the server has servers for the subscription
+/// and none this build can run: `406 Not Acceptable` (#172).
+const noRunnableServersMessage =
+    'the subscription has no servers this version of Caelo can run';
+
 /// The media type a server uses to say it sent the richer document.
 const caeloDocumentType = 'application/vnd.caelo.subscription+json';
 
-/// Reads the node list out of a subscription document, of either shape.
+/// The protocol every build runs, and every node was before there was a
+/// choice.
+const amneziaWgProtocol = 'amneziawg';
+
+/// What a refresh read out of a document.
+class SubscriptionRead {
+  const SubscriptionRead(this.nodes, {this.skipped = const []});
+
+  /// Every node this build can use, identified, in the order served.
+  final List<SubscriptionNode> nodes;
+
+  /// Why each node that was served and is not in [nodes] was left out, one
+  /// short reason per node: "vmess", "vless: transport ws not supported".
+  /// Kept so that a subscription carrying protocols this build does not run
+  /// says so, rather than looking smaller than it is.
+  final List<String> skipped;
+}
+
+/// Reads the node list out of a subscription, whatever shape it came in.
 ///
 /// Only the list: which nodes there are, what they are called, what to show
-/// about them, and what order they came in. Each endpoint is re-encoded and
-/// carried as text, so that nothing here has to know what is inside one.
+/// about them, what carries them, and what order they came in. Each node is
+/// carried as text — an endpoint object re-encoded, or a link as served — so
+/// that nothing here has to know what is inside one.
 ///
-/// Which shape it is comes from the response's `Content-Type` rather than from
-/// what was asked for, so a server may ignore the Accept header entirely and a
-/// client never has to ask twice.
-List<SubscriptionNode> readNodes(String body, {String? contentType}) {
-  final decoded = jsonDecode(body);
-  if (decoded is! Map<String, dynamic>) {
-    throw const FormatException('the document is not a JSON object');
+/// Which shape it is comes from the response rather than from what was asked
+/// for, so a server may ignore the Accept header entirely and a client never
+/// has to ask twice: JSON is the Caelo document when the `Content-Type` says
+/// so and sing-box's otherwise, and anything that is not JSON is a list of
+/// links, one per line, possibly in base64 — the shape every V2Ray-family
+/// subscription already serves.
+///
+/// [protocols] are what this build runs. Nodes of others are skipped, never
+/// refused: a subscription that also carries protocols this build cannot run
+/// is one whose other nodes still work, and turning the whole of it down would
+/// take those away too.
+///
+/// A document with no nodes at all is a valid, empty subscription, and comes
+/// back empty. One whose nodes are all of protocols this build cannot run is
+/// refused with that reason, so that the list that worked stays in place.
+SubscriptionRead readSubscription(
+  String body, {
+  String? contentType,
+  Set<String> protocols = const {amneziaWgProtocol},
+}) {
+  // A byte order mark is not content, and leaving it in front of a JSON
+  // document would send it down the path for links.
+  final trimmed = body.replaceFirst('\uFEFF', '').trim();
+  final mime = contentType?.toLowerCase() ?? '';
+
+  final _Read read;
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    final decoded = jsonDecode(trimmed);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('the document is not a JSON object');
+    }
+    read = mime.contains('vnd.caelo.subscription')
+        ? _readCaelo(decoded, protocols)
+        : _readPlain(decoded, protocols);
+  } else {
+    read = _readLinks(trimmed, protocols, plainText: mime == 'text/plain');
   }
 
-  final isCaelo =
-      contentType != null &&
-      contentType.toLowerCase().contains('vnd.caelo.subscription');
-
-  final nodes = isCaelo ? _readCaelo(decoded) : _readPlain(decoded);
-  if (nodes.isEmpty) {
-    throw const FormatException('the document has no nodes this build can use');
+  if (read.nodes.isEmpty && read.skipped.isNotEmpty) {
+    throw FormatException(
+      'none of the nodes can run in this build: ${_summarise(read.skipped)}',
+    );
   }
-  return identify(nodes);
+  return SubscriptionRead(identify(read.nodes), skipped: read.skipped);
+}
+
+/// The nodes alone. See [readSubscription].
+List<SubscriptionNode> readNodes(
+  String body, {
+  String? contentType,
+  Set<String> protocols = const {amneziaWgProtocol},
+}) => readSubscription(
+  body,
+  contentType: contentType,
+  protocols: protocols,
+).nodes;
+
+/// "vmess ×3, vless: transport ws not supported" — what was left out, short.
+String _summarise(List<String> skipped) {
+  final counts = <String, int>{};
+  for (final reason in skipped) {
+    counts[reason] = (counts[reason] ?? 0) + 1;
+  }
+  return counts.entries
+      .map((e) => e.value == 1 ? e.key : '${e.key} ×${e.value}')
+      .join(', ');
+}
+
+class _Read {
+  _Read();
+  final nodes = <SubscriptionNode>[];
+  final skipped = <String>[];
 }
 
 /// The plain document: sing-box JSON, and nothing about a node but its tag.
-List<SubscriptionNode> _readPlain(Map<String, dynamic> document) {
+_Read _readPlain(Map<String, dynamic> document, Set<String> protocols) {
   final endpoints = document['endpoints'];
   if (endpoints is! List) {
     throw const FormatException('the document has no endpoints');
   }
 
-  final nodes = <SubscriptionNode>[];
+  final read = _Read();
   for (var index = 0; index < endpoints.length; index++) {
     final endpoint = endpoints[index];
     if (endpoint is! Map<String, dynamic>) continue;
-    if (!_isOurs(endpoint)) continue;
+    if (!_isOurs(endpoint)) {
+      read.skipped.add('${endpoint['type']}');
+      continue;
+    }
 
-    nodes.add(
+    read.nodes.add(
       SubscriptionNode(
         id: '',
         tag: endpoint['tag'] as String? ?? '',
@@ -492,12 +690,21 @@ List<SubscriptionNode> _readPlain(Map<String, dynamic> document) {
       ),
     );
   }
-  return nodes;
+  // sing-box puts everything that is not WireGuard-shaped in outbounds. None
+  // of it is read: a VLESS node reaches this client as a link, not as a
+  // sing-box outbound, and those that are not in endpoints are not nodes.
+  return read;
 }
 
-/// The Caelo document: each node carries its own endpoint, plus an identity and
-/// what to show.
-List<SubscriptionNode> _readCaelo(Map<String, dynamic> document) {
+/// The Caelo document: each node carries its own endpoint or link, plus an
+/// identity and what to show.
+///
+/// Version 1 nodes carry an AmneziaWG `endpoint`; version 2 adds nodes of
+/// other protocols, each with a `protocol` and its standard `uri`. One reader
+/// serves both: a version-1 client meeting a version-2 document skips the
+/// nodes with no endpoint and keeps the rest, which is what lets one server
+/// answer both.
+_Read _readCaelo(Map<String, dynamic> document, Set<String> protocols) {
   final entries = document['nodes'];
   if (entries is! List) {
     throw const FormatException('the document has no nodes');
@@ -506,28 +713,264 @@ List<SubscriptionNode> _readCaelo(Map<String, dynamic> document) {
   // An unknown version is read for what is recognisable rather than refused.
   // A client that turns down a whole subscription over a field it has not
   // learned yet is a client that stops working when its server is upgraded.
-  final nodes = <SubscriptionNode>[];
+  final read = _Read();
   for (var index = 0; index < entries.length; index++) {
     final entry = entries[index];
     if (entry is! Map<String, dynamic>) continue;
 
     final endpoint = entry['endpoint'];
-    if (endpoint is! Map<String, dynamic>) continue;
-    if (!_isOurs(endpoint)) continue;
+    final uri = entry['uri'];
+    final String text;
+    final String protocol;
+    final String tag;
+    var fromName = '';
+    if (endpoint is Map<String, dynamic>) {
+      if (!_isOurs(endpoint)) {
+        read.skipped.add('${endpoint['type']}');
+        continue;
+      }
+      text = jsonEncode(endpoint);
+      protocol = amneziaWgProtocol;
+      tag = endpoint['tag'] as String? ?? '';
+    } else if (uri is String && uri.trim().isNotEmpty) {
+      protocol =
+          (entry['protocol'] as String?)?.toLowerCase() ?? _schemeOf(uri) ?? '';
+      // A link for AmneziaWG is nothing this client reads: AmneziaWG nodes
+      // carry an endpoint.
+      if (protocol.isEmpty ||
+          protocol == amneziaWgProtocol ||
+          !protocols.contains(protocol)) {
+        read.skipped.add(protocol.isEmpty ? 'unknown' : protocol);
+        continue;
+      }
+      text = uri.trim();
+      final named = entry['tag'];
+      if (named is String) {
+        tag = named;
+      } else {
+        final name = _nameOfLink(text);
+        tag = name.name;
+        fromName = name.country;
+      }
+    } else {
+      continue;
+    }
 
-    nodes.add(
+    final country = (entry['country'] as String? ?? '').toUpperCase();
+    read.nodes.add(
       SubscriptionNode(
         id: entry['id'] as String? ?? '',
-        tag: endpoint['tag'] as String? ?? '',
-        endpoint: jsonEncode(endpoint),
+        tag: tag,
+        endpoint: text,
         position: index,
-        country: (entry['country'] as String? ?? '').toUpperCase(),
+        country: country.isEmpty ? fromName : country,
         description: entry['description'] as String? ?? '',
         maintenance: entry['maintenance'] == true,
+        protocol: protocol,
       ),
     );
   }
-  return nodes;
+  return read;
+}
+
+/// A list of links, one per line, as text or as base64 of that text.
+///
+/// [plainText] says the server declared `text/plain`, which is what makes an
+/// empty answer an empty subscription rather than a server that sent nothing.
+_Read _readLinks(
+  String body,
+  Set<String> protocols, {
+  required bool plainText,
+}) {
+  if (body.isEmpty) {
+    if (plainText) return _Read();
+    throw const FormatException('the server sent nothing');
+  }
+
+  final text = body.contains('://') ? body : _fromBase64(body);
+  if (text == null) {
+    throw const FormatException(
+      'the document is neither JSON nor a list of links',
+    );
+  }
+
+  final lines = const LineSplitter()
+      .convert(text)
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty)
+      .toList();
+  // At least one line has to be a link itself, starting with its scheme. An
+  // error page, a captive portal or a panel's HTML mentions https://
+  // somewhere and is none of those; reading it as an empty subscription
+  // would throw away the list that worked.
+  if (!lines.any((line) => _schemeOf(line) != null)) {
+    throw const FormatException(
+      'the document is neither JSON nor a list of links',
+    );
+  }
+
+  final read = _Read();
+  for (var index = 0; index < lines.length; index++) {
+    final line = lines[index];
+    final protocol = _schemeOf(line);
+    if (protocol == null) continue; // a comment or a stray line, not a node
+    if (!protocols.contains(protocol)) {
+      read.skipped.add(protocol);
+      continue;
+    }
+    final name = _nameOfLink(line);
+    read.nodes.add(
+      SubscriptionNode(
+        id: '',
+        tag: name.name,
+        endpoint: line,
+        position: index,
+        country: name.country,
+        protocol: protocol,
+      ),
+    );
+  }
+  return read;
+}
+
+/// Standard or URL-safe base64, with or without padding and line breaks —
+/// all of which servers send. Null when it is not base64 of UTF-8 text.
+String? _fromBase64(String body) {
+  var compact = body.replaceAll(RegExp(r'\s'), '');
+  compact = compact.replaceAll('-', '+').replaceAll('_', '/');
+  final remainder = compact.length % 4;
+  if (remainder == 1) return null;
+  if (remainder > 0) {
+    compact = compact.padRight(compact.length + 4 - remainder, '=');
+  }
+  try {
+    return utf8.decode(base64.decode(compact));
+  } on FormatException {
+    return null;
+  }
+}
+
+/// `vless` for `vless://…`; null for a line that is not a link.
+String? _schemeOf(String line) {
+  final cut = line.indexOf('://');
+  if (cut <= 0) return null;
+  final scheme = line.substring(0, cut).toLowerCase();
+  return RegExp(r'^[a-z][a-z0-9+.-]*$').hasMatch(scheme) ? scheme : null;
+}
+
+/// The name a link gives its node: the fragment, percent-decoded.
+String _fragmentOf(String link) {
+  final cut = link.indexOf('#');
+  if (cut < 0) return '';
+  final raw = link.substring(cut + 1);
+  try {
+    return Uri.decodeComponent(raw).trim();
+  } on ArgumentError {
+    return raw.trim();
+  }
+}
+
+// Это только подпись старого кеша. При обновлении ядро снова проверяет
+// конфигурацию и заменяет вариант своим результатом.
+String _displayVariant(String link, String protocol) {
+  if (protocol != 'vless') return '';
+  final uri = Uri.tryParse(link);
+  if (uri == null || uri.scheme != 'vless') return '';
+  try {
+    final q = uri.queryParameters;
+    final security = q['security'];
+    if (security != 'tls' && security != 'reality') return '';
+    final transport = q['type'] ?? 'tcp';
+    if ((transport == 'tcp' || transport == 'raw') &&
+        (q['flow'] == 'xtls-rprx-vision' ||
+            q['flow'] == 'xtls-rprx-vision-udp443')) {
+      return 'vless-$security-vision';
+    }
+    if ((transport == 'xhttp' || transport == 'splithttp') &&
+        (q['flow'] ?? '').isEmpty) {
+      return 'vless-$security-xhttp';
+    }
+  } on FormatException {
+    return '';
+  }
+  return '';
+}
+
+/// What a link's own name says, once the parts the list shows elsewhere are
+/// taken out of it (#174).
+///
+/// A link has nowhere but its name to put anything, so panels write the flag
+/// and the kind of connection into it: "🇩🇪 Germany Vision". The list shows the
+/// country as its icon and the kind of connection as a badge, and leaving them
+/// in the name as well says each thing twice — and keeps two connections to
+/// one server from reading as the same name with a badge. So a flag at
+/// either end becomes the country, and a trailing word naming the link's own transport
+/// is dropped. Only what the link itself confirms is taken out: "Vision" goes
+/// from a Vision link, never from an XHTTP one, and a name that would be left
+/// empty is left alone.
+({String name, String country}) _nameOfLink(String link) {
+  var name = _fragmentOf(link);
+  var country = '';
+  // First or last, as panels write it: "🇩🇪 Germany", "Germany 🇩🇪".
+  final flag =
+      RegExp(
+        r'^([\u{1F1E6}-\u{1F1FF}]{2})\s*',
+        unicode: true,
+      ).firstMatch(name) ??
+      RegExp(r'\s*([\u{1F1E6}-\u{1F1FF}]{2})$', unicode: true).firstMatch(name);
+  if (flag != null && flag.end - flag.start < name.length) {
+    country = String.fromCharCodes(
+      flag.group(1)!.runes.map((letter) => 0x41 + letter - 0x1F1E6),
+    );
+    name = name.replaceRange(flag.start, flag.end, '').trim();
+  }
+
+  final Map<String, String> query;
+  try {
+    query = Uri.parse(link).queryParameters;
+  } on FormatException {
+    return (name: name, country: country);
+  }
+  final transport = (query['type'] ?? '').toLowerCase();
+  final word = (query['flow'] ?? '').contains('vision')
+      ? 'vision'
+      : transport == 'xhttp' || transport == 'splithttp'
+      ? 'xhttp'
+      : null;
+  if (word != null) {
+    final suffix = RegExp(
+      // A word of its own: "Supervision" is a name, not a Vision link's.
+      r'[\s·•|/,\-–—]*[(\[]?\s*(?<![\p{L}\p{N}])' + word + r'\s*[)\]]?\s*$',
+      caseSensitive: false,
+      unicode: true,
+    ).firstMatch(name);
+    if (suffix != null && suffix.start > 0) {
+      name = name.substring(0, suffix.start).trimRight();
+    }
+  }
+  return (name: name, country: country);
+}
+
+/// What identifies a link's node apart from its name and credentials: the
+/// protocol, the server and how it is reached. Two kinds of connection to one
+/// server (Vision, XHTTP, through a CDN) differ here even when they share a
+/// user id; a user id or fingerprint that changes on a refresh does not.
+String? _connectionOf(SubscriptionNode node) {
+  if (node.protocol == amneziaWgProtocol) return null;
+  final Uri uri;
+  try {
+    uri = Uri.parse(node.endpoint);
+  } on FormatException {
+    return null;
+  }
+  if (uri.host.isEmpty) return null;
+  final query = uri.queryParameters;
+  final transport = (query['type'] ?? 'tcp').toLowerCase();
+  return '${node.protocol}://${uri.host}:${uri.port}'
+      '/${transport == 'raw' ? 'tcp' : transport}'
+      '/${(query['security'] ?? '').toLowerCase()}'
+      '/${query['flow'] ?? ''}'
+      '${query['path'] ?? ''}';
 }
 
 /// Everything that is not AmneziaWG is skipped rather than refused. A
@@ -542,13 +985,20 @@ bool _isOurs(Map<String, dynamic> endpoint) {
 /// Fills in an identity for every node that arrived without one.
 ///
 /// The rule is in docs/subscriptions.md because it decides whose choice
-/// survives a refresh: the server's id, then the tag if it is unique in this
-/// document, then the position — which is stable only until the server
-/// reorders. A tag shared by two nodes identifies neither.
+/// survives a refresh: the server's id; then, for a link, the connection it
+/// describes — protocol, server, port, transport, security, flow and path,
+/// without the user id — if no other node shares it; then the tag, if it is
+/// unique in this document; then the position, which is stable only until
+/// the server reorders. A tag shared by two nodes identifies neither.
 List<SubscriptionNode> identify(List<SubscriptionNode> nodes) {
-  final seen = <String, int>{};
+  final tags = <String, int>{};
+  final connections = <String, int>{};
   for (final node in nodes) {
-    if (node.tag.isNotEmpty) seen[node.tag] = (seen[node.tag] ?? 0) + 1;
+    if (node.tag.isNotEmpty) tags[node.tag] = (tags[node.tag] ?? 0) + 1;
+    final connection = _connectionOf(node);
+    if (connection != null) {
+      connections[connection] = (connections[connection] ?? 0) + 1;
+    }
   }
 
   return [
@@ -556,16 +1006,19 @@ List<SubscriptionNode> identify(List<SubscriptionNode> nodes) {
       if (node.id.isNotEmpty)
         node
       else
-        SubscriptionNode(
-          id: node.tag.isNotEmpty && seen[node.tag] == 1
-              ? 'tag:${node.tag}'
-              : 'at:${node.position}',
-          tag: node.tag,
-          endpoint: node.endpoint,
-          position: node.position,
-          country: node.country,
-          description: node.description,
-          maintenance: node.maintenance,
-        ),
+        node.withId(() {
+          // For a link, what it connects to comes first: panels put the
+          // remaining traffic or the days left into a link's name, which
+          // changes it on every refresh, while the server, port, transport
+          // and path stay.
+          final connection = _connectionOf(node);
+          if (connection != null && connections[connection] == 1) {
+            return 'link:$connection';
+          }
+          if (node.tag.isNotEmpty && tags[node.tag] == 1) {
+            return 'tag:${node.tag}';
+          }
+          return 'at:${node.position}';
+        }()),
   ];
 }

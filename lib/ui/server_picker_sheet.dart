@@ -68,9 +68,23 @@ class _ServerDrawerState extends State<ServerDrawer> {
     final palette = CaeloColors.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final peek = (152 / constraints.maxHeight).clamp(0.18, 0.30);
-        const expanded = 0.75;
-        final extent = widget.locked ? peek : (_extent ?? peek);
+        final headerHeight = _PeekHeader.heightFor(context);
+        final listTitleHeight =
+            MediaQuery.textScalerOf(context).scale(26) * 1.2;
+        final listHeading = listTitleHeight + CaeloSpace.gutter + CaeloSpace.xs;
+        final peek = (headerHeight / constraints.maxHeight).clamp(0.18, 1.0);
+        final expanded =
+            ((headerHeight + listHeading + 96) / constraints.maxHeight).clamp(
+              0.75,
+              1.0,
+            );
+        final extent = widget.locked
+            ? peek
+            : _dragging
+            ? (_extent ?? peek).clamp(peek, expanded)
+            : _extent == null
+            ? peek
+            : expanded;
         void updateExtent(double delta) {
           if (widget.locked) return;
           setState(() {
@@ -90,7 +104,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
               (velocity <= 250 && current > (peek + expanded) / 2);
           setState(() {
             _dragging = false;
-            _extent = expand ? expanded : peek;
+            _extent = expand ? expanded : null;
           });
           _reportOpen(expand);
           if (!expand && _listController.hasClients) {
@@ -102,7 +116,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
           if (widget.locked) return;
           setState(() {
             _dragging = false;
-            _extent = peek;
+            _extent = null;
           });
           _reportOpen(false);
           if (_listController.hasClients) _listController.jumpTo(0);
@@ -110,7 +124,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
 
         void toggleFromTap() {
           if (widget.locked) return;
-          if ((_extent ?? peek) >= expanded) {
+          if (extent >= expanded) {
             collapse();
           } else {
             setState(() {
@@ -162,10 +176,11 @@ class _ServerDrawerState extends State<ServerDrawer> {
                         measurable.isNotEmpty &&
                         measurable.every((server) => server.measured);
                     final showsServerList =
-                        sheetConstraints.maxHeight >= 152 + CaeloSpace.xl * 2;
+                        sheetConstraints.maxHeight > headerHeight + listHeading;
                     return Column(
                       children: [
                         _PeekHeader(
+                          height: headerHeight,
                           selected: widget.controller.selected,
                           active: widget.showActive
                               ? widget.controller.active
@@ -194,6 +209,8 @@ class _ServerDrawerState extends State<ServerDrawer> {
                               alignment: Alignment.centerLeft,
                               child: Text(
                                 AppLocalizations.of(context).chooseServer,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: CaeloTheme.headline(
                                   palette,
                                 ).copyWith(fontSize: 26),
@@ -277,6 +294,27 @@ class _ServerDrawerState extends State<ServerDrawer> {
                                       },
                                     ),
                                   ),
+                                  // What the list cannot say by itself: an
+                                  // empty subscription, and servers this
+                                  // build cannot run (#172).
+                                  for (final note in widget.controller.notes)
+                                    SliverToBoxAdapter(
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(
+                                          CaeloSpace.gutter,
+                                          0,
+                                          CaeloSpace.gutter,
+                                          CaeloSpace.sm,
+                                        ),
+                                        child: Text(
+                                          _noteText(
+                                            note,
+                                            AppLocalizations.of(context),
+                                          ),
+                                          style: CaeloTheme.caption(palette),
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
@@ -297,6 +335,7 @@ class _ServerDrawerState extends State<ServerDrawer> {
 
 class _PeekHeader extends StatelessWidget {
   const _PeekHeader({
+    required this.height,
     required this.selected,
     required this.active,
     required this.locked,
@@ -307,6 +346,20 @@ class _PeekHeader extends StatelessWidget {
     required this.expanded,
     required this.latencyMs,
   });
+
+  final double height;
+
+  // При крупном шрифте растёт и шапка: фиксированные 152 px обрезали
+  // название и две строки описания ещё до раскрытия списка.
+  static double heightFor(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    double growth(double size) =>
+        (scaler.scale(size) - size).clamp(0, double.infinity);
+    return 152 +
+        growth(22) * (28 / 21) +
+        growth(24) * (28 / 21) +
+        growth(15) * 2.4;
+  }
 
   final ServerOption? selected;
 
@@ -336,7 +389,7 @@ class _PeekHeader extends StatelessWidget {
       onVerticalDragEnd: (details) =>
           onDragEnd(details.velocity.pixelsPerSecond.dy),
       child: SizedBox(
-        height: 152,
+        height: height,
         child: Column(
           children: [
             const SizedBox(height: CaeloSpace.control),
@@ -358,6 +411,8 @@ class _PeekHeader extends StatelessWidget {
                     ),
                     child: Text(
                       l10n.selectedServer,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: CaeloTheme.title(
                         palette,
                       ).copyWith(color: palette.muted, fontSize: 22),
@@ -382,8 +437,8 @@ class _PeekHeader extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: CaeloSpace.md),
-                          Expanded(
-                            child: Column(
+                          _DetailsWithMeasure(
+                            details: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -417,14 +472,28 @@ class _PeekHeader extends StatelessWidget {
                                 ),
                               ],
                             ),
+                            measure:
+                                latencyMs != null ||
+                                    (server?.protocol.isNotEmpty ?? false)
+                                ? _Measure(
+                                    latency: switch (latencyMs) {
+                                      final latency? => Text(
+                                        l10n.latency(latency),
+                                        style: CaeloTheme.body(palette)
+                                            .copyWith(
+                                              color: palette.primary,
+                                              fontSize: 18,
+                                            ),
+                                      ),
+                                      null => null,
+                                    },
+                                    protocol: server?.protocol ?? '',
+                                    badgeKey: const ValueKey(
+                                      'selected-server-protocol',
+                                    ),
+                                  )
+                                : null,
                           ),
-                          if (latencyMs case final latency?)
-                            Text(
-                              l10n.latency(latency),
-                              style: CaeloTheme.body(
-                                palette,
-                              ).copyWith(color: palette.primary, fontSize: 18),
-                            ),
                           const SizedBox(width: CaeloSpace.sm),
                           Icon(
                             locked
@@ -516,8 +585,8 @@ class _ServerRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: CaeloSpace.md),
-              Expanded(
-                child: Column(
+              _DetailsWithMeasure(
+                details: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
@@ -541,23 +610,28 @@ class _ServerRow extends StatelessWidget {
                     ),
                   ],
                 ),
+                measure: showLatency || server.protocol.isNotEmpty
+                    ? _Measure(
+                        latency: showLatency
+                            ? Text(
+                                switch (server.latencyMs) {
+                                  final latency? => AppLocalizations.of(
+                                    context,
+                                  ).latency(latency),
+                                  null => '—',
+                                },
+                                key: ValueKey('server-latency-${server.id}'),
+                                style: CaeloTheme.body(
+                                  palette,
+                                ).copyWith(color: palette.muted, fontSize: 17),
+                              )
+                            : null,
+                        protocol: server.protocol,
+                        badgeKey: ValueKey('server-protocol-${server.id}'),
+                        onAccent: selected,
+                      )
+                    : null,
               ),
-              if (showLatency)
-                Padding(
-                  padding: const EdgeInsets.only(left: CaeloSpace.sm),
-                  child: Text(
-                    switch (server.latencyMs) {
-                      final latency? => AppLocalizations.of(
-                        context,
-                      ).latency(latency),
-                      null => '—',
-                    },
-                    key: ValueKey('server-latency-${server.id}'),
-                    style: CaeloTheme.body(
-                      palette,
-                    ).copyWith(color: palette.muted, fontSize: 17),
-                  ),
-                ),
               const SizedBox(width: CaeloSpace.sm),
               SizedBox(
                 width: 28,
@@ -575,6 +649,103 @@ class _ServerRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// Правая колонка занимает свою естественную ширину, но не больше половины
+// места после флага и галочки. Остальное достаётся имени и описанию;
+// короткий AWG не сдвигает правый край относительно длинного VLESS.
+class _DetailsWithMeasure extends StatelessWidget {
+  const _DetailsWithMeasure({required this.details, required this.measure});
+  final Widget details;
+  final Widget? measure;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+    child: LayoutBuilder(
+      builder: (context, constraints) => Row(
+        children: [
+          Expanded(child: details),
+          if (measure case final content?)
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth / 2),
+              child: Padding(
+                padding: const EdgeInsets.only(left: CaeloSpace.sm),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: content,
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// The latency, and under it what carries the server (#174): `AWG`,
+/// `VLESS · Vision`. Kept as two elements in one column at the row's end, so
+/// that the name keeps the whole width it had and a badge never reads as part
+/// of it.
+class _Measure extends StatelessWidget {
+  const _Measure({
+    required this.latency,
+    required this.protocol,
+    required this.badgeKey,
+    this.onAccent = false,
+  });
+
+  final Widget? latency;
+  final String protocol;
+  final Key badgeKey;
+
+  /// Drawn on the selected row's wash, where a fill of its own would look
+  /// like a second selection.
+  final bool onAccent;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = CaeloColors.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        ?latency,
+        if (latency != null && protocol.isNotEmpty) const SizedBox(height: 6),
+        if (protocol.isNotEmpty)
+          // A badge, not a sentence: it grows with the text, but not so far
+          // that the row has to shrink everything else around it.
+          MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.3,
+            child: Container(
+              key: badgeKey,
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+              decoration: BoxDecoration(
+                color: onAccent ? null : palette.surface2,
+                border: Border.all(
+                  color: palette.border,
+                  width: CaeloStroke.hairline,
+                ),
+                borderRadius: CaeloRadius.compactAll,
+              ),
+              child: Text(
+                protocol,
+                maxLines: 1,
+                // "VLESS Vision": a screen reader has nothing to say about the
+                // dot between them.
+                semanticsLabel: protocol.replaceAll(' · ', ' '),
+                style: CaeloTheme.caption(palette).copyWith(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1.25,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -600,4 +771,13 @@ String _description(ServerOption? server, AppLocalizations l10n) {
   final value = server?.description.trim() ?? '';
   if (value.isNotEmpty) return value;
   return server?.configId == null ? '' : l10n.customServerDescription;
+}
+
+String _noteText(SubscriptionNote note, AppLocalizations l10n) {
+  final text = note.empty
+      ? l10n.subscriptionEmpty
+      : l10n.subscriptionSkipped(note.skipped.length, note.reasons);
+  // Named when there is a name: with two subscriptions, a note that does not
+  // say which one is a riddle.
+  return note.title.isEmpty ? text : '${note.title}: $text';
 }

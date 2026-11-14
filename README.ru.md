@@ -41,8 +41,11 @@ Caelo говорит на [AmneziaWG](https://docs.amnezia.org/documentation/amn
 | | |
 | --- | --- |
 | **AmneziaWG** | `Jc` `Jmin` `Jmax` · `S1`–`S4` · `H1`–`H4` · `I1`–`I5` |
-| **VLESS / REALITY** | через sing-box |
-| Всё остальное, что умеет sing-box | достаётся заодно, специально не пилим |
+| **VLESS** | REALITY или TLS; Vision или XHTTP, в том числе через CDN; отпечатки Safari, Chrome, Firefox и другие — через [Xray-core](https://github.com/XTLS/Xray-core) |
+
+В подписке могут быть оба, в [документе Caelo](docs/subscriptions.md) или простым списком
+ссылок `vless://`. Узел, который эта сборка не умеет запускать, пропускается с причиной, а
+не подключается как-то иначе.
 
 ## Платформы
 
@@ -73,14 +76,21 @@ Caelo говорит на [AmneziaWG](https://docs.amnezia.org/documentation/amn
 ли через конфигурацию трафик, — на пользовательском стеке, не трогая ни сеть машины, ни уже
 поднятый туннель. Порядок сервера задаёт, как показан список и кто побеждает при равенстве.
 
-**Caelo не будет форкать ничего.** [sing-box](https://github.com/SagerNet/sing-box)
-подключается обычным Go-модулем, а ядро регистрирует собственный эндпоинт `amneziawg`
-через его публичный реестр — именно это делает AmneziaWG-узел выразимым в том же
-документе, что и всё остальное. Зависимостью он пока не является: его никто не импортирует,
-а версия, зафиксированная для сборки, которая её не использует, записывает намерение, а не
-факт. AmneziaWG берётся из
-[amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go), тоже как опубликован.
-Обновление обоих — бамп версии, ребейзить нечего.
+**Caelo не будет форкать ничего.** AmneziaWG берётся из
+[amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go), VLESS — из
+[Xray-core](https://github.com/XTLS/Xray-core), оба — опубликованными Go-модулями.
+Обновление любого — бамп версии; для Xray — `scripts/update-xray.sh <тег>`, который
+закрепляет релиз и прогоняет тесты VLESS против настоящего сервера Xray той же версии.
+Ребейзить нечего.
+
+Все протоколы, кроме AmneziaWG, подключаются через один реестр в ядре
+(`core/internal/protocol`): описать узел, пропустить трафик этого процесса, работать на
+устройстве платформы. Новый протокол — пакет, реализующий это, и одна строка регистрации;
+проба, туннели и чтение подписки в приложении находят его сами. У AmneziaWG свой путь, он
+не менялся.
+
+Xray-core, а не sing-box: XHTTP, на котором работают VLESS-серверы, для которых делается
+клиент, — собственный транспорт Xray, и sing-box его не умеет.
 
 Альтернативой был форк `sagernet/wireguard-go` с переносом обфускации внутрь. Если мерить
 от общего апстрима, эта ветка и `amneziawg-go` разошлись сопоставимо — примерно 1700 и
@@ -95,7 +105,7 @@ Caelo говорит на [AmneziaWG](https://docs.amnezia.org/documentation/amn
 | [`packaging/`](packaging) | Превращение сборки в то, что ставится. |
 | [`scripts/`](scripts) | По одному скрипту сборки на платформу. |
 
-Зафиксировано: amneziawg-go `v3.0.20260805`. Намечено: sing-box `v1.13.16`.
+Зафиксировано: amneziawg-go `v3.1.20260814`, Xray-core `v26.11.9`.
 
 ## Сборка
 
@@ -156,7 +166,7 @@ cd core && go run ./cmd/caelo-probe -config /путь/к/tunnel.conf
 
 GPL-3.0-or-later, см. [LICENSE](LICENSE).
 
-Caelo построен на [sing-box](https://github.com/SagerNet/sing-box) и
-[AmneziaWG](https://github.com/amnezia-vpn/amneziawg-go); что откуда взято — в
+Caelo построен на [AmneziaWG](https://github.com/amnezia-vpn/amneziawg-go) и
+[Xray-core](https://github.com/XTLS/Xray-core); что откуда взято — в
 [ATTRIBUTION.md](ATTRIBUTION.md). Ни один из проектов не поддерживает Caelo и не связан с
 ним.

@@ -47,6 +47,12 @@ fi
 
 VERSION="${VERSION:-$(git -C "$ROOT" describe --tags --always --dirty 2>/dev/null || echo dev)}"
 LDFLAGS="-X github.com/TeamGDB/Caelo/core/internal/version.Version=$VERSION"
+# Xray reads Android's network interfaces through github.com/wlynxg/anet,
+# which reaches into the standard library's net package by linkname — the
+# only way to list interfaces on Android 11+ without the permission denied
+# by netlink there. Go refuses such links unless told otherwise; Xray's own
+# Android release builds pass the same flag.
+LDFLAGS="$LDFLAGS -checklinkname=0"
 
 # abi:goarch:clang-prefix[:goarm]
 TARGETS=(

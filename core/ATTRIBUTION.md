@@ -10,10 +10,10 @@ Consumed as published. Nothing below is copied into this tree.
 
 | Project | Licence | Version | Notes |
 | --- | --- | --- | --- |
-| [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) | MIT | v3.0.20260805 | The AmneziaWG implementation, including the obfuscation layer and the gVisor netstack device. |
+| [amneziawg-go](https://github.com/amnezia-vpn/amneziawg-go) | MIT | v3.1.20260814 | The AmneziaWG implementation, including the obfuscation layer and the gVisor netstack device. |
 | [wireguard-go](https://git.zx2c4.com/wireguard-go/) | MIT | via `amneziawg-go` | Upstream of the above; its copyright notices travel with that dependency. |
-| [sing-box](https://github.com/SagerNet/sing-box) | GPL-3.0-or-later, with an additional §7 clause restricting use of the name and implied association | v1.13.16 | Everything that is not AmneziaWG. Added to `go.mod` with the endpoint registration. |
-| [gVisor](https://github.com/google/gvisor) | Apache-2.0 | via `amneziawg-go` | Userspace network stack. |
+| [Xray-core](https://github.com/XTLS/Xray-core) | MPL-2.0 | v26.11.9 | VLESS: REALITY, TLS, Vision, XHTTP, uTLS fingerprints, and the TUN input the tunnels run on. Imported as published, never copied; its own dependencies (among them [uTLS](https://github.com/refraction-networking/utls), BSD-3-Clause) travel with it. `scripts/update-xray.sh <tag>` moves it to another release. |
+| [gVisor](https://github.com/google/gvisor) | Apache-2.0 | via `amneziawg-go` and Xray-core | Userspace network stack. |
 | [wireguard-windows](https://git.zx2c4.com/wireguard-windows/) | MIT | v1.0.1 | Only `tunnel/winipcfg`: addresses, routes, MTU and DNS on a Windows adapter through the IP Helper API. Used so that none of that is done by parsing the output of `netsh`, which prints in the machine's own language. |
 | [go-winio](https://github.com/Microsoft/go-winio) | MIT | v0.6.2 | Named pipes on Windows, with a security descriptor. The pipe is what decides who may drive the tunnel there. |
 

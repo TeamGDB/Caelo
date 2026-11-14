@@ -14,6 +14,7 @@
 package fdtun
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -26,6 +27,8 @@ import (
 
 	"github.com/TeamGDB/Caelo/core/internal/awg"
 	"github.com/TeamGDB/Caelo/core/internal/diag"
+	"github.com/TeamGDB/Caelo/core/internal/protocol"
+	_ "github.com/TeamGDB/Caelo/core/internal/protocol/all"
 	"github.com/TeamGDB/Caelo/core/internal/rtt"
 )
 
@@ -55,6 +58,14 @@ type Session struct {
 	bind   conn.Bind
 	status Status
 	meter  *rtt.Meter
+
+	// tunnel is a node of a registered protocol, up instead of device.
+	tunnel                protocol.Tunnel
+	preparationGeneration uint64
+	preparationCancel     context.CancelFunc
+	prepared              protocol.Config
+	preparedHash          [32]byte
+	preparedAt            time.Time
 }
 
 // New returns a Session with nothing up.
@@ -69,8 +80,19 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.device != nil {
+	prepared := s.takePreparedLocked(configText)
+	if s.device != nil || s.tunnel != nil {
 		s.stopLocked()
+	}
+
+	if node, err := protocol.Parse(configText); !errors.Is(err, protocol.ErrNotClaimed) {
+		if err != nil {
+			return nil, fmt.Errorf("reading configuration: %w", err)
+		}
+		if prepared != nil {
+			node = prepared
+		}
+		return s.startRegistered(fd, node)
 	}
 
 	cfg, err := awg.Parse(configText)
@@ -130,6 +152,24 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 	return &status, nil
 }
 
+// startRegistered runs a node of a registered protocol on the device.
+func (s *Session) startRegistered(fd int, node protocol.Config) (*Status, error) {
+	description := node.Describe()
+	tunnel, err := node.Attach(fd, description.MTU)
+	if err != nil {
+		return nil, err
+	}
+	s.tunnel = tunnel
+	s.status = Status{
+		Up:        true,
+		Endpoint:  description.Endpoint,
+		Protocol:  description.Label,
+		SinceUnix: time.Now().Unix(),
+	}
+	status := s.status
+	return &status, nil
+}
+
 // SocketFds returns the descriptors of the sockets carrying tunnel traffic, so
 // the host can exclude them from its own routing.
 //
@@ -157,7 +197,16 @@ func (s *Session) Start(fd int, configText string) (*Status, error) {
 // Опрос, а не подписка: устройство не сообщает о рукопожатии наружу, а время
 // последнего лежит в его же состоянии и читается через тот же IPC, которым мы
 // его настраивали.
+//
+// Для узла зарегистрированного протокола рукопожатия нет: ждём, пока через
+// сервер пройдёт настоящий запрос.
 func (s *Session) WaitForHandshake(timeout time.Duration) bool {
+	s.mu.Lock()
+	tunnel := s.tunnel
+	s.mu.Unlock()
+	if tunnel != nil {
+		return tunnel.WaitAlive(timeout)
+	}
 	return handshake.Wait(s.uapi, timeout)
 }
 
@@ -199,10 +248,16 @@ func (s *Session) SocketFds() (v4 int, v6 int) {
 func (s *Session) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.cancelPreparationLocked()
 	s.stopLocked()
 }
 
 func (s *Session) stopLocked() {
+	if s.tunnel != nil {
+		s.tunnel.Close()
+		s.tunnel = nil
+		s.status = Status{}
+	}
 	if s.device == nil {
 		return
 	}
@@ -218,7 +273,17 @@ func (s *Session) Status() Status {
 	s.mu.Lock()
 	status := s.status
 	meter := s.meter
+	tunnel := s.tunnel
 	s.mu.Unlock()
+	if tunnel != nil {
+		// No live round trip: packets end at Xray's own stack on this
+		// device, so a SYN is answered here rather than by anything far
+		// away, and timing it would time nothing.
+		if at := tunnel.LastAlive(); !at.IsZero() {
+			status.HandshakeUnix = at.Unix()
+		}
+		return status
+	}
 	if status.Up {
 		status.LatencyMs = meter.Milliseconds()
 		if uapi, err := s.uapi(); err == nil {

@@ -57,15 +57,228 @@ void main() {
       expect(nodes.single.position, 1);
     });
 
-    test('refuses a document with nothing usable in it', () {
+    test('refuses a document whose every node it cannot run, saying why', () {
+      // Refused, so that the list that worked stays in place (#172).
       expect(
         () => readNodes(document([node('Vless', type: 'vless')])),
-        throwsFormatException,
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('vless'),
+          ),
+        ),
       );
-      expect(() => readNodes('{"endpoints":[]}'), throwsFormatException);
       expect(() => readNodes('{}'), throwsFormatException);
       expect(() => readNodes('[]'), throwsFormatException);
     });
+
+    test('reads a document with no nodes as an empty subscription', () {
+      // Not a failure: the server answered, and what it said is that there is
+      // nothing to connect to. The interface says so rather than "could not
+      // update" (#172).
+      expect(readNodes('{"endpoints":[]}'), isEmpty);
+    });
+
+    test('says which nodes it left out', () {
+      final read = readSubscription(
+        document([
+          node('Vless', type: 'vless'),
+          node('Ours'),
+          node('Trojan', type: 'trojan'),
+        ]),
+      );
+      expect(read.nodes.map((each) => each.tag), ['Ours']);
+      expect(read.skipped, ['vless', 'trojan']);
+    });
+  });
+
+  group('a list of links', () {
+    // The three links from the issue: test values and documentation
+    // addresses only.
+    const vision =
+        'vless://00000000-0000-4000-8000-000000000001@192.0.2.10:443?encryption=none&type=tcp&headerType=none&flow=xtls-rprx-vision&security=reality&sni=edge.example.com&pbk=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&sid=0123456789abcdef&fp=safari#Example%20Vision';
+    const xhttp =
+        'vless://00000000-0000-4000-8000-000000000001@192.0.2.10:443?encryption=none&type=xhttp&mode=packet-up&path=%2Fxhttp&security=reality&sni=edge.example.com&pbk=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&sid=0123456789abcdef&fp=safari#Example%20XHTTP';
+    const cdn =
+        'vless://00000000-0000-4000-8000-000000000001@cdn.example.com:443?encryption=none&type=xhttp&mode=packet-up&path=%2Fxhttp&security=tls&sni=cdn.example.com&host=cdn.example.com&fp=safari&alpn=h2%2Chttp%2F1.1#Example%20CDN';
+    const vless = {'amneziawg', 'vless'};
+
+    test('reads them as text, one per line, keeping each as served', () {
+      final nodes = readNodes(
+        '$vision\r\n  $xhttp  \n\n$cdn\n',
+        contentType: 'text/plain',
+        protocols: vless,
+      );
+      expect(nodes.map((each) => each.tag), [
+        'Example',
+        'Example',
+        'Example CDN',
+      ]);
+      expect(nodes.map((each) => each.protocol).toSet(), {'vless'});
+      expect(nodes.first.endpoint, vision, reason: 'carried, not rewritten');
+      expect(nodes.map((each) => each.position), [0, 1, 2]);
+    });
+
+    test('reads them in base64, padded or not, standard or URL-safe', () {
+      final text = [vision, xhttp, cdn].join('\n');
+      final encoded = base64.encode(utf8.encode(text));
+      for (final body in [
+        encoded,
+        encoded.replaceAll('=', ''),
+        encoded.replaceAll('+', '-').replaceAll('/', '_'),
+        // Wrapped at 76, as some servers do.
+        RegExp('.{1,76}').allMatches(encoded).map((m) => m[0]).join('\n'),
+      ]) {
+        expect(readNodes(body, protocols: vless), hasLength(3));
+      }
+    });
+
+    test('decodes Unicode names and IPv6 servers', () {
+      const link =
+          'vless://00000000-0000-4000-8000-000000000001@[2001:db8::1]:443?type=tcp&security=reality&pbk=x&sni=a.example.com#%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F%20%F0%9F%87%A9%F0%9F%87%AA';
+      final nodes = readNodes(link, protocols: vless);
+      expect(nodes.single.tag, 'Германия');
+      expect(nodes.single.country, 'DE');
+      expect(
+        nodes.single.id,
+        startsWith('link:vless://2001:db8::1:443/tcp/reality'),
+      );
+    });
+
+    test('skips links of protocols this build does not run', () {
+      final read = readSubscription(
+        'vmess://abc\n$vision\ntrojan://x@192.0.2.1:443#t',
+        protocols: vless,
+      );
+      expect(read.nodes.single.tag, 'Example');
+      expect(read.skipped, ['vmess', 'trojan']);
+    });
+
+    test('a build without VLESS refuses a list of only VLESS, saying why', () {
+      expect(
+        () => readNodes('$vision\n$xhttp'),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('vless ×2'),
+          ),
+        ),
+      );
+    });
+
+    test('an empty text answer is an empty subscription', () {
+      expect(
+        readNodes('', contentType: 'text/plain', protocols: vless),
+        isEmpty,
+      );
+      // Anything else that is empty is a server that sent nothing.
+      expect(() => readNodes('', protocols: vless), throwsFormatException);
+    });
+
+    test('an error page that mentions a link is not an empty subscription', () {
+      // A captive portal, a block page or a panel's HTML answers 200 and has
+      // https:// in it somewhere. Read as an empty list, it would throw away
+      // the nodes that worked.
+      for (final body in [
+        '<html><body><a href="https://example.com/help">help</a></body></html>',
+        'Bad Gateway: see https://status.example.com',
+      ]) {
+        expect(
+          () => readNodes(body, contentType: 'text/html', protocols: vless),
+          throwsFormatException,
+        );
+      }
+    });
+
+    test('a JSON document behind a byte order mark is still JSON', () {
+      final nodes = readNodes('\uFEFF${document([node('A')])}');
+      expect(nodes.single.tag, 'A');
+    });
+
+    test('a name that changes on every refresh keeps the node chosen', () {
+      // Servers write the traffic left into a link's name.
+      final before = readNodes(
+        vision.replaceAll('#Example%20Vision', '#Vision%20%C2%B7%2012%20GB'),
+        protocols: vless,
+      );
+      final after = readNodes(
+        vision.replaceAll('#Example%20Vision', '#Vision%20%C2%B7%2011%20GB'),
+        protocols: vless,
+      );
+      expect(after.single.id, before.single.id);
+    });
+
+    test('a version-2 link claiming to be AmneziaWG is skipped', () {
+      final read = readSubscription(
+        jsonEncode({
+          'version': 2,
+          'nodes': [
+            {'id': 'a', 'endpoint': node('A')},
+            {'id': 'b', 'protocol': 'amneziawg', 'uri': vision, 'tag': 7},
+          ],
+        }),
+        contentType: caeloDocumentType,
+        protocols: vless,
+      );
+      expect(read.nodes.map((each) => each.id), ['a']);
+      expect(read.skipped, ['amneziawg']);
+    });
+
+    test('text that is neither JSON nor links is refused', () {
+      expect(
+        () => readNodes('<html>nope</html>', protocols: vless),
+        throwsFormatException,
+      );
+      expect(
+        () => readNodes(
+          base64.encode(utf8.encode('hello\nworld')),
+          protocols: vless,
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('three ways into one server, sharing a user id, are three nodes', () {
+      final nodes = readNodes(
+        [vision, xhttp, cdn].map((link) => link.split('#').first).join('\n'),
+        protocols: vless,
+      );
+      // No names: identity is the connection each describes.
+      expect(nodes.map((each) => each.id).toSet(), hasLength(3));
+      expect(nodes.every((each) => each.id.startsWith('link:')), isTrue);
+    });
+
+    test('a new user id or fingerprint keeps the node chosen by hand', () {
+      String unnamed(String link) => link.split('#').first;
+      final before = readNodes(unnamed(vision), protocols: vless);
+      final after = readNodes(
+        unnamed(vision)
+            .replaceAll(
+              '00000000-0000-4000-8000-000000000001',
+              '00000000-0000-4000-8000-000000000002',
+            )
+            .replaceAll('fp=safari', 'fp=chrome'),
+        protocols: vless,
+      );
+      expect(after.single.id, before.single.id);
+    });
+
+    test(
+      'nodes survive being written down and read back with their protocol',
+      () {
+        final link = readNodes(vision, protocols: vless).single;
+        final restored = SubscriptionNode.fromJson(
+          jsonDecode(jsonEncode(link.toJson())) as Map<String, dynamic>,
+        );
+        expect(restored.protocol, 'vless');
+        expect(restored.endpoint, vision);
+        // AmneziaWG nodes are stored exactly as before there was a choice.
+        final awg = readNodes(document([node('A')])).single.toJson();
+        expect(awg.containsKey('protocol'), isFalse);
+      },
+    );
   });
 
   group('the usage header', () {
@@ -249,6 +462,46 @@ void main() {
       );
     });
 
+    test('version 2 carries links beside endpoints, in one order', () {
+      const link =
+          'vless://00000000-0000-4000-8000-000000000001@192.0.2.10:443?type=tcp&flow=xtls-rprx-vision&security=reality&sni=edge.example.com&pbk=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&sid=0123456789abcdef&fp=safari#Example%20Vision';
+      final body = jsonEncode({
+        'version': 2,
+        'nodes': [
+          {'id': 'fra-awg', 'country': 'DE', 'endpoint': node('Frankfurt')},
+          {
+            'id': 'example-vision',
+            'country': 'CH',
+            'description': 'Example connection',
+            'protocol': 'vless',
+            'uri': link,
+          },
+          {
+            'id': 'later',
+            'protocol': 'hysteria2',
+            'uri': 'hysteria2://x@192.0.2.1:443',
+          },
+        ],
+      });
+
+      final read = readSubscription(
+        body,
+        contentType: caeloDocumentType,
+        protocols: {'amneziawg', 'vless'},
+      );
+      expect(read.nodes.map((each) => each.id), ['fra-awg', 'example-vision']);
+      expect(read.nodes.last.protocol, 'vless');
+      expect(read.nodes.last.endpoint, link);
+      expect(read.nodes.last.tag, 'Example');
+      expect(read.nodes.last.country, 'CH');
+      expect(read.skipped, ['hysteria2']);
+
+      // A build that runs only AmneziaWG reads the same document for what it
+      // can use — which is how one server answers old clients and new.
+      final old = readNodes(body, contentType: caeloDocumentType);
+      expect(old.map((each) => each.id), ['fra-awg']);
+    });
+
     test('reads what it recognises from a version it does not know', () {
       final nodes = readNodes(
         jsonEncode({
@@ -313,5 +566,118 @@ void main() {
     // round trip through storage changed it, the tunnel would be configured
     // from something the server never sent.
     expect(restored.nodes.first.endpoint, original.nodes.first.endpoint);
+  });
+
+  group('what a link name says (#174)', () {
+    String link(
+      String fragment, {
+      String query = 'type=tcp&flow=xtls-rprx-vision',
+    }) =>
+        'vless://00000000-0000-4000-8000-000000000001@192.0.2.10:443'
+        '?$query&security=reality&sni=a.example.com&pbk=x'
+        '#${Uri.encodeComponent(fragment)}';
+    const xhttp = 'type=xhttp&path=%2Fx';
+    SubscriptionNode read(String text) =>
+        readNodes(text, protocols: {'amneziawg', 'vless'}).single;
+
+    test('a flag at either end becomes the country', () {
+      expect(read(link('🇩🇪 Germany')).tag, 'Germany');
+      expect(read(link('🇩🇪 Germany')).country, 'DE');
+      expect(read(link('Нидерланды 🇳🇱')).tag, 'Нидерланды');
+      expect(read(link('Нидерланды 🇳🇱')).country, 'NL');
+    });
+
+    test("the link's own kind of connection leaves the name", () {
+      expect(read(link('🇩🇪 Germany Vision')).tag, 'Germany');
+      expect(read(link('Germany · Vision')).tag, 'Germany');
+      expect(read(link('Germany (XHTTP)', query: xhttp)).tag, 'Germany');
+      expect(read(link('Germany - xhttp', query: xhttp)).tag, 'Germany');
+    });
+
+    test('only what the link confirms is taken out', () {
+      // An XHTTP link called Vision is a name, not a description of it.
+      expect(read(link('Germany Vision', query: xhttp)).tag, 'Germany Vision');
+      expect(read(link('Supervision')).tag, 'Supervision');
+      expect(read(link('Vision')).tag, 'Vision', reason: 'never left empty');
+      expect(read(link('🇩🇪')).tag, '🇩🇪', reason: 'never left empty');
+      expect(read(link('🇩🇪')).country, '');
+    });
+
+    test('a Caelo document says it separately, and is believed', () {
+      final body = jsonEncode({
+        'version': 2,
+        'nodes': [
+          {
+            'id': 'named',
+            'protocol': 'vless',
+            'uri': link('🇩🇪 Germany Vision'),
+            'tag': 'Frankfurt Vision',
+            'country': 'CH',
+          },
+          {
+            'id': 'unnamed',
+            'protocol': 'vless',
+            'uri': link('🇩🇪 Germany Vision'),
+          },
+        ],
+      });
+      final nodes = readNodes(
+        body,
+        contentType: caeloDocumentType,
+        protocols: {'amneziawg', 'vless'},
+      );
+      expect(nodes.first.tag, 'Frankfurt Vision');
+      expect(nodes.first.country, 'CH');
+      expect(nodes.last.tag, 'Germany');
+      expect(nodes.last.country, 'DE');
+    });
+
+    test('the variant is stored with the node', () {
+      const node = SubscriptionNode(
+        id: 'a',
+        tag: 'A',
+        endpoint: 'vless://x',
+        position: 0,
+        protocol: 'vless',
+        variant: 'vless-reality-vision',
+      );
+      expect(
+        SubscriptionNode.fromJson(node.toJson()).variant,
+        'vless-reality-vision',
+      );
+      expect(node.withId('b').variant, 'vless-reality-vision');
+      const awg = SubscriptionNode(
+        id: 'a',
+        tag: 'A',
+        endpoint: '{}',
+        position: 0,
+      );
+      expect(awg.toJson().containsKey('variant'), isFalse);
+    });
+  });
+  test('old cached VLESS nodes gain presentation metadata without a refresh', () {
+    const link =
+        'vless://00000000-0000-4000-8000-000000000001@example.invalid:443?type=tcp&security=reality&flow=xtls-rprx-vision#%F0%9F%87%A8%F0%9F%87%AD%20Alpine%20%C2%B7%20Vision';
+    final node = SubscriptionNode.fromJson({
+      'id': 'kept',
+      'tag': '🇨🇭 Alpine · Vision',
+      'endpoint': link,
+      'protocol': 'vless',
+      'position': 0,
+    });
+    expect(node.id, 'kept');
+    expect(node.tag, 'Alpine');
+    expect(node.country, 'CH');
+    expect(node.variant, 'vless-reality-vision');
+    expect(node.endpoint, link);
+    final explicit = SubscriptionNode.fromJson({
+      'id': 'kept',
+      'tag': 'Night Vision',
+      'country': 'DE',
+      'endpoint': link,
+      'protocol': 'vless',
+    });
+    expect(explicit.tag, 'Night Vision');
+    expect(explicit.country, 'DE');
   });
 }

@@ -31,8 +31,41 @@ reject unfamiliar ones break for every client but the two they tested.
 The second is how a server offers more than the plain document without breaking anyone.
 A server that understands it may answer with the [Caelo document](#the-caelo-document);
 one that does not answers with plain sing-box JSON and everything still works. **The
-client decides which it got by the response's `Content-Type`, not by what it asked for**,
-so a server may ignore the header entirely.
+client decides which it got by the response, not by what it asked for**, so a server may
+ignore the header entirely.
+
+### Saying what the client can run
+
+Those two headers are exactly what a build that runs only AmneziaWG sends, and all it
+sends. A build that runs more says so, in two more ways:
+
+```
+Accept: application/vnd.caelo.subscription+json;version=2, application/vnd.caelo.subscription+json;q=0.9, application/json;q=0.8, text/plain;q=0.7
+X-Caelo-Capabilities: subscription-v2, vless-reality-vision, vless-reality-xhttp, vless-tls-vision, vless-tls-xhttp
+```
+
+`Accept` asks for [version 2 of the Caelo document](#version-2-links-beside-endpoints)
+first and says a [plain list of links](#a-list-of-links) will also do.
+`X-Caelo-Capabilities` lists what this installation can actually connect to, so a server
+does not have to guess from a version number:
+
+| Capability | Meaning |
+| --- | --- |
+| `subscription-v2` | Reads version 2 of the Caelo document. |
+| `vless-reality-vision` | VLESS over TCP with REALITY and the Vision flow. |
+| `vless-reality-xhttp` | VLESS over XHTTP with REALITY. |
+| `vless-tls-vision` | VLESS over TCP with TLS and the Vision flow. |
+| `vless-tls-xhttp` | VLESS over XHTTP with TLS, including through a CDN. |
+
+Only what the build and the platform really run is listed. On Linux and Windows, where a
+privileged service runs the tunnel, it is what both the app and the service can do. The
+header is sent with every request a subscription sees — the document, [its
+state](#asking-what-changed-without-downloading-it), [asking for a node](#asking-for-a-node-to-be-reissued)
+and the per-server grant — so a server can answer all of them alike. Its absence means
+AmneziaWG only, which is what every server has seen until now.
+
+A server that ignores all of this keeps working: the answer it always gave is still
+read.
 
 ## The response
 
@@ -99,6 +132,51 @@ up.
 
 Omit what does not apply. A node with no obfuscation fields is plain WireGuard and works.
 
+## A list of links
+
+What every V2Ray-family subscription serves, and what a build that runs VLESS reads: one
+share link per line, as UTF-8 text or as the standard base64 of that text.
+
+```
+Content-Type: text/plain; charset=utf-8
+```
+
+```text
+vless://00000000-0000-4000-8000-000000000001@192.0.2.10:443?encryption=none&type=tcp&headerType=none&flow=xtls-rprx-vision&security=reality&sni=edge.example.com&pbk=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&sid=0123456789abcdef&fp=safari#Example%20Vision
+vless://00000000-0000-4000-8000-000000000001@192.0.2.10:443?encryption=none&type=xhttp&mode=packet-up&path=%2Fxhttp&security=reality&sni=edge.example.com&pbk=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8&sid=0123456789abcdef&fp=safari#Example%20XHTTP
+vless://00000000-0000-4000-8000-000000000001@cdn.example.com:443?encryption=none&type=xhttp&mode=packet-up&path=%2Fxhttp&security=tls&sni=cdn.example.com&host=cdn.example.com&fp=safari&alpn=h2%2Chttp%2F1.1#Example%20CDN
+```
+
+Lines are trimmed, CRLF is accepted, empty lines are ignored. Base64 may be padded or
+not, URL-safe or standard, and wrapped. The fragment is the node's name, percent-encoded
+like everything else in the link; addresses may be IPv6 in brackets. Anything that is not
+JSON is read this way — `Content-Type` decides between the two JSON shapes, and the body
+decides between JSON and links, because servers label these lists inconsistently.
+
+What a VLESS link may ask for:
+
+| Kind | Parameters |
+| --- | --- |
+| TCP, REALITY, Vision | address, port, UUID; `encryption=none`, `type=tcp` (or `raw`), `flow=xtls-rprx-vision`, `security=reality`, `sni`, `pbk`, `sid`, `fp`; optional `spx`, `pqv` (ML-DSA-65); `headerType` absent or `none` |
+| XHTTP, REALITY | the same REALITY set; `type=xhttp`, `path`, `mode` (`packet-up` and the other XHTTP modes); no flow |
+| XHTTP, TLS (also through a CDN) | `security=tls`, `sni`, `host`, `path`, `mode`, `fp`, `alpn`; the certificate is checked |
+| TCP, TLS, Vision | `security=tls`, `sni`, `fp`, `flow=xtls-rprx-vision` |
+
+The fingerprint is honoured as given — Safari, Chrome, Firefox and every other name the
+client's Xray-core knows. **What cannot be honoured is refused, never replaced**: another
+transport (WebSocket, gRPC), no TLS or REALITY at all, Vision over anything but TCP, an
+unknown fingerprint, HTTP header camouflage, and turning certificate checks off
+(`allowInsecure`). XHTTP's `extra` block is accepted for what shapes the requests on the
+wire — padding, splitting, session and sequence placement, `xmux` — and refused for
+anything else, `downloadSettings` above all: on Linux and Windows a node runs in a root
+service, and a link must not be able to name files or socket options for it. VLESS's own
+`encryption` other than `none` is handed to Xray-core as given. A refused node
+is left out of the list with its reason, and the rest of the subscription works. Unknown
+parameters are ignored.
+
+The same headers apply as for the other shapes, plus `profile-title` — the
+subscription's name, as text or as `base64:` followed by the base64 of UTF-8.
+
 ## The Caelo document
 
 Optional, and only what the plain document cannot carry: an identity for each node, and
@@ -143,6 +221,56 @@ takes the fastest node that carries traffic from the device, asking the one that
 last first; order breaks ties. Latency depends on where the client stands, so only the
 client can decide by it.
 
+### Version 2: links beside endpoints
+
+Version 1 carries AmneziaWG only. Version 2 lets one document carry nodes of other
+protocols in the same list, with the same identity and the same things to show: a node
+has either an `endpoint`, as before, or a `protocol` and its standard `uri`.
+
+```json
+{
+  "version": 2,
+  "nodes": [
+    {
+      "id": "fra-01",
+      "country": "DE",
+      "endpoint": { "type": "amneziawg", "tag": "Frankfurt", "…": "…" }
+    },
+    {
+      "id": "example-vision",
+      "country": "CH",
+      "description": "Example connection",
+      "maintenance": false,
+      "protocol": "vless",
+      "uri": "vless://00000000-0000-4000-8000-000000000001@192.0.2.10:443?…#Example%20Vision"
+    }
+  ]
+}
+```
+
+| Field | |
+| --- | --- |
+| `protocol` | Which protocol the link is for: `vless`. A client that does not run it skips the node. |
+| `uri` | The share link, exactly as [a list of links](#a-list-of-links) would carry it. Its fragment is the node's name unless `tag` is given. |
+| `tag` | Optional clean display name. Takes precedence over the URI fragment. |
+| `country` | ISO country code for the icon, independent of the display name. |
+| `description` | Optional subtitle supplied by the operator, as for AWG nodes. |
+
+For bare links the client extracts a flag from the fragment into the country icon
+and removes a matching trailing transport label (Vision or XHTTP). An explicit
+`tag` is kept as supplied. The protocol badge comes from the core's validated
+variant, is cached for offline display, and is separate from both name and subtitle.
+Old cached links receive the same display migration without changing their IDs or
+connection data. VLESS entries with different variants or exit connections remain
+separate even when their names match across subscriptions.
+
+Send it only to a client that asked for it (`version=2` in `Accept`, or `subscription-v2`
+in `X-Caelo-Capabilities`), with the same media type, and only the links whose kind the
+client listed. A server that has servers for a subscription and none the client can run
+answers `406 Not Acceptable` rather than an empty document: the client keeps the list it
+had and says why, where an empty document would read as a subscription with nothing in it. A version-1 client handed one by
+mistake still works: it skips the nodes with no `endpoint` and keeps the rest.
+
 **Latency is never sent.** It depends on where the client is standing, and a number
 measured somewhere else is worse than no number: it looks authoritative and is not. The
 client measures for itself, by probing.
@@ -153,8 +281,16 @@ A plain sing-box subscription has no identity to give. The client makes one, in 
 order, and the rule is written down because it decides whose choice survives a refresh:
 
 1. the `id` from the Caelo document;
-2. otherwise the `tag`, if it is not empty and no other node in the document shares it;
-3. otherwise the position, which is stable only until the server reorders.
+2. otherwise, for a link, the connection it describes — protocol, server, port,
+   transport, security, flow and path, without the user id — if no other node shares it;
+3. otherwise the `tag` (a link's fragment), if it is not empty and no other node in the
+   document shares it;
+4. otherwise the position, which is stable only until the server reorders.
+
+Rule 2 comes before the name because servers often write the traffic left or the days
+remaining into a link's name, which changes it on every refresh. It is also why a new
+UUID, fingerprint or server name keeps the choice someone made by hand, and why Vision,
+XHTTP and a CDN route to the same server are three nodes even when they share a UUID.
 
 A node manually chosen under rule 3 loses that choice when the list is reordered. That is
 a real limitation of plain subscriptions rather than something the client can fix, and
@@ -165,15 +301,25 @@ it is the reason the Caelo document exists.
 ```
 subscription-userinfo: upload=0; download=44040192; total=107374182400; expire=1798761600
 profile-update-interval: 12
+profile-title: base64:0JTQvtC8
 ```
 
-Both are the conventions the V2Ray and Clash ecosystems already use, followed rather
+All three are the conventions the V2Ray and Clash ecosystems already use, followed rather
 than reinvented so that a Caelo subscription can be read by other clients and a
 subscription written for them can be read by Caelo. Bytes for the counters, Unix seconds
 for `expire`, hours for the interval. Any field may be absent; `expire=0` means no
-expiry.
+expiry. `profile-title` names the subscription where the client has to; a name the person
+gave it wins.
 
 ## What the client does with it
+
+**Empty, unusable and failed are three answers.** A document with no nodes in it — `{"endpoints":
+[]}`, a Caelo document with `"nodes": []`, an empty `text/plain` body — is a valid, empty
+subscription, and the client says so rather than "could not update". A document whose
+every node is of a protocol or kind this build cannot run is refused with that reason,
+and the list that worked before stays. A request that fails keeps that list too. A
+document with some nodes the build cannot run keeps the others and says how many were
+left out, and why.
 
 **Order is obeyed, not recalculated.** The server knows which node it wants used; a
 client that re-sorts by its own measurements is overriding a decision it was told. The
@@ -365,8 +511,11 @@ What arrives here is a document from outside that produces a configuration a pri
 process will act on. Two rules follow, and neither is optional:
 
 - **The app never parses a configuration.** It reads the list, its order and the tags,
-  and hands one endpoint object to the core. Everything about what a node *is* — keys,
-  addresses, MTU, obfuscation — belongs to the core, next to the code that dials with it.
+  and hands one endpoint object or link to the core. Of a link it reads only what a list
+  needs — the scheme, the fragment, and for identity the server, port, transport and
+  security — and asks the core whether it can run it (`caelo_validate`). Everything about
+  what a node *is* — keys, addresses, MTU, obfuscation — belongs to the core, next to the
+  code that dials with it.
   A second implementation in Dart would eventually disagree with the one that connects,
   and only one of the two would be tested.
 - **The privileged half treats what arrives as hostile.** `caelo_describe` before

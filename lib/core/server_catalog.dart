@@ -29,6 +29,7 @@ class ServerOption {
     required this.name,
     required this.description,
     required this.flag,
+    this.protocol = '',
     this.latencyMs,
     this.configId,
     this.subscriptionId,
@@ -47,6 +48,7 @@ class ServerOption {
       name = '',
       description = '',
       flag = '⚡️',
+      protocol = '',
       latencyMs = null,
       configId = null,
       subscriptionId = null,
@@ -63,6 +65,24 @@ class ServerOption {
   final String name;
   final String description;
   final String flag;
+
+  /// The badge beside the latency: `AWG`, `VLESS · Vision` (#174). Its own
+  /// element rather than part of [name], so that two connections to one
+  /// server read as one name with two badges. Empty when there is nothing to
+  /// say — the automatic entry, a configuration the core could not read.
+  final String protocol;
+
+  /// [protocol] for a node, from what the subscription and the core said.
+  static String protocolOf(String protocol, String variant) {
+    if (protocol == amneziaWgProtocol) return 'AWG';
+    final name = protocol.toUpperCase();
+    if (variant == 'vless-tls-vision') return '$name · Vision/TLS';
+    if (variant == 'vless-tls-xhttp') return '$name · XHTTP/TLS';
+    if (variant.endsWith('-vision')) return '$name · Vision';
+    if (variant.endsWith('-xhttp')) return '$name · XHTTP';
+    return name;
+  }
+
   final int? latencyMs;
   final String? configId;
   final String? subscriptionId;
@@ -106,6 +126,7 @@ class ServerOption {
     name: name,
     description: description,
     flag: flag,
+    protocol: protocol,
     latencyMs: latencyMs,
     configId: configId,
     subscriptionId: subscriptionId,
@@ -116,6 +137,29 @@ class ServerOption {
     unreachable: unreachable,
     reason: reason,
   );
+}
+
+/// Something about a subscription the server list cannot say by itself.
+@immutable
+class SubscriptionNote {
+  /// The server answered with a subscription that has nothing in it.
+  const SubscriptionNote.empty({this.title = ''})
+    : empty = true,
+      skipped = const [];
+
+  /// The subscription has nodes this build cannot run; [skipped] says why,
+  /// one reason per node.
+  const SubscriptionNote.skipped(this.skipped, {this.title = ''})
+    : empty = false;
+
+  final bool empty;
+
+  /// The subscription's name, when it has one to give.
+  final String title;
+  final List<String> skipped;
+
+  /// The reasons, each once: "vmess", "vless: transport ws not supported".
+  String get reasons => skipped.toSet().join('; ');
 }
 
 /// The server list Home consumes, independent of where its nodes are stored.
@@ -135,13 +179,16 @@ class SubscriptionServerCatalog implements ServerCatalog {
     Future<List<Subscription>> Function()? loadSubscriptions,
     Future<List<StoredConfig>> Function()? loadConfigurations,
     Future<Map<String, dynamic>> Function(String)? probeConfiguration,
+    Future<String> Function(StoredConfig)? protocolOfConfiguration,
   }) : _loadSubscriptions = loadSubscriptions ?? SubscriptionStore.all,
        _loadConfigurations = loadConfigurations ?? ConfigStore.list,
-       _probeConfiguration = probeConfiguration ?? _probe;
+       _probeConfiguration = probeConfiguration ?? _probe,
+       _protocolOfConfiguration = protocolOfConfiguration ?? _protocolOfStored;
 
   final Future<List<Subscription>> Function() _loadSubscriptions;
   final Future<List<StoredConfig>> Function() _loadConfigurations;
   final Future<Map<String, dynamic>> Function(String) _probeConfiguration;
+  final Future<String> Function(StoredConfig) _protocolOfConfiguration;
 
   /// Every configuration a row stands for, by row id. Usually one; a
   /// backend that issued a server twice gives two, and one of them may have
@@ -164,14 +211,26 @@ class SubscriptionServerCatalog implements ServerCatalog {
     // sign-in under 0.2.1 kept the first subscription, and the same server
     // from both was listed twice. A row stands for every configuration of its
     // server, and whichever answers is the one used (#129).
-    String serverOf(String name, String country) =>
-        '${name.trim().toLowerCase()}|${country.toUpperCase()}';
+    //
+    // Two kinds of connection to one server are two rows, though (#174):
+    // Vision and XHTTP fail in different places, and somebody picking one
+    // over the other is making a choice the list has to keep. The badge is
+    // part of what a row is; for AmneziaWG it is the same for every node, so
+    // the rows #127 merged stay merged.
+    String serverOf(String name, String country, [String protocol = 'AWG']) =>
+        '${name.trim().toLowerCase()}|${country.toUpperCase()}|$protocol';
+    String badgeOf(SubscriptionNode node) =>
+        ServerOption.protocolOf(node.protocol, node.variant);
+    String identityOf(SubscriptionNode node) =>
+        node.protocol == amneziaWgProtocol
+        ? 'AWG'
+        : '${node.protocol}|${node.variant}|${node.connectionIdentity ?? ''}';
     _endpoints.clear();
     final rowOf = <String, String>{};
     for (final subscription in subscriptions) {
       for (final node in subscription.nodes) {
         final row = rowOf.putIfAbsent(
-          serverOf(node.tag, node.country),
+          serverOf(node.tag, node.country, identityOf(node)),
           () => 'node:${subscription.id}:${node.id}',
         );
         _endpoints.putIfAbsent(row, () => []).add(node.endpoint);
@@ -182,7 +241,7 @@ class SubscriptionServerCatalog implements ServerCatalog {
     );
     final listed = <String>{};
     bool firstOf(Subscription subscription, SubscriptionNode node) =>
-        listed.add(serverOf(node.tag, node.country));
+        listed.add(serverOf(node.tag, node.country, identityOf(node)));
     bool newOffer(AvailableServer server) =>
         listed.add(serverOf(server.name, server.country));
     return [
@@ -196,6 +255,7 @@ class SubscriptionServerCatalog implements ServerCatalog {
                   : node.tag.trim(),
               description: node.description,
               flag: node.flag.isEmpty ? '🌐' : node.flag,
+              protocol: badgeOf(node),
               subscriptionId: subscription.id,
               nodeId: node.id,
               available: !node.maintenance,
@@ -217,6 +277,9 @@ class SubscriptionServerCatalog implements ServerCatalog {
                 name: server.name,
                 description: server.description,
                 flag: server.flag.isEmpty ? '🌐' : server.flag,
+                // What a subscription offers to issue is AmneziaWG: keys
+                // issued on request are a WireGuard peer.
+                protocol: 'AWG',
                 subscriptionId: subscription.id,
                 serverId: server.id,
                 available: false,
@@ -228,6 +291,9 @@ class SubscriptionServerCatalog implements ServerCatalog {
                 name: server.name,
                 description: server.description,
                 flag: server.flag.isEmpty ? '🌐' : server.flag,
+                // What a subscription offers to issue is AmneziaWG: keys
+                // issued on request are a WireGuard peer.
+                protocol: 'AWG',
                 subscriptionId: subscription.id,
                 serverId: server.id,
               ),
@@ -237,9 +303,29 @@ class SubscriptionServerCatalog implements ServerCatalog {
           name: config.name,
           description: config.description,
           flag: config.emoji,
+          protocol: await _protocolOfConfiguration(config),
           configId: config.id,
         ),
     ];
+  }
+
+  /// The badge for somebody's own configuration, as the core reads it; none
+  /// when it cannot be read, rather than a guess.
+  static Future<String> _protocolOfStored(StoredConfig config) async {
+    try {
+      final text = await ConfigStore.readById(config.id);
+      if (text == null || text.trim().isEmpty) return '';
+      final described = CoreLibrary.validate(text);
+      final protocol = described['protocol'];
+      if (protocol is! String) return '';
+      final variant = described['variant'];
+      return ServerOption.protocolOf(
+        protocol,
+        variant is String ? variant : '',
+      );
+    } on Object {
+      return '';
+    }
   }
 
   @override
@@ -313,9 +399,18 @@ class ServerSelectionController extends ChangeNotifier {
     this.fastestGrace = const Duration(milliseconds: 1500),
     this.readLastConnected = SettingsStore.lastConnectedServerId,
     this.writeLastConnected = SettingsStore.setLastConnectedServerId,
+    this.loadSubscriptions = SubscriptionStore.all,
   });
 
   final ServerCatalog catalog;
+
+  /// Where [notes] are read from.
+  final Future<List<Subscription>> Function() loadSubscriptions;
+
+  /// What the list cannot show by itself: a subscription the server left
+  /// empty, and one with nodes this build cannot run (#172). Read with the
+  /// list, so both change together.
+  List<SubscriptionNote> notes = const [];
   final Future<String?> Function() readSelected;
   final Future<void> Function(String) writeSelected;
   final Future<void> Function(String) activateConfiguration;
@@ -498,7 +593,9 @@ class ServerSelectionController extends ChangeNotifier {
     final generation = ++_loadGeneration;
     final loaded = await catalog.load();
     final savedId = await readSelected();
+    final noted = await _notes();
     if (generation != _loadGeneration) return;
+    notes = noted;
     // What was measured survives a reload: the list is rebuilt from storage
     // every time keys arrive, and wiping the column each time would flicker.
     final previous = {for (final server in servers) server.id: server};
@@ -534,6 +631,30 @@ class ServerSelectionController extends ChangeNotifier {
     _latencyRefreshTimer?.cancel();
     unawaited(_measureLatencies(_measureGeneration));
   }
+
+  Future<List<SubscriptionNote>> _notes() async {
+    try {
+      return [
+        for (final subscription in await loadSubscriptions())
+          if (!subscription.isGone) ...[
+            if (subscription.isEmpty)
+              SubscriptionNote.empty(title: _titleOf(subscription)),
+            if (subscription.skipped.isNotEmpty)
+              SubscriptionNote.skipped(
+                subscription.skipped,
+                title: _titleOf(subscription),
+              ),
+          ],
+      ];
+    } on Object {
+      // Notes are commentary on the list; failing to read them is no reason
+      // to fail the list.
+      return const [];
+    }
+  }
+
+  static String _titleOf(Subscription subscription) =>
+      subscription.name.isNotEmpty ? subscription.name : subscription.title;
 
   void _scheduleMeasurement(Duration after) {
     _latencyRefreshTimer?.cancel();

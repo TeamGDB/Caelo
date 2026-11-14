@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 
+import 'capabilities.dart';
 import 'device_identity.dart';
 
 /// What this device is called and what it runs, for the subscription's list
@@ -77,6 +78,13 @@ class DeviceDescription {
 abstract final class DeviceHeaders {
   static Future<void> apply(HttpHeaders headers) async {
     headers.set('X-Caelo-Device', await DeviceIdentity.get());
+    // What this installation can connect to, on every request a subscription
+    // sees — the document, its state, and asking for or replacing a node —
+    // so that a server answers each of them alike (#172). Absent when there
+    // is nothing beyond AmneziaWG to say, which is what every server has seen
+    // until now.
+    final capabilities = Capabilities.header(await Capabilities.current());
+    if (capabilities != null) headers.set('X-Caelo-Capabilities', capabilities);
     for (final MapEntry(:key, :value)
         in (await DeviceDescriptions.get()).headers.entries) {
       headers.set(key, value);
