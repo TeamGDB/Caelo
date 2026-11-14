@@ -10,6 +10,7 @@ product.md
 .DS_Store
 
 # Flutter / Dart
+.fvm/
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies

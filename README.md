@@ -109,6 +109,28 @@ Pinned: amneziawg-go `v3.1.20260814`, Xray-core `v26.11.9`.
 
 ## Building
 
+Flutter is pinned to **3.47.9** in [`.fvmrc`](.fvmrc). CI and release builds read
+that same file, so a new `stable` release cannot silently change the toolchain.
+Upgrade Flutter in a separate change that checks Android tools, plugins and all
+platform builds together.
+
+For local development, install [FVM](https://fvm.app/documentation/getting-started/installation),
+then run these commands from the repository root:
+
+```bash
+fvm install
+fvm flutter --version
+fvm flutter pub get
+fvm flutter analyze
+fvm flutter test
+fvm exec ./scripts/build-android.sh debug
+```
+
+Use `fvm exec` for the other build scripts below too: their `flutter` commands
+then use the project's SDK. With a manually installed SDK, put Flutter 3.47.9
+on `PATH` before running the scripts. The local `.fvm/` SDK directory is ignored;
+`.fvmrc` is committed.
+
 Each script builds the core first, puts it where that platform's loader will find it, and
 then builds the app.
 

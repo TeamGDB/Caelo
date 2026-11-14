@@ -73,7 +73,10 @@ jobs:
           distribution: temurin
           java-version: "17"
       - uses: subosito/flutter-action@v2
-        with: { channel: stable, cache: true }
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
 
       - run: flutter pub get
 
@@ -199,7 +202,10 @@ jobs:
           chmod +x /usr/local/bin/appimagetool
 
       - uses: subosito/flutter-action@v2
-        with: { channel: stable, cache: true }
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
 
       - run: flutter pub get
       - run: ./scripts/build-linux.sh release
@@ -233,7 +239,10 @@ jobs:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
       - uses: subosito/flutter-action@v2
-        with: { channel: stable, cache: true }
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
 
       - run: flutter pub get
 
@@ -314,7 +323,10 @@ jobs:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
       - uses: subosito/flutter-action@v2
-        with: { channel: stable, cache: true }
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
 
       - run: flutter pub get
 
@@ -453,7 +465,10 @@ jobs:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
       - uses: subosito/flutter-action@v2
-        with: { channel: stable, cache: true }
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
 
       - run: flutter pub get
       - name: Build
