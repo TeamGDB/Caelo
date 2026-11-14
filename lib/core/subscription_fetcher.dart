@@ -513,7 +513,8 @@ abstract final class SubscriptionFetcher {
           skipped.add('${node.protocol}: $variant is not run here');
           continue;
         }
-        nodes.add(node);
+        // Kept with the node: the list shows it as the node's badge (#174).
+        nodes.add(variant is String ? node.withVariant(variant) : node);
       } on CoreFailure catch (error) {
         skipped.add('${node.protocol}: ${error.message}');
       } on Object catch (error) {

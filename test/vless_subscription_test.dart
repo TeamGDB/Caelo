@@ -205,7 +205,7 @@ void main() {
 
         expect(refreshed.lastError, isNull);
         expect(refreshed.nodes.map((node) => node.tag), [
-          'Example Vision',
+          'Example',
           'Example CDN',
         ]);
         expect(
@@ -252,7 +252,7 @@ void main() {
 
         body = _websocket;
         final after = await SubscriptionFetcher.refresh(working);
-        expect(after.nodes.single.tag, 'Example Vision');
+        expect(after.nodes.single.tag, 'Example');
         expect(after.lastError, contains('transport'));
       },
     );
@@ -276,7 +276,7 @@ void main() {
       );
       status = 406;
       final after = await SubscriptionFetcher.refresh(working);
-      expect(after.nodes.single.tag, 'Example Vision');
+      expect(after.nodes.single.tag, 'Example');
       expect(after.lastError, noRunnableServersMessage);
       expect(after.isGone, isFalse);
     });
@@ -304,10 +304,39 @@ void main() {
         final refreshed = await SubscriptionFetcher.refresh(
           await SubscriptionStore.add(url),
         );
-        expect(refreshed.nodes.single.tag, 'Example Vision');
+        expect(refreshed.nodes.single.tag, 'Example');
         expect(refreshed.skipped, ['vless: vless-tls-xhttp is not run here']);
       },
     );
+
+    test('the kind of connection the core read is kept with the node, for '
+        'its badge (#174)', () async {
+      SubscriptionFetcher.validate = (text) => {
+        'ok': true,
+        'protocol': 'vless',
+        'variant': text.contains('type=xhttp')
+            ? 'vless-tls-xhttp'
+            : 'vless-reality-vision',
+      };
+      final server = _Server((request) => _answer(request, '$_vision\n$_cdn'));
+      final url = await server.start();
+      addTearDown(server.stop);
+
+      final refreshed = await SubscriptionFetcher.refresh(
+        await SubscriptionStore.add(url),
+      );
+      expect(refreshed.nodes.map((node) => node.variant), [
+        'vless-reality-vision',
+        'vless-tls-xhttp',
+      ]);
+      // And survives being stored: the list is built from what was stored.
+      SubscriptionStore.forget();
+      final stored = (await SubscriptionStore.all()).single;
+      expect(stored.nodes.map((node) => node.variant), [
+        'vless-reality-vision',
+        'vless-tls-xhttp',
+      ]);
+    });
 
     test('an empty answer is an empty subscription, not a failure', () async {
       final server = _Server((request) => _answer(request, ''));
@@ -339,7 +368,7 @@ void main() {
       );
       status = 502;
       final after = await SubscriptionFetcher.refresh(working);
-      expect(after.nodes.single.tag, 'Example Vision');
+      expect(after.nodes.single.tag, 'Example');
       expect(after.lastError, contains('502'));
       expect(after.isEmpty, isFalse);
     });

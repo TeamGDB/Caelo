@@ -213,3 +213,13 @@ func TestClaimsOnlyVLESS(t *testing.T) {
 		}
 	}
 }
+
+func TestVisionWithUDP443KeepsItsVariant(t *testing.T) {
+	link, err := Parse(strings.Replace(visionLink, "flow=xtls-rprx-vision", "flow=xtls-rprx-vision-udp443", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if link.Variant() != "vless-reality-vision" {
+		t.Fatalf("variant: %s", link.Variant())
+	}
+}

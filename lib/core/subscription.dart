@@ -19,6 +19,7 @@ class SubscriptionNode {
     this.description = '',
     this.maintenance = false,
     this.protocol = amneziaWgProtocol,
+    this.variant = '',
   });
 
   /// What this node is remembered by.
@@ -59,6 +60,12 @@ class SubscriptionNode {
   /// core with everything else about a node.
   final String protocol;
 
+  /// The kind of connection within [protocol], as the core named it when it
+  /// read the node: `vless-reality-vision`, `vless-tls-xhttp`. Empty for
+  /// AmneziaWG, which has one, and for a node not yet read by this build.
+  /// What the list's protocol badge is made from (#174).
+  final String variant;
+
   /// The flag for [country], built here rather than transmitted.
   ///
   /// Regional indicators are the letters offset into a block of their own, so
@@ -90,11 +97,17 @@ class SubscriptionNode {
     // Absent for AmneziaWG, as it was in every node stored before there was
     // a choice.
     if (protocol != amneziaWgProtocol) 'protocol': protocol,
+    if (variant.isNotEmpty) 'variant': variant,
   };
 
   /// The same node under another identity — what [identify] hands out.
-  SubscriptionNode withId(String id) => SubscriptionNode(
-    id: id,
+  SubscriptionNode withId(String id) => _copy(id: id);
+
+  /// The same node, with the kind of connection the core read in it.
+  SubscriptionNode withVariant(String variant) => _copy(variant: variant);
+
+  SubscriptionNode _copy({String? id, String? variant}) => SubscriptionNode(
+    id: id ?? this.id,
     tag: tag,
     endpoint: endpoint,
     position: position,
@@ -102,19 +115,38 @@ class SubscriptionNode {
     description: description,
     maintenance: maintenance,
     protocol: protocol,
+    variant: variant ?? this.variant,
   );
 
-  static SubscriptionNode fromJson(Map<String, dynamic> json) =>
-      SubscriptionNode(
-        id: json['id'] as String? ?? '',
-        tag: json['tag'] as String? ?? '',
-        endpoint: json['endpoint'] as String? ?? '',
-        position: json['position'] as int? ?? 0,
-        country: json['country'] as String? ?? '',
-        description: json['description'] as String? ?? '',
-        maintenance: json['maintenance'] == true,
-        protocol: json['protocol'] as String? ?? amneziaWgProtocol,
-      );
+  // Старый кеш тоже должен получить метку и флаг без ожидания сети.
+  // Явное имя из документа сохраняем; очищаем лишь имя, совпадающее с URI.
+  static SubscriptionNode fromJson(Map<String, dynamic> json) {
+    final endpoint = json['endpoint'] as String? ?? '';
+    final protocol = json['protocol'] as String? ?? amneziaWgProtocol;
+    var tag = json['tag'] as String? ?? '';
+    var country = json['country'] as String? ?? '';
+    if (protocol == 'vless' && tag == _fragmentOf(endpoint)) {
+      final name = _nameOfLink(endpoint);
+      tag = name.name;
+      if (country.isEmpty) country = name.country;
+    }
+    final savedVariant = json['variant'] as String? ?? '';
+    return SubscriptionNode(
+      id: json['id'] as String? ?? '',
+      tag: tag,
+      endpoint: endpoint,
+      position: json['position'] as int? ?? 0,
+      country: country,
+      description: json['description'] as String? ?? '',
+      maintenance: json['maintenance'] == true,
+      protocol: protocol,
+      variant: savedVariant.isNotEmpty
+          ? savedVariant
+          : _displayVariant(endpoint, protocol),
+    );
+  }
+
+  String? get connectionIdentity => _connectionOf(this);
 }
 
 /// What the server said about the account behind a subscription.
@@ -691,6 +723,7 @@ _Read _readCaelo(Map<String, dynamic> document, Set<String> protocols) {
     final String text;
     final String protocol;
     final String tag;
+    var fromName = '';
     if (endpoint is Map<String, dynamic>) {
       if (!_isOurs(endpoint)) {
         read.skipped.add('${endpoint['type']}');
@@ -712,18 +745,25 @@ _Read _readCaelo(Map<String, dynamic> document, Set<String> protocols) {
       }
       text = uri.trim();
       final named = entry['tag'];
-      tag = named is String ? named : _fragmentOf(text);
+      if (named is String) {
+        tag = named;
+      } else {
+        final name = _nameOfLink(text);
+        tag = name.name;
+        fromName = name.country;
+      }
     } else {
       continue;
     }
 
+    final country = (entry['country'] as String? ?? '').toUpperCase();
     read.nodes.add(
       SubscriptionNode(
         id: entry['id'] as String? ?? '',
         tag: tag,
         endpoint: text,
         position: index,
-        country: (entry['country'] as String? ?? '').toUpperCase(),
+        country: country.isEmpty ? fromName : country,
         description: entry['description'] as String? ?? '',
         maintenance: entry['maintenance'] == true,
         protocol: protocol,
@@ -778,12 +818,14 @@ _Read _readLinks(
       read.skipped.add(protocol);
       continue;
     }
+    final name = _nameOfLink(line);
     read.nodes.add(
       SubscriptionNode(
         id: '',
-        tag: _fragmentOf(line),
+        tag: name.name,
         endpoint: line,
         position: index,
+        country: name.country,
         protocol: protocol,
       ),
     );
@@ -826,6 +868,87 @@ String _fragmentOf(String link) {
   } on ArgumentError {
     return raw.trim();
   }
+}
+
+// Это только подпись старого кеша. При обновлении ядро снова проверяет
+// конфигурацию и заменяет вариант своим результатом.
+String _displayVariant(String link, String protocol) {
+  if (protocol != 'vless') return '';
+  final uri = Uri.tryParse(link);
+  if (uri == null || uri.scheme != 'vless') return '';
+  try {
+    final q = uri.queryParameters;
+    final security = q['security'];
+    if (security != 'tls' && security != 'reality') return '';
+    final transport = q['type'] ?? 'tcp';
+    if ((transport == 'tcp' || transport == 'raw') &&
+        (q['flow'] == 'xtls-rprx-vision' ||
+            q['flow'] == 'xtls-rprx-vision-udp443')) {
+      return 'vless-$security-vision';
+    }
+    if ((transport == 'xhttp' || transport == 'splithttp') &&
+        (q['flow'] ?? '').isEmpty) {
+      return 'vless-$security-xhttp';
+    }
+  } on FormatException {
+    return '';
+  }
+  return '';
+}
+
+/// What a link's own name says, once the parts the list shows elsewhere are
+/// taken out of it (#174).
+///
+/// A link has nowhere but its name to put anything, so panels write the flag
+/// and the kind of connection into it: "🇩🇪 Germany Vision". The list shows the
+/// country as its icon and the kind of connection as a badge, and leaving them
+/// in the name as well says each thing twice — and keeps two connections to
+/// one server from reading as the same name with a badge. So a flag at
+/// either end becomes the country, and a trailing word naming the link's own transport
+/// is dropped. Only what the link itself confirms is taken out: "Vision" goes
+/// from a Vision link, never from an XHTTP one, and a name that would be left
+/// empty is left alone.
+({String name, String country}) _nameOfLink(String link) {
+  var name = _fragmentOf(link);
+  var country = '';
+  // First or last, as panels write it: "🇩🇪 Germany", "Germany 🇩🇪".
+  final flag =
+      RegExp(
+        r'^([\u{1F1E6}-\u{1F1FF}]{2})\s*',
+        unicode: true,
+      ).firstMatch(name) ??
+      RegExp(r'\s*([\u{1F1E6}-\u{1F1FF}]{2})$', unicode: true).firstMatch(name);
+  if (flag != null && flag.end - flag.start < name.length) {
+    country = String.fromCharCodes(
+      flag.group(1)!.runes.map((letter) => 0x41 + letter - 0x1F1E6),
+    );
+    name = name.replaceRange(flag.start, flag.end, '').trim();
+  }
+
+  final Map<String, String> query;
+  try {
+    query = Uri.parse(link).queryParameters;
+  } on FormatException {
+    return (name: name, country: country);
+  }
+  final transport = (query['type'] ?? '').toLowerCase();
+  final word = (query['flow'] ?? '').contains('vision')
+      ? 'vision'
+      : transport == 'xhttp' || transport == 'splithttp'
+      ? 'xhttp'
+      : null;
+  if (word != null) {
+    final suffix = RegExp(
+      // A word of its own: "Supervision" is a name, not a Vision link's.
+      r'[\s·•|/,\-–—]*[(\[]?\s*(?<![\p{L}\p{N}])' + word + r'\s*[)\]]?\s*$',
+      caseSensitive: false,
+      unicode: true,
+    ).firstMatch(name);
+    if (suffix != null && suffix.start > 0) {
+      name = name.substring(0, suffix.start).trimRight();
+    }
+  }
+  return (name: name, country: country);
 }
 
 /// What identifies a link's node apart from its name and credentials: the

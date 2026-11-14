@@ -252,6 +252,17 @@ has either an `endpoint`, as before, or a `protocol` and its standard `uri`.
 | --- | --- |
 | `protocol` | Which protocol the link is for: `vless`. A client that does not run it skips the node. |
 | `uri` | The share link, exactly as [a list of links](#a-list-of-links) would carry it. Its fragment is the node's name unless `tag` is given. |
+| `tag` | Optional clean display name. Takes precedence over the URI fragment. |
+| `country` | ISO country code for the icon, independent of the display name. |
+| `description` | Optional subtitle supplied by the operator, as for AWG nodes. |
+
+For bare links the client extracts a flag from the fragment into the country icon
+and removes a matching trailing transport label (Vision or XHTTP). An explicit
+`tag` is kept as supplied. The protocol badge comes from the core's validated
+variant, is cached for offline display, and is separate from both name and subtitle.
+Old cached links receive the same display migration without changing their IDs or
+connection data. VLESS entries with different variants or exit connections remain
+separate even when their names match across subscriptions.
 
 Send it only to a client that asked for it (`version=2` in `Accept`, or `subscription-v2`
 in `X-Caelo-Capabilities`), with the same media type, and only the links whose kind the

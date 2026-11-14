@@ -111,8 +111,8 @@ void main() {
         protocols: vless,
       );
       expect(nodes.map((each) => each.tag), [
-        'Example Vision',
-        'Example XHTTP',
+        'Example',
+        'Example',
         'Example CDN',
       ]);
       expect(nodes.map((each) => each.protocol).toSet(), {'vless'});
@@ -138,7 +138,8 @@ void main() {
       const link =
           'vless://00000000-0000-4000-8000-000000000001@[2001:db8::1]:443?type=tcp&security=reality&pbk=x&sni=a.example.com#%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F%20%F0%9F%87%A9%F0%9F%87%AA';
       final nodes = readNodes(link, protocols: vless);
-      expect(nodes.single.tag, 'Германия 🇩🇪');
+      expect(nodes.single.tag, 'Германия');
+      expect(nodes.single.country, 'DE');
       expect(
         nodes.single.id,
         startsWith('link:vless://2001:db8::1:443/tcp/reality'),
@@ -150,7 +151,7 @@ void main() {
         'vmess://abc\n$vision\ntrojan://x@192.0.2.1:443#t',
         protocols: vless,
       );
-      expect(read.nodes.single.tag, 'Example Vision');
+      expect(read.nodes.single.tag, 'Example');
       expect(read.skipped, ['vmess', 'trojan']);
     });
 
@@ -491,7 +492,7 @@ void main() {
       expect(read.nodes.map((each) => each.id), ['fra-awg', 'example-vision']);
       expect(read.nodes.last.protocol, 'vless');
       expect(read.nodes.last.endpoint, link);
-      expect(read.nodes.last.tag, 'Example Vision');
+      expect(read.nodes.last.tag, 'Example');
       expect(read.nodes.last.country, 'CH');
       expect(read.skipped, ['hysteria2']);
 
@@ -565,5 +566,118 @@ void main() {
     // round trip through storage changed it, the tunnel would be configured
     // from something the server never sent.
     expect(restored.nodes.first.endpoint, original.nodes.first.endpoint);
+  });
+
+  group('what a link name says (#174)', () {
+    String link(
+      String fragment, {
+      String query = 'type=tcp&flow=xtls-rprx-vision',
+    }) =>
+        'vless://00000000-0000-4000-8000-000000000001@192.0.2.10:443'
+        '?$query&security=reality&sni=a.example.com&pbk=x'
+        '#${Uri.encodeComponent(fragment)}';
+    const xhttp = 'type=xhttp&path=%2Fx';
+    SubscriptionNode read(String text) =>
+        readNodes(text, protocols: {'amneziawg', 'vless'}).single;
+
+    test('a flag at either end becomes the country', () {
+      expect(read(link('🇩🇪 Germany')).tag, 'Germany');
+      expect(read(link('🇩🇪 Germany')).country, 'DE');
+      expect(read(link('Нидерланды 🇳🇱')).tag, 'Нидерланды');
+      expect(read(link('Нидерланды 🇳🇱')).country, 'NL');
+    });
+
+    test("the link's own kind of connection leaves the name", () {
+      expect(read(link('🇩🇪 Germany Vision')).tag, 'Germany');
+      expect(read(link('Germany · Vision')).tag, 'Germany');
+      expect(read(link('Germany (XHTTP)', query: xhttp)).tag, 'Germany');
+      expect(read(link('Germany - xhttp', query: xhttp)).tag, 'Germany');
+    });
+
+    test('only what the link confirms is taken out', () {
+      // An XHTTP link called Vision is a name, not a description of it.
+      expect(read(link('Germany Vision', query: xhttp)).tag, 'Germany Vision');
+      expect(read(link('Supervision')).tag, 'Supervision');
+      expect(read(link('Vision')).tag, 'Vision', reason: 'never left empty');
+      expect(read(link('🇩🇪')).tag, '🇩🇪', reason: 'never left empty');
+      expect(read(link('🇩🇪')).country, '');
+    });
+
+    test('a Caelo document says it separately, and is believed', () {
+      final body = jsonEncode({
+        'version': 2,
+        'nodes': [
+          {
+            'id': 'named',
+            'protocol': 'vless',
+            'uri': link('🇩🇪 Germany Vision'),
+            'tag': 'Frankfurt Vision',
+            'country': 'CH',
+          },
+          {
+            'id': 'unnamed',
+            'protocol': 'vless',
+            'uri': link('🇩🇪 Germany Vision'),
+          },
+        ],
+      });
+      final nodes = readNodes(
+        body,
+        contentType: caeloDocumentType,
+        protocols: {'amneziawg', 'vless'},
+      );
+      expect(nodes.first.tag, 'Frankfurt Vision');
+      expect(nodes.first.country, 'CH');
+      expect(nodes.last.tag, 'Germany');
+      expect(nodes.last.country, 'DE');
+    });
+
+    test('the variant is stored with the node', () {
+      const node = SubscriptionNode(
+        id: 'a',
+        tag: 'A',
+        endpoint: 'vless://x',
+        position: 0,
+        protocol: 'vless',
+        variant: 'vless-reality-vision',
+      );
+      expect(
+        SubscriptionNode.fromJson(node.toJson()).variant,
+        'vless-reality-vision',
+      );
+      expect(node.withId('b').variant, 'vless-reality-vision');
+      const awg = SubscriptionNode(
+        id: 'a',
+        tag: 'A',
+        endpoint: '{}',
+        position: 0,
+      );
+      expect(awg.toJson().containsKey('variant'), isFalse);
+    });
+  });
+  test('old cached VLESS nodes gain presentation metadata without a refresh', () {
+    const link =
+        'vless://00000000-0000-4000-8000-000000000001@example.invalid:443?type=tcp&security=reality&flow=xtls-rprx-vision#%F0%9F%87%A8%F0%9F%87%AD%20Alpine%20%C2%B7%20Vision';
+    final node = SubscriptionNode.fromJson({
+      'id': 'kept',
+      'tag': '🇨🇭 Alpine · Vision',
+      'endpoint': link,
+      'protocol': 'vless',
+      'position': 0,
+    });
+    expect(node.id, 'kept');
+    expect(node.tag, 'Alpine');
+    expect(node.country, 'CH');
+    expect(node.variant, 'vless-reality-vision');
+    expect(node.endpoint, link);
+    final explicit = SubscriptionNode.fromJson({
+      'id': 'kept',
+      'tag': 'Night Vision',
+      'country': 'DE',
+      'endpoint': link,
+      'protocol': 'vless',
+    });
+    expect(explicit.tag, 'Night Vision');
+    expect(explicit.country, 'DE');
   });
 }

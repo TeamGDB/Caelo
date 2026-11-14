@@ -91,7 +91,7 @@ type Link struct {
 // Variant names the kind of connection, as capabilities spell it.
 func (l *Link) Variant() string {
 	switch {
-	case l.Transport == TransportTCP && l.Flow == FlowVision:
+	case l.Transport == TransportTCP && (l.Flow == FlowVision || l.Flow == FlowVision+"-udp443"):
 		return "vless-" + l.Security + "-vision"
 	default:
 		return "vless-" + l.Security + "-" + l.Transport

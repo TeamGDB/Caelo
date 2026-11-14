@@ -886,6 +886,187 @@ void main() {
 
     expect(find.textContaining('Переустановите Caelo'), findsOneWidget);
   });
+
+  group('the protocol badge (#174)', () {
+    const vision = ServerOption(
+      id: 'v',
+      name: 'Germany',
+      description: 'Frankfurt',
+      flag: '🇩🇪',
+      protocol: 'VLESS · Vision',
+      latencyMs: 41,
+      nodeId: 'v',
+      subscriptionId: 's',
+    );
+    const xhttp = ServerOption(
+      id: 'x',
+      name: 'Germany',
+      description: 'Frankfurt, through a CDN',
+      flag: '🇩🇪',
+      protocol: 'VLESS · XHTTP',
+      latencyMs: 57,
+      nodeId: 'x',
+      subscriptionId: 's',
+    );
+    const awg = ServerOption(
+      id: 'a',
+      name: 'Germany',
+      description: 'Frankfurt',
+      flag: '🇩🇪',
+      protocol: 'AWG',
+      latencyMs: 38,
+      nodeId: 'a',
+      subscriptionId: 's',
+    );
+
+    Future<void> open(WidgetTester tester) async {
+      await pumpHome(tester, locale: const Locale('en'));
+      await tester.tap(find.byKey(const ValueKey('server-drag-handle')));
+      await tester.pumpAndSettle();
+    }
+
+    Text badge(WidgetTester tester, String id) => tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(ValueKey('server-protocol-$id')),
+        matching: find.byType(Text),
+      ),
+    );
+
+    testWidgets('sits under the latency, apart from the name', (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      serverController.servers = const [
+        ServerOption.automatic(),
+        awg,
+        vision,
+        xhttp,
+      ];
+      serverController.selected = awg;
+      await open(tester);
+
+      expect(badge(tester, 'a').data, 'AWG');
+      expect(badge(tester, 'v').data, 'VLESS · Vision');
+      expect(badge(tester, 'x').data, 'VLESS · XHTTP');
+      expect(find.text('Germany'), findsWidgets, reason: 'the name is clean');
+
+      final latency = find.byKey(const ValueKey('server-latency-v'));
+      final label = find.byKey(const ValueKey('server-protocol-v'));
+      expect(
+        tester.getTopLeft(label).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(latency).dy),
+      );
+      expect(tester.getTopRight(label).dx, tester.getTopRight(latency).dx);
+      expect(
+        find.byKey(const ValueKey('server-protocol-auto')),
+        findsNothing,
+        reason: 'automatic is not a server',
+      );
+    });
+
+    testWidgets('aligns AWG and VLESS badges at the same right edge', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      serverController.servers = const [
+        ServerOption.automatic(),
+        awg,
+        vision,
+        xhttp,
+      ];
+      serverController.selected = serverController.servers.first;
+      await open(tester);
+      final awgRight = tester
+          .getTopRight(find.byKey(const ValueKey('server-protocol-a')))
+          .dx;
+      final visionRight = tester
+          .getTopRight(find.byKey(const ValueKey('server-protocol-v')))
+          .dx;
+      final xhttpRight = tester
+          .getTopRight(find.byKey(const ValueKey('server-protocol-x')))
+          .dx;
+      expect(awgRight, closeTo(visionRight, 0.1));
+      expect(xhttpRight, closeTo(visionRight, 0.1));
+    });
+
+    testWidgets('stays when there is no latency to show', (tester) async {
+      serverController.servers = [
+        const ServerOption.automatic(),
+        vision,
+        ServerOption(
+          id: 'u',
+          name: 'Finland',
+          description: 'Helsinki',
+          flag: '🇫🇮',
+          protocol: 'AWG',
+          nodeId: 'u',
+          subscriptionId: 's',
+        ),
+      ];
+      serverController.selected = serverController.servers.first;
+      await open(tester);
+
+      expect(find.byKey(const ValueKey('server-latency-v')), findsNothing);
+      expect(badge(tester, 'v').data, 'VLESS · Vision');
+      expect(badge(tester, 'u').data, 'AWG');
+    });
+
+    testWidgets('is shown for the chosen server too', (tester) async {
+      serverController.servers = const [ServerOption.automatic(), vision];
+      serverController.selected = vision;
+      await pumpHome(tester, locale: const Locale('en'));
+
+      final header = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const ValueKey('selected-server-protocol')),
+          matching: find.byType(Text),
+        ),
+      );
+      expect(header.data, 'VLESS · Vision');
+    });
+
+    testWidgets('is read out without the dot', (tester) async {
+      final semantics = tester.ensureSemantics();
+      serverController.servers = const [ServerOption.automatic(), vision];
+      serverController.selected = serverController.servers.first;
+      await open(tester);
+
+      expect(find.bySemanticsLabel(RegExp('VLESS Vision')), findsWidgets);
+      semantics.dispose();
+    });
+
+    testWidgets('a long name and large text do not push it off a phone', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360 * 3, 780 * 3);
+      tester.view.devicePixelRatio = 3;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      const long = ServerOption(
+        id: 'l',
+        name: 'United States — East Coast, the long way round',
+        description: 'New York, a backup for long routes across the ocean',
+        flag: '🇺🇸',
+        protocol: 'VLESS · XHTTP',
+        latencyMs: 132,
+        nodeId: 'l',
+        subscriptionId: 's',
+      );
+      serverController.servers = const [ServerOption.automatic(), long];
+      serverController.selected = long;
+      await open(tester);
+
+      expect(tester.takeException(), isNull);
+      final label = find.byKey(const ValueKey('server-protocol-l'));
+      expect(tester.getTopRight(label).dx, lessThanOrEqualTo(360));
+      final latency = find.byKey(const ValueKey('server-latency-l'));
+      expect(tester.getTopRight(latency).dx, lessThanOrEqualTo(360));
+    });
+  });
 }
 
 /// The fake catalog, counting what is measured and answering 64 ms.
