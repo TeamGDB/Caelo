@@ -8,6 +8,13 @@ Everything here is done once. None of it can be done by anyone without access to
 the Apple Developer account, which is why it is written down rather than
 automated.
 
+The main macOS release app must retain both sandbox network rights
+(`network.client` and `network.server`): AmneziaWG probes bind UDP sockets
+before the extension starts. The release workflow checks the signed entitlements
+of both components and repeats the check inside the packaged DMG; a successful
+notarisation alone does not prove these runtime permissions. See
+[Apple platform checks](../platform/apple/README.md#macos-udp-rights-in-the-released-app).
+
 ## Why any of this
 
 The project signs manually against a named provisioning profile. On a machine

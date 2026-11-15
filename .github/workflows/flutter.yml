@@ -21,6 +21,9 @@ jobs:
           flutter-version-file: .fvmrc
           cache: true
 
+      - name: Check macOS network entitlement policy
+        run: python3 scripts/check-macos-network-entitlements.py
+
       - run: flutter pub get
 
       - name: Verify the generated localizations are current
@@ -99,6 +102,9 @@ jobs:
           cache: true
 
       - run: flutter pub get
+
+      - name: Prove release network rights allow sandboxed UDP bind
+        run: python3 scripts/check-macos-network-entitlements.py --exercise-bind
 
       - name: Test Apple diagnostics and local-failure monitor
         run: ./scripts/test-apple-diagnostics.sh

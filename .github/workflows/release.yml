@@ -266,6 +266,9 @@ jobs:
 
       - run: ./scripts/build-macos.sh release
 
+      - name: Check signed app and extension network rights
+        run: python3 scripts/check-macos-network-entitlements.py --app build/macos/Build/Products/Release/Caelo.app
+
       # The application is notarised and stapled before it is wrapped, so that
       # the copy inside the disk image carries its own ticket and validates on a
       # machine that is offline the first time it is opened.
@@ -295,6 +298,7 @@ jobs:
           hdiutil attach -quiet -nobrowse -mountpoint /tmp/caelo dist/*.dmg
           spctl --assess --type execute --verbose=2 /tmp/caelo/Caelo.app
           xcrun stapler validate /tmp/caelo/Caelo.app
+          python3 scripts/check-macos-network-entitlements.py --app /tmp/caelo/Caelo.app
           hdiutil detach -quiet /tmp/caelo
 
       - uses: actions/upload-artifact@v7
