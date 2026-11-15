@@ -43,3 +43,30 @@ Run the Foundation-only tests on a Mac with Xcode:
 They cover live/saved export, redaction, bounded concurrent persistence,
 legacy migration, timeout/reply races and local-failure monitoring. The normal
 iOS/macOS builds validate the NetworkExtension and Flutter integration.
+
+
+## macOS UDP rights in the released app
+
+AmneziaWG probes run in the main application before the system extension is
+started. They bind unconnected UDP sockets, so the sandboxed release app needs
+both `com.apple.security.network.client` and `com.apple.security.network.server`.
+The extension having those rights is not enough. Debug builds already had the
+rights and did not exercise the release app's sandbox policy (issue #178).
+
+Read-only checks, without opening sockets or changing a VPN:
+
+```sh
+python3 scripts/check-macos-network-entitlements.py
+python3 scripts/check-macos-network-entitlements.py --app /path/to/Caelo.app
+```
+
+The signed-app check inspects both the app and its embedded system extension.
+The packaging workflow runs it before notarisation and against the app inside
+the final DMG. Missing rights stop publication.
+
+The macOS CI job also runs `--exercise-bind`: a small ad-hoc-signed sandboxed
+program binds an ephemeral UDP port and closes it without sending packets.
+A control signed without `network.server` must fail with EPERM; the release
+network rights must allow the bind. The script refuses to run this experiment
+outside a macOS GitHub Actions runner. It never creates a VPN or changes routes,
+DNS or firewall settings.

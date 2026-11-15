@@ -6,6 +6,10 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- AWG probes bind unconnected UDP sockets in the app before the
+	     system extension starts. Outgoing TCP permission alone is not enough. -->
+	<key>com.apple.security.network.server</key>
+	<true/>
 	<key>com.apple.developer.system-extension.install</key>
 	<true/>
 	<key>com.apple.developer.networking.networkextension</key>
