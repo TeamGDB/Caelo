@@ -133,6 +133,17 @@ type Tunnel interface {
 	Close()
 }
 
+// TunnelDiagnostics contains only operational counters and a permanent local
+// failure. Silence or a failed remote probe is not a permanent device failure.
+type TunnelDiagnostics struct {
+	Failure  string            `json:"failure,omitempty"`
+	Counters map[string]uint64 `json:"counters,omitempty"`
+}
+
+type DiagnosticTunnel interface {
+	Diagnostics() TunnelDiagnostics
+}
+
 var (
 	mu        sync.RWMutex
 	protocols = map[string]Protocol{}

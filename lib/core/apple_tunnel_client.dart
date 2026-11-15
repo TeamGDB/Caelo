@@ -65,6 +65,25 @@ class AppleTunnelClient implements TunnelClient {
       _ => TunnelPhase.disconnected,
     };
 
+    if (_current.failure == TunnelFailure.packetTransportStopped) {
+      if (phase == TunnelPhase.connecting) return;
+      if (phase == TunnelPhase.connected) {
+        // A duplicate OS notification must not hide a failed bridge, but a
+        // genuine restart from Settings may already have a healthy new one.
+        final previous = _current;
+        String? reply;
+        try {
+          reply = await _channel.invokeMethod<String>('tunnelStatus');
+        } on Object {
+          return;
+        }
+        if (!identical(_current, previous) ||
+            _statusPayload(reply)?['up'] != true ||
+            localFailureIn(reply) != null) {
+          return;
+        }
+      }
+    }
     Diagnostics.record('system reports the tunnel is $phase');
 
     _emit(
@@ -133,7 +152,42 @@ class AppleTunnelClient implements TunnelClient {
   Future<int?> latency() async {
     if (_current.phase != TunnelPhase.connected) return null;
     final reply = await _channel.invokeMethod<String>('tunnelStatus');
+    if (_current.phase != TunnelPhase.connected) return null;
+    final failure = localFailureIn(reply);
+    if (failure != null) {
+      Diagnostics.record(
+        'local packet transport stopped; capture retained',
+        error: failure,
+      );
+      _emit(
+        TunnelStatus(
+          phase: TunnelPhase.failed,
+          node: _endpoint,
+          protocol: _protocol,
+          failure: TunnelFailure.packetTransportStopped,
+        ),
+      );
+      return null;
+    }
     return latencyIn(reply);
+  }
+
+  static Map<String, dynamic>? _statusPayload(String? reply) {
+    if (reply == null || reply.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(reply);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
+  @visibleForTesting
+  static String? localFailureIn(String? reply) {
+    final details = _statusPayload(reply)?['diagnostics'];
+    if (details is! Map<String, dynamic>) return null;
+    final failure = details['failure'];
+    return failure is String && failure.isNotEmpty ? failure : null;
   }
 
   /// The figure in the extension's status reply, or null.
@@ -162,6 +216,14 @@ class AppleTunnelClient implements TunnelClient {
   ///
   /// The two share no memory, so this is the only way the interface can show
   /// what the handshake did.
+  static Future<void> clearExtensionLog() async {
+    try {
+      await _channel.invokeMethod<void>('clearLog');
+    } on Object {
+      // An older host may not implement this yet.
+    }
+  }
+
   static Future<List<String>> extensionLog() async {
     try {
       final reply = await _channel.invokeMethod<String>('log');

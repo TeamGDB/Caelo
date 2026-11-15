@@ -22,6 +22,7 @@
 		9C7EEF335DCF9A6240F235A2 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 985EDC06EFFE9C8B1351111F /* Foundation.framework */; };
 		BE26F8AD90FD4602F4C2B4FB /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 487F8255DB431B1CF57504A0 /* Pods_Runner.framework */; };
 		C9D28C246886A263F9EE570C /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F1419D8567ADABB84EE2E558 /* Pods_RunnerTests.framework */; };
+		F3EA6223B97D8D229CDEC4C1 /* TunnelLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = C950A51451F53606F51DD825 /* TunnelLog.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -492,6 +493,7 @@
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,
 				141F8B80CF0E28546BF387D1 /* VpnManager.swift in Sources */,
+				F3EA6223B97D8D229CDEC4C1 /* TunnelLog.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

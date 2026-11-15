@@ -10,3 +10,36 @@ the descriptor over.
 It lives here rather than in either Xcode project because both reference it.
 Two copies of a file this fiddly would disagree within a week, and the one that
 disagreed would be whichever platform was tested less.
+
+
+## Runtime failure and diagnostics
+
+A local health monitor reads `caelo_diagnostics_fd` every two seconds, including
+while the app is in the background. It records a confirmed packet-bridge failure
+once. It does not cancel the provider or remove capture routes: traffic remains
+blocked until an explicit disconnect. The app reads the failure in live status,
+shows an explanation and makes the main button **Disconnect**. It does not
+silently retry other servers or release traffic outside the VPN.
+
+Log export requests live core lines and a local status snapshot over provider
+IPC. A two-second timeout falls back to persisted lifecycle history, with the
+source marked in the report. Old extensions remain readable. Replies race
+safely with their timeout; snapshots preserve original core timestamps and
+remove duplicates. Clearing diagnostics clears the extension's ring and file.
+
+The bounded file is now `Library/Caches/Caelo/tunnel.log` inside the app group,
+where developer file tools can read it. Existing root-level `tunnel.log` is read
+as a migration fallback and removed after a successful write to the new path.
+The app and extension share the same storage/formatting implementation.
+Credentials and subscription/VLESS links are redacted again before persistence
+and export; structured snapshots use an allowlist of operational fields.
+
+Run the Foundation-only tests on a Mac with Xcode:
+
+```sh
+./scripts/test-apple-diagnostics.sh
+```
+
+They cover live/saved export, redaction, bounded concurrent persistence,
+legacy migration, timeout/reply races and local-failure monitoring. The normal
+iOS/macOS builds validate the NetworkExtension and Flutter integration.

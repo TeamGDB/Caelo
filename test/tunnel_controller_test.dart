@@ -46,6 +46,33 @@ void main() {
     expect(notifications, 1);
   });
 
+  test('local failure keeps capture until the explicit disconnect', () async {
+    final localClient = FakeTunnelClient();
+    var prepared = 0;
+    final localController = TunnelController(
+      localClient,
+      prepare: (_, _) async {
+        prepared++;
+        return const PreparedConnection.ready('unused', retryable: true);
+      },
+    );
+    addTearDown(localController.dispose);
+    localClient.emit(
+      const TunnelStatus(
+        phase: TunnelPhase.failed,
+        failure: TunnelFailure.packetTransportStopped,
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+    expect(localClient.calls, isEmpty);
+    expect(prepared, 0);
+    localController.dismissFailure();
+    expect(localController.value.failure, TunnelFailure.packetTransportStopped);
+    await localController.toggle();
+    expect(localClient.calls, ['disconnect']);
+    expect(prepared, 0);
+  });
+
   group('toggle', () {
     Future<void> toggleFrom(TunnelPhase phase) async {
       client.emit(TunnelStatus(phase: phase));

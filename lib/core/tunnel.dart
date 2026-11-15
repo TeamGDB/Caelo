@@ -23,6 +23,10 @@ enum TunnelPhase {
 /// locale — they run below the interface — and a English sentence handed upwards
 /// would appear untranslated in a Russian window.
 enum TunnelFailure {
+  /// The local packet bridge stopped. Capture remains installed until the
+  /// person disconnects; do not turn this into automatic server failover.
+  packetTransportStopped,
+
   /// The privileged service is older than this application. It is replaced by
   /// installing, so the remedy is to reinstall Caelo.
   serviceOlderThanApp,

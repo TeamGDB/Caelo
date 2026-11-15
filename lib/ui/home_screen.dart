@@ -28,7 +28,10 @@ class HomeScreen extends StatelessWidget {
       TunnelPhase.connecting => l10n.statusConnecting,
       TunnelPhase.connected => l10n.statusConnected,
       TunnelPhase.disconnecting => l10n.statusDisconnecting,
-      TunnelPhase.failed => l10n.statusFailed,
+      TunnelPhase.failed =>
+        status.failure == TunnelFailure.packetTransportStopped
+            ? l10n.disconnect
+            : l10n.statusFailed,
     };
 
     return CupertinoPageScaffold(
@@ -59,7 +62,9 @@ class HomeScreen extends StatelessWidget {
                               ? null
                               : controller.toggle,
                           semanticLabel:
-                              status.phase == TunnelPhase.connected ||
+                              status.failure ==
+                                      TunnelFailure.packetTransportStopped ||
+                                  status.phase == TunnelPhase.connected ||
                                   status.phase == TunnelPhase.connecting
                               ? l10n.disconnect
                               : l10n.connect,
@@ -161,6 +166,7 @@ String? _explain(
   AppLocalizations l10n, [
   String? removedName,
 ]) => switch (failure) {
+  TunnelFailure.packetTransportStopped => l10n.packetTransportStopped,
   TunnelFailure.serviceOlderThanApp => l10n.serviceOlderThanApp,
   TunnelFailure.appOlderThanService => l10n.appOlderThanService,
   TunnelFailure.noServers => l10n.noServers,

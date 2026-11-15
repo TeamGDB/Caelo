@@ -100,6 +100,9 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Test Apple diagnostics and local-failure monitor
+        run: ./scripts/test-apple-diagnostics.sh
+
       # Unsigned. The app now embeds a system extension, and signing one needs
       # a Developer ID certificate this pipeline has no business holding. What
       # is being checked is that it compiles and that the core ends up inside.

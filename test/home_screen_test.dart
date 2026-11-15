@@ -81,6 +81,27 @@ void main() {
     await tester.pump();
   }
 
+  testWidgets(
+    'local packet failure offers disconnect and explains retained capture',
+    (tester) async {
+      client.emit(
+        const TunnelStatus(
+          phase: TunnelPhase.failed,
+          failure: TunnelFailure.packetTransportStopped,
+        ),
+      );
+      await pumpHome(tester, locale: const Locale('ru'));
+      expect(find.text('Отключить'), findsOneWidget);
+      expect(
+        find.textContaining('До отключения трафик остаётся заблокированным'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byType(PowerButton));
+      await tester.pump();
+      expect(client.calls, ['disconnect']);
+    },
+  );
+
   testWidgets('the open list says what it cannot show (#172)', (tester) async {
     serverController.notes = const [
       SubscriptionNote.empty(title: 'Home'),

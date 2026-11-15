@@ -445,5 +445,6 @@
         "type": "String"
       }
     }
-  }
+  },
+  "packetTransportStopped": "VPN traffic has stopped. Disconnect, then connect again. Traffic stays blocked until you disconnect."
 }

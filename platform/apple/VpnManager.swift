@@ -112,13 +112,15 @@ final class VpnManager {
         case "tunnelStatus":
             ask("status", result)
 
-        // Everything the tunnel knows lives in the other process. This is the
-        // only way to see it.
-        // Read from the shared container rather than asked for, so it works
-        // when the extension has already been stopped -- which is exactly when
-        // the question is worth asking.
+        // Live core history while connected, persisted history after a crash/stop.
         case "log":
-            result(Self.sharedLog())
+            ask("diagnostics") { live in
+                result(TunnelReport.render(saved: TunnelLog.read(), live: live))
+            }
+
+        case "clearLog":
+            TunnelLog.clear()
+            ask("clearLog") { _ in result(nil) }
 
         default:
             result(FlutterMethodNotImplemented)
@@ -171,35 +173,19 @@ final class VpnManager {
         }
     }
 
-    /// What the extension wrote down, from the container they share.
-    private static func sharedLog() -> String? {
-        guard let url = FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: "group.team.gdb.caelo")?
-            .appendingPathComponent("tunnel.log") else { return nil }
-        return try? String(contentsOf: url, encoding: .utf8)
-    }
-
     /// Asks the extension something and hands back whatever it says.
-    private func ask(_ message: String, _ result: @escaping FlutterResult) {
+    private func ask(_ message: String, _ result: @escaping (String?) -> Void) {
+        let reply = TunnelReply { text in DispatchQueue.main.async { result(text) } }
+        // A stalled extension must not stall export or leave a latency request in flight forever.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { reply.finish(nil) }
         load { manager in
             guard let session = manager?.connection as? NETunnelProviderSession,
-                  manager?.connection.status != .invalid else {
-                result(nil)
-                return
-            }
+                  manager?.connection.status != .invalid else { reply.finish(nil); return }
             do {
-                try session.sendProviderMessage(Data(message.utf8)) { reply in
-                    // The reply arrives on a queue of the system's choosing,
-                    // and a Flutter result has to be delivered on the main
-                    // thread.
-                    let text = reply.flatMap { String(data: $0, encoding: .utf8) }
-                    DispatchQueue.main.async { result(text) }
+                try session.sendProviderMessage(Data(message.utf8)) { data in
+                    reply.finish(data.flatMap { String(data: $0, encoding: .utf8) })
                 }
-            } catch {
-                // The extension is not running, which is an ordinary state
-                // rather than an error: there is simply nothing to say yet.
-                result(nil)
-            }
+            } catch { reply.finish(nil) }
         }
     }
 

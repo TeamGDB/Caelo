@@ -34,11 +34,13 @@ import (
 
 // Status describes a live tunnel.
 type Status struct {
-	Up         bool   `json:"up"`
-	Endpoint   string `json:"endpoint,omitempty"`
-	Protocol   string `json:"protocol,omitempty"`
-	Obfuscated bool   `json:"obfuscated,omitempty"`
-	SinceUnix  int64  `json:"since_unix,omitempty"`
+	Diagnostics *protocol.TunnelDiagnostics `json:"diagnostics,omitempty"`
+	Variant     string                      `json:"variant,omitempty"`
+	Up          bool                        `json:"up"`
+	Endpoint    string                      `json:"endpoint,omitempty"`
+	Protocol    string                      `json:"protocol,omitempty"`
+	Obfuscated  bool                        `json:"obfuscated,omitempty"`
+	SinceUnix   int64                       `json:"since_unix,omitempty"`
 
 	// HandshakeUnix is when the peer last answered. A live session
 	// re-handshakes at least every two minutes, so an old one means the
@@ -164,6 +166,7 @@ func (s *Session) startRegistered(fd int, node protocol.Config) (*Status, error)
 		Up:        true,
 		Endpoint:  description.Endpoint,
 		Protocol:  description.Label,
+		Variant:   description.Variant,
 		SinceUnix: time.Now().Unix(),
 	}
 	status := s.status
@@ -276,6 +279,11 @@ func (s *Session) Status() Status {
 	tunnel := s.tunnel
 	s.mu.Unlock()
 	if tunnel != nil {
+		status = localDiagnostics(status, tunnel)
+		if !status.Up {
+			return status
+		}
+
 		// No live round trip: packets end at Xray's own stack on this
 		// device, so a SYN is answered here rather than by anything far
 		// away, and timing it would time nothing.
@@ -290,6 +298,26 @@ func (s *Session) Status() Status {
 			if at := handshake.Parse(uapi); !at.IsZero() {
 				status.HandshakeUnix = at.Unix()
 			}
+		}
+	}
+	return status
+}
+
+// Diagnostics reads local state only. An extension health timer must not
+// turn every quiet tunnel into periodic background reachability requests.
+func (s *Session) Diagnostics() Status {
+	s.mu.Lock()
+	status, tunnel := s.status, s.tunnel
+	s.mu.Unlock()
+	return localDiagnostics(status, tunnel)
+}
+func localDiagnostics(status Status, tunnel protocol.Tunnel) Status {
+	if inspected, ok := tunnel.(protocol.DiagnosticTunnel); ok {
+		snapshot := inspected.Diagnostics()
+		status.Diagnostics = &snapshot
+		if snapshot.Failure != "" {
+			status.Up = false
+			status.HandshakeUnix = 0
 		}
 	}
 	return status

@@ -456,4 +456,8 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0 ($reasons).';
   }
+
+  @override
+  String get packetTransportStopped =>
+      'VPN traffic has stopped. Disconnect, then connect again. Traffic stays blocked until you disconnect.';
 }
