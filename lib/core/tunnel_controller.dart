@@ -235,7 +235,11 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
       case TunnelPhase.disconnecting:
         return Future.value();
       case TunnelPhase.disconnected:
+        return _connect();
       case TunnelPhase.failed:
+        if (value.failure == TunnelFailure.packetTransportStopped) {
+          return _client.disconnect();
+        }
         return _connect();
     }
   }
@@ -310,7 +314,8 @@ class TunnelController extends ValueNotifier<TunnelStatus> {
   /// Back to "Connect" after a failure, when the person has changed what they
   /// are connecting to: the note was about the server that failed (#125).
   void dismissFailure() {
-    if (value.phase == TunnelPhase.failed) {
+    if (value.phase == TunnelPhase.failed &&
+        value.failure != TunnelFailure.packetTransportStopped) {
       value = const TunnelStatus.disconnected();
     }
   }

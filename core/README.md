@@ -101,6 +101,24 @@ Tests exercise real Xray exits with IPv6 enabled and blocked, certificate checks
 cancellation, packet framing and checksums, plus a complete hosted FD path using
 an in-process client network stack without touching the host's routes.
 
+### Packet pressure and hosted diagnostics
+
+The Apple IPv6 guard uses bounded Unix datagram queues. Temporary ENOBUFS,
+EAGAIN or EINTR writes get at most four attempts with 1/2/4 ms waits; sustained
+pressure drops that packet while keeping the bridge alive. Closing interrupts
+the wait. This is packet loss under congestion, not an unbounded queue or a
+restart of every connection. Permanent local errors preserve the first cause.
+
+`caelo_diagnostics_fd` returns local state without triggering reachability
+requests. `diagnostics.counters` contains packet counts in both directions,
+IPv6 filtering, temporary write pressure, dropped packets and last activity.
+It never contains packet payloads, target URLs or credentials. A permanent
+`diagnostics.failure` also makes `up` false; a quiet server or queue pressure
+alone does not. The existing status call still supplies its live measurements.
+
+See [issue #176](https://github.com/TeamGDB/Caelo/issues/176) and the
+[change journal](../docs/change-journal/0033-ios-packet-pressure-and-diagnostics.md).
+
 ## Layout
 
 | Path | What it is |

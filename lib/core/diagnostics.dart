@@ -143,6 +143,10 @@ abstract final class Diagnostics {
   }
 
   static Future<void> clear() async {
+    if (AppleTunnelClient.isSupported) {
+      await AppleTunnelClient.clearExtensionLog();
+      _extensionLines = const [];
+    }
     _lines.clear();
     try {
       CoreLibrary.clearLog();

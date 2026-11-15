@@ -21,23 +21,28 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     // os_log rather than Logger: the latter is iOS 14 in an app extension, and
     // raising the deployment target for a logging call would drop iOS 13
     // devices from the tunnel to gain nothing.
+    private let healthMonitor = TunnelHealthMonitor()
+
     private let log = OSLog(subsystem: "team.gdb.caelo", category: "tunnel")
 
     // Both, deliberately. os_log is for anyone with the device attached to a
     // Mac; the file is for everyone else, and it is the one that survives this
     // process being stopped.
     private func note(_ message: String) {
-        os_log("%{public}@", log: log, type: .info, message)
-        TunnelLog.note(message)
+        let safe = TunnelReport.redact(message)
+        os_log("%{public}@", log: log, type: .info, safe)
+        TunnelLog.note(safe)
     }
 
     private func fault(_ message: String) {
-        os_log("%{public}@", log: log, type: .error, message)
-        TunnelLog.note("error: \(message)")
+        let safe = TunnelReport.redact(message)
+        os_log("%{public}@", log: log, type: .error, safe)
+        TunnelLog.note("error: \(safe)")
     }
 
     override func startTunnel(options: [String: NSObject]?) async throws {
         TunnelLog.begin()
+        _ = call { caelo_clear_log() }
         note("startTunnel")
 
         guard let config = configuration() else {
@@ -99,19 +104,30 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         note("tunnel up")
 
-        // The core's own account of the handshake, folded into the same file so
-        // that one thing survives the process rather than two.
+        snapshot("started")
+        healthMonitor.start(read: { [weak self] in self?.call { caelo_diagnostics_fd() } }) { [weak self] reason in
+            guard let self else { return }
+            self.fault("local packet transport failed: \(reason)")
+            self.snapshot("local failure")
+            // Keep capture routes until an explicit disconnect: ending the
+            // provider here would let background traffic leave without VPN.
+            self.note("capture retained until explicit disconnect")
+        }
+    }
+
+    private func snapshot(_ reason: String) {
+        if let status = call({ caelo_diagnostics_fd() }) { note("state (\(reason)): \(TunnelReport.summary(status))") }
         if let core = call({ caelo_log() }), let lines = core["lines"] as? [String] {
-            lines.suffix(60).forEach { TunnelLog.note("core \($0)") }
+            TunnelLog.core(Array(lines.suffix(60)))
         }
     }
 
     override func stopTunnel(with reason: NEProviderStopReason) async {
+        healthMonitor.stop()
         note("stopping, reason \(reason.rawValue)")
-        if let core = call({ caelo_log() }), let lines = core["lines"] as? [String] {
-            lines.suffix(60).forEach { TunnelLog.note("core \($0)") }
-        }
+        snapshot("stopping")
         _ = call { caelo_disconnect_fd() }
+        snapshot("stopped")
     }
 
     /// Answers the app. The app and this process share no memory, so anything
@@ -120,6 +136,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         guard let request = String(data: data, encoding: .utf8) else { return nil }
 
         switch request {
+        case "diagnostics":
+            let core = call { caelo_log() }
+            let status = call { caelo_diagnostics_fd() }
+            return try? JSONSerialization.data(withJSONObject: ["lines": core?["lines"] as? [String] ?? [], "status": status ?? [:]])
+        case "clearLog":
+            _ = call { caelo_clear_log() }
+            TunnelLog.clear()
+            return Data("ok".utf8)
         case "log":
             guard let payload = call({ caelo_log() }) else { return nil }
             return try? JSONSerialization.data(withJSONObject: payload)

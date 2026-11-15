@@ -5,6 +5,7 @@ package vless
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -106,5 +107,51 @@ func TestIPv6GuardPreservesPacketsAndCloses(t *testing.T) {
 				t.Fatal("normal close marked as failure")
 			}
 		})
+	}
+}
+
+func TestGuardPermanentFailureKeepsFirstCause(t *testing.T) {
+	_, tun := socketFiles(t)
+	raw, err := newIPv6Guard(int(tun.Fd()), 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := raw.(*fdGuard)
+	g.stop(errors.New("test local descriptor failure"))
+	g.stop(errors.New("secondary close wakeup"))
+	g.Close()
+	if got := g.Diagnostics().Failure; got != "test local descriptor failure" {
+		t.Fatalf("first cause lost: %q", got)
+	}
+	if !g.Failed() {
+		t.Fatal("fatal failure was hidden")
+	}
+}
+
+func TestTransportCleanupOnlyForPermanentGuardFailure(t *testing.T) {
+	for _, fatal := range []bool{false, true} {
+		_, tun := socketFiles(t)
+		raw, err := newIPv6Guard(int(tun.Fd()), 4)
+		if err != nil {
+			t.Fatal(err)
+		}
+		guard := raw.(*fdGuard)
+		called := false
+		done := make(chan struct{})
+		go func() { closeOnGuardFailure(guard, func() { called = true }); close(done) }()
+		if fatal {
+			guard.stop(errors.New("permanent device failure"))
+		} else {
+			guard.Close()
+		}
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("transport cleanup did not finish")
+		}
+		guard.Close()
+		if called != fatal {
+			t.Fatalf("closed=%v fatal=%v", called, fatal)
+		}
 	}
 }

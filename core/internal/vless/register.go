@@ -198,6 +198,7 @@ func (c *config) Attach(fd int, mtu int) (_ protocol.Tunnel, resultErr error) {
 	var tunnel protocol.Tunnel = in
 	if guard != nil {
 		tunnel = &guardedTunnel{instance: in, guard: guard}
+		go closeOnGuardFailure(guard, in.Close)
 	}
 	if runtime.GOOS == "android" {
 		return &ownedFd{Tunnel: tunnel, fd: originalFD}, nil
@@ -237,4 +238,11 @@ func (c *config) Create(name string, mtu int) (protocol.Tunnel, string, error) {
 		return nil, "", err
 	}
 	return in, name, nil
+}
+
+func (o *ownedFd) Diagnostics() protocol.TunnelDiagnostics {
+	if t, ok := o.Tunnel.(protocol.DiagnosticTunnel); ok {
+		return t.Diagnostics()
+	}
+	return protocol.TunnelDiagnostics{}
 }

@@ -889,6 +889,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 server is not shown: this version of Caelo cannot run it} other{{count} servers are not shown: this version of Caelo cannot run them}} ({reasons}).'**
   String subscriptionSkipped(int count, String reasons);
+
+  /// No description provided for @packetTransportStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'VPN traffic has stopped. Disconnect, then connect again. Traffic stays blocked until you disconnect.'**
+  String get packetTransportStopped;
 }
 
 class _AppLocalizationsDelegate

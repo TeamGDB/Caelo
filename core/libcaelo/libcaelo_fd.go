@@ -76,3 +76,10 @@ func caelo_disconnect_fd() *C.char {
 func caelo_status_fd() *C.char {
 	return success(hosted.Status())
 }
+
+// caelo_diagnostics_fd reports local counters/failure without a network probe.
+//
+//export caelo_diagnostics_fd
+func caelo_diagnostics_fd() *C.char {
+	return success(hosted.Diagnostics())
+}

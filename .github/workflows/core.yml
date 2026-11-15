@@ -77,6 +77,9 @@ jobs:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
 
+      - name: Test Darwin packet pressure and hosted diagnostics
+        run: go test -race ./internal/vless ./internal/fdtun
+
       # Universal. A dylib built only for the host would fail to load on the
       # other architecture, and it would fail at the user rather than here.
       - name: Build the macOS library and commands

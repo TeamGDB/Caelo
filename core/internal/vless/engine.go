@@ -37,6 +37,7 @@ import (
 	_ "github.com/xtls/xray-core/transport/internet/tls"
 
 	"github.com/TeamGDB/Caelo/core/internal/diag"
+	"github.com/TeamGDB/Caelo/core/internal/protocol"
 )
 
 // instance is one running Xray with the one outbound a link describes.
@@ -253,4 +254,12 @@ func scrub(err error, link *Link) error {
 		return err
 	}
 	return errors.New(pattern.ReplaceAllString(message, "<redacted>"))
+}
+
+func (in *instance) Diagnostics() protocol.TunnelDiagnostics {
+	counters := map[string]uint64{"last_reply_unix_ms": uint64(in.alive.Load() / int64(time.Millisecond)), "last_probe_unix_ms": uint64(in.proved.Load() / int64(time.Millisecond))}
+	if in.downlink != nil {
+		counters["outbound_downlink_bytes"] = uint64(in.downlink.Value())
+	}
+	return protocol.TunnelDiagnostics{Counters: counters}
 }

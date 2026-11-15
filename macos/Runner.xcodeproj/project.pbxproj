@@ -34,6 +34,7 @@
 		A62133565EB9B0C4B8C73CF9 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D20A5F092F9CBB1C3354855 /* PacketTunnelProvider.swift */; };
 		BACC21B2716218B94AEAE2E6 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0E9051829834B9F3CC730D9E /* Cocoa.framework */; };
 		BD5EDAC351840E91349B420B /* VpnManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9DADFA27AFA2DA4CF02BB74 /* VpnManager.swift */; };
+		BE20166C3EFD21B1D516326D /* TunnelLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1893CDAF92124C652EC65B0B /* TunnelLog.swift */; };
 		DAF8E105E635E691E4EFDB9E /* team.gdb.caelo.SystemExtension.systemextension in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 80612124908753B213A8F163 /* team.gdb.caelo.SystemExtension.systemextension */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		EBF5E6484CEC0B4423499903 /* TunnelLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1893CDAF92124C652EC65B0B /* TunnelLog.swift */; };
 /* End PBXBuildFile section */
@@ -549,6 +550,7 @@
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
 				BD5EDAC351840E91349B420B /* VpnManager.swift in Sources */,
 				213378AA5AEEDC14E7B3A85D /* Updater.swift in Sources */,
+				BE20166C3EFD21B1D516326D /* TunnelLog.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

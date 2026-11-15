@@ -453,4 +453,8 @@ class AppLocalizationsRu extends AppLocalizations {
     );
     return '$_temp0 ($reasons).';
   }
+
+  @override
+  String get packetTransportStopped =>
+      'Передача в VPN остановилась. Отключите VPN и подключитесь снова. До отключения трафик остаётся заблокированным.';
 }
